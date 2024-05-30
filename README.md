@@ -12,7 +12,7 @@ Python-based framework for reservoir engineering.
 * reservoir representation with Grid, Rock, States, Wells, Aquifer and PVT-tables components
 * interactive 3D visualization
 * reservoir preprocessing tools
-* detailed [documentation]()
+* detailed [documentation](https://deepfield-team.github.io/DeepField/)
 * [tutorials](/tutorials) to explore the framework step-by-step
 
 
@@ -44,7 +44,7 @@ Load a reservoir model from `.DATA` file:
 ```
 
 See the [tutorials](./tutorials) to explore the framework step-by-step
-and the [documentation](https://deepfield-team.github.io/DeepField) for more details.
+and the [documentation](https://deepfield-team.github.io/DeepField/) for more details.
 
 
 ## Model formats
