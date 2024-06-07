@@ -1,6 +1,6 @@
-Required: `docker`, `nvidia-docker2`
+Required: `docker`
 
-**All commands must be run from the parent (DeepField) folder** 
+**All commands must be run from the DeepField/docker folder** 
 
 ## Building docker image
 
@@ -8,25 +8,12 @@ Required: `docker`, `nvidia-docker2`
 
 To build docker image run the command:
 
-    docker build -t <tag> Dockerfile .
+    docker build -t <tag> .
 
 ## Running docker container
 
 *run_name* - is name for container born by image
 
-#### For docker `version < 19.03`:
-
-Run docker container without jupyter notebook access and no shared folders using:
-* `docker run -it --rm --name=<run_name> <tag>`
-
-Run docker container without jupyter notebook access but share a folder:
-* `docker run -v <host dir>:<docker dir> -it --rm --name=run_name <tag>`
-
-Run docker container with jupyter notebook access and shared folder:
-* `docker run -p <host port>:8888 -v <host dir>:<docker dir> -it --rm --name=run_name <tag>`
-
-
-#### For docker `version >= 19.03`:
 Run docker container without jupyter notebook access and no shared folders using:
 * `docker run -it --rm --name=<run_name> <tag>`
 
