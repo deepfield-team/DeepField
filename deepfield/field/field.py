@@ -14,6 +14,7 @@ import pandas as pd
 import pyvista as pv
 from anytree import PreOrderIter
 
+from .arithmetics import load_add, load_copy, load_equals, load_multiply
 from .aquifer import Aquifers
 from .base_spatial import SpatialComponent
 from .configs import default_config
@@ -137,7 +138,8 @@ class Field:
             self._logger.info('Using default config.')
             config = {k.lower(): self._config_parser(v) for k, v in default_config.items()}
 
-        self._components = {COMPONENTS_DICT[k][0]: COMPONENTS_DICT[k][1]() for k in config}
+        for k in config:
+            setattr(self, COMPONENTS_DICT[k][0], COMPONENTS_DICT[k][1]())
         self._config = {COMPONENTS_DICT[k][0]: v for k, v in config.items()}
 
     @staticmethod
@@ -215,6 +217,7 @@ class Field:
     @grid.setter
     def grid(self, x):
         """Grid component setter."""
+        x.set_field(self)
         self._components['grid'] = x
         return self
 
@@ -226,6 +229,7 @@ class Field:
     @wells.setter
     def wells(self, x):
         """Wells component setter."""
+        x.set_field(self)
         self._components['wells'] = x
         return self
 
@@ -237,6 +241,7 @@ class Field:
     @rock.setter
     def rock(self, x):
         """Rock component setter."""
+        x.set_field(self)
         self._components['rock'] = x
         return self
 
@@ -248,6 +253,7 @@ class Field:
     @states.setter
     def states(self, x):
         """States component setter."""
+        x.set_field(self)
         self._components['states'] = x
         return self
 
@@ -259,6 +265,7 @@ class Field:
     @aquifers.setter
     def aquifers(self, x):
         """States component setter."""
+        x.set_field(self)
         self._components['aquifers'] = x
         return self
 
@@ -270,6 +277,7 @@ class Field:
     @tables.setter
     def tables(self, x):
         """Tables component setter."""
+        x.set_field(self)
         self._components['tables'] = x
         return self
 
@@ -509,6 +517,10 @@ class Field:
                   'RESTARTDATE']:
             loaders[k] = partial(self._read_buffer, attr=k, logger=self._logger)
 
+        loaders['COPY'] = partial(load_copy, self, logger=self._logger)
+        loaders['MULTIPLY'] = partial(load_multiply, self, logger=self._logger)
+        loaders['EQUALS'] = partial(load_equals, self, logger=self._logger)
+        loaders['ADD'] = partial(load_add, self, logger=self._logger)
         for comp, conf in config.items():
             if conf['attrs'] is not None:
                 attrs = list(set(conf['attrs']) - set(getattr(self, comp).attributes))
@@ -1107,7 +1119,7 @@ class Field:
             PyVista theme, e.g. 'default', 'dark', 'document', 'ParaView'.
             See https://docs.pyvista.org/examples/02-plot/themes.html for more options.
         show_edges: bool
-            Shows the edges of a mesh. Default True. 
+            Shows the edges of a mesh. Default True.
         show_labels: bool
             Show x, y, z axis labels. Default True.
         """

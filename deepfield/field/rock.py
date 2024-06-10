@@ -23,8 +23,10 @@ class Rock(SpatialComponent):
                 setattr(self, k, sections[k])
 
     @apply_to_each_input
-    def _to_spatial(self, attr, dimens, inplace):
+    def _to_spatial(self, attr, dimens=None, inplace=True):
         """Spatial order 'F' transformations."""
+        if dimens is None:
+            dimens = self._field().grid.dimens
         return self.reshape(attr=attr, newshape=dimens, order='F', inplace=inplace)
 
     def _make_data_dump(self, attr, fmt=None, float_dtype=None, **kwargs):
