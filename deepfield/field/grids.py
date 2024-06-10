@@ -105,20 +105,21 @@ class Grid(SpatialComponent):
         data = getattr(self, attr)
         if self.state.spatial:
             return self if inplace else data
-        if attr == 'ACTNUM':
-            data = data.reshape(self.dimens, order='F')
-        elif attr == 'COORD':
-            nx, ny, nz = self.dimens
-            data = data.reshape(-1, 6)
-            data = data.reshape((nx + 1, ny + 1, 6), order='F')
-        elif attr == 'ZCORN':
-            nx, ny, nz = self.dimens
-            data = data.reshape((2, nx, 2, ny, 2, nz), order='F')
-            data = np.moveaxis(data, range(6), (3, 0, 4, 1, 5, 2))
-            data = data.reshape((nx, ny, nz, 8), order='F')
-        if inplace:
-            setattr(self, attr, data)
-            return self
+        if data.ndim == 1:
+            if attr == 'ACTNUM':
+                data = data.reshape(self.dimens, order='F')
+            elif attr == 'COORD':
+                nx, ny, nz = self.dimens
+                data = data.reshape(-1, 6)
+                data = data.reshape((nx + 1, ny + 1, 6), order='F')
+            elif attr == 'ZCORN':
+                nx, ny, nz = self.dimens
+                data = data.reshape((2, nx, 2, ny, 2, nz), order='F')
+                data = np.moveaxis(data, range(6), (3, 0, 4, 1, 5, 2))
+                data = data.reshape((nx, ny, nz, 8), order='F')
+            if inplace:
+                setattr(self, attr, data)
+                return self
         return data
 
     @apply_to_each_input
