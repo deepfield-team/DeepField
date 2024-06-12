@@ -9,6 +9,8 @@ import h5py
 from anytree import (RenderTree, AsciiStyle, Resolver, PreOrderIter, PostOrderIter,
                      find_by_attr)
 
+from .parse_utils.ascii import INT_NAN
+
 from .well_segment import WellSegment
 from .rates import calculate_cf, show_rates, show_rates2, show_blocks_dynamics
 from .grids import OrthogonalUniformGrid
@@ -392,9 +394,6 @@ class Wells(BaseComponent):
                 raise ValueError('LGRs other than `Global` are not supported.')
             df = segment.COMPDATL[['I', 'J', 'K1', 'K2']].drop_duplicates().sort_values(['K1', 'K2'])
 
-        if df[['I', 'J']].isna().values.any():
-            df['I'] = df['I'].fillna(segment.WELSPECS['I'])
-            df['J'] = df['J'].fillna(segment.WELSPECS['J'])
         i0, j0 = segment.WELSPECS[['I', 'J']].values[0]
         i0 = i0 if i0 is not None else 0
         j0 = j0 if j0 is not None else 0
@@ -1094,6 +1093,15 @@ class Wells(BaseComponent):
                     if isinstance(data, pd.DataFrame):
                         data.to_hdf(path, key='/'.join([self.class_name, node.fullname,
                                                         'data', att]), mode='a')
+        return self
+    @apply_to_each_segment
+    def fill_na(self, segment, attr):
+        if attr in segment.attributes:
+            data = getattr(segment, attr)
+            welspecs = segment.welspecs
+            if set(('I', 'J')).issubset(set(data.columns)):
+               data['I'] = data['I'].replace(INT_NAN, welspecs['I'].values[0])
+               data['J'] = data['J'].replace(INT_NAN, welspecs['J'].values[0])
         return self
 
     def _dump_ascii(self, path, attr, mode='w', **kwargs):

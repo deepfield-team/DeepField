@@ -200,8 +200,10 @@ def load_compdat(wells, buffer, meta, **kwargs):
     }
     attribute = 'COMPDAT'
     has_date = True
-    return _load_control_table(wells, attribute, columns, column_types,
+    data = _load_control_table(wells, attribute, columns, column_types,
                                has_date, buffer, meta, **kwargs)
+    wells.fill_na(attribute)
+    return data
 
 def load_compdatl(wells, buffer, meta, **kwargs):
     """Load COMPDATL table."""
