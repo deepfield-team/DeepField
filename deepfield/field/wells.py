@@ -1096,12 +1096,25 @@ class Wells(BaseComponent):
         return self
     @apply_to_each_segment
     def fill_na(self, segment, attr):
+        """
+        Fill ionvalid values in wells segment attribute.
+
+        Parameters
+        ----------
+        attr: str
+            Attribute name.
+
+        Returns
+        -------
+        comp : Wells
+            Wells with fixed attribute.
+        """
         if attr in segment.attributes:
             data = getattr(segment, attr)
             welspecs = segment.welspecs
             if set(('I', 'J')).issubset(set(data.columns)):
-               data['I'] = data['I'].replace(INT_NAN, welspecs['I'].values[0])
-               data['J'] = data['J'].replace(INT_NAN, welspecs['J'].values[0])
+                data['I'] = data['I'].replace(INT_NAN, welspecs['I'].values[0])
+                data['J'] = data['J'].replace(INT_NAN, welspecs['J'].values[0])
         return self
 
     def _dump_ascii(self, path, attr, mode='w', **kwargs):
