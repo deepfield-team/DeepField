@@ -25,16 +25,21 @@ def load_copy(field, buffer, logger=None):
         copy_successfull = False
         for comp in field.components:
             if isinstance(getattr(field, comp), SpatialComponent) and row.ATTR1 in  getattr(field, comp).attributes:
-                if (box is not None) and row.ATTR2 not in  getattr(field, comp).attributes:
-                    default_value, dtype = DEFAULTS_DICT[row.ATTR1]
-                    getattr(field, comp).equals_attribute(row.ATTR2, default_value, box=None, dtype=dtype, create=True)
+                if row.ATTR2 not in comp.state.binary_attributes:
+                    if (box is not None) and row.ATTR2 not in  getattr(field, comp).attributes:
+                        default_value, dtype = DEFAULTS_DICT[row.ATTR1]
+                        getattr(field, comp).equals_attribute(row.ATTR2, default_value, box=None, dtype=dtype, create=True)
+                        if logger:
+                            logger.warning(f'Create attribute {comp}:{row.ATTR2}')
+                    getattr(field, comp).copy_attribute(row.ATTR1, row.ATTR2, box)
+                    if logger is not None:
+                        logger.info(f'Copy {comp}:{row.ATTR1} to {comp}:{row.ATTR2}' +
+                                    (f' in box {box}' if box is not None else ''))
+                    copy_successfull = True
+                else:
+                    copy_successfull = True
                     if logger:
-                        logger.warning(f'Create attribute {comp}:{row.ATTR2}')
-                getattr(field, comp).copy_attribute(row.ATTR1, row.ATTR2, box)
-                if logger is not None:
-                    logger.info(f'Copy {comp}:{row.ATTR1} to {comp}:{row.ATTR2}' +
-                                (f' in box {box}' if box is not None else ''))
-                copy_successfull = True
+                        logger.info(f'Copy {comp}:{row.ATTR1} to {comp}:{row.ATTR2} was not applied. {comp}:{row.ATTR2} was loaded from binary' )
                 break
         if not copy_successfull and logger is not None:
             logger.warning(f'Could not find attribute {row.ATTR1}')
@@ -54,10 +59,15 @@ def load_multiply(field, buffer, logger=None):
         multiply_successfull = False
         for comp in field.components:
             if isinstance(getattr(field, comp), SpatialComponent) and row.ATTR in  getattr(field, comp).attributes:
-                getattr(field, comp).multiply_attribute(row.ATTR, row.MULT, box)
-                if logger is not None:
-                    logger.info(f'Multiply {comp}:{row.ATTR} by {row.MULT} in box {box}')
-                multiply_successfull = True
+                if row.ATTR not in comp.state.binary_attributes:
+                    getattr(field, comp).multiply_attribute(row.ATTR, row.MULT, box)
+                    if logger is not None:
+                        logger.info(f'Multiply {comp}:{row.ATTR} by {row.MULT} in box {box}')
+                    multiply_successfull = True
+                else:
+                    multiply_successfull = True
+                    if logger:
+                        logger.info(f'Multiply was not applied. {comp}:{row.ATTR} was loaded from binary' )
                 break
         if not multiply_successfull and logger is not None:
             logger.warning(f'Could not find attribute {row.ATTR}')
@@ -89,9 +99,13 @@ def load_equals(field, buffer, logger=None):
                     component_found = True
                     break
         if component_found:
-            getattr(field, comp).equals_attribute(row.ATTR, row.VAL, box)
-            if logger:
-                logger.info(f'Set {comp}:{row.ATTR} to {row.VAL} in box {box}')
+            if row.ATTR not in getattr(field, comp).state.binary_attributes:
+                getattr(field, comp).equals_attribute(row.ATTR, row.VAL, box)
+                if logger:
+                    logger.info(f'Set {comp}:{row.ATTR} to {row.VAL} in box {box}')
+            else:
+                if logger:
+                    logger.info(f'Equals was not applied. {comp}:{row.ATTR} was loaded from binary' )
         else:
             if logger:
                 logger.warning(f'Could not find or create attribute {row.ATTR}')
@@ -111,10 +125,14 @@ def load_add(field, buffer, logger=None):
         addition_successfull = False
         for comp in field.components:
             if isinstance(getattr(field, comp), SpatialComponent) and row.ATTR in  getattr(field, comp).attributes:
-                getattr(field, comp).add_to_attribute(row.ATTR, row.ADDITION, box)
-                if logger is not None:
-                    logger.info(f'ADD {row.ADDITION} to {comp}:{row.ATTR} in box {box}')
-                addition_successfull = True
+                if row.ATTR not in getattr(field, comp).state.binary_attributes:
+                    getattr(field, comp).add_to_attribute(row.ATTR, row.ADDITION, box)
+                    if logger is not None:
+                        logger.info(f'ADD {row.ADDITION} to {comp}:{row.ATTR} in box {box}')
+                    addition_successfull = True
+                else:
+                    if logger:
+                        logger.info(f'ADD was not applied. {comp}:{row.ATTR} was loaded from binary' )
                 break
         if not addition_successfull and logger is not None:
             logger.warning(f'Could not find attribute {row.ATTR}')

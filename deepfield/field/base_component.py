@@ -15,6 +15,8 @@ class State:
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
+        if 'binary_attributes' not in kwargs:
+            self.binary_attributes = []
 
     def as_dict(self):
         """Dict of states."""

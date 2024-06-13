@@ -235,6 +235,7 @@ class States(SpatialComponent):
         states = read_ecl_bin(path, attrs, sequential=True, subset=subset, logger=logger)
         for attr, x in states.items():
             setattr(self, attr, np.array(x))
+            self.state.binary_attributes.append(attr)
         return self
 
     def _load_ecl_bin_multout(self, paths, attrs, logger, subset=None, **kwargs):
@@ -278,6 +279,7 @@ class States(SpatialComponent):
         states = {attr: np.stack(x) for attr, x in states.items()}
         for attr, x in states.items():
             setattr(self, attr, x)
+            self.state.binary_attributes.append(attr)
         return self
 
     def _make_data_dump(self, attr, fmt=None, actnum=None, float_dtype=None, **kwargs):

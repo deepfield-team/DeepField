@@ -21,6 +21,7 @@ class Rock(SpatialComponent):
         for k in ['PORO', 'PERMX', 'PERMY', 'PERMZ', "KRW"]:
             if (k in attrs) and (k in sections):
                 setattr(self, k, sections[k])
+            self.state.binary_attributes.append(k)
 
     @apply_to_each_input
     def _to_spatial(self, attr, dimens=None, inplace=True):
