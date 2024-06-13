@@ -137,6 +137,7 @@ def _load_control_table(wells, attribute, columns, column_types, has_date, buffe
     if not df.empty:
         welldata = {k: {attribute : v.reset_index(drop=True)} for k, v in df.groupby('WELL')}
         wells.update(welldata, mode='a', ignore_index=True)
+        wells.fill_na(attribute)
     return wells
 
 def load_welspecs(wells, buffer, meta, **kwargs):
@@ -200,10 +201,8 @@ def load_compdat(wells, buffer, meta, **kwargs):
     }
     attribute = 'COMPDAT'
     has_date = True
-    data = _load_control_table(wells, attribute, columns, column_types,
+    return _load_control_table(wells, attribute, columns, column_types,
                                has_date, buffer, meta, **kwargs)
-    wells.fill_na(attribute)
-    return data
 
 def load_compdatl(wells, buffer, meta, **kwargs):
     """Load COMPDATL table."""
