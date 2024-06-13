@@ -1017,7 +1017,10 @@ class Field:
                 return data[active_cells].astype(float)
             new_data = data.copy()
             new_data[~active_cells] = np.nan
+            if isinstance(self.grid, OrthogonalUniformGrid):
+                return new_data.ravel(order='F').astype(float)
             return new_data.ravel().astype(float)
+
 
         attributes.update({'ACTNUM': make_data(active_cells)})
 
@@ -1107,7 +1110,7 @@ class Field:
             PyVista theme, e.g. 'default', 'dark', 'document', 'ParaView'.
             See https://docs.pyvista.org/examples/02-plot/themes.html for more options.
         show_edges: bool
-            Shows the edges of a mesh. Default True. 
+            Shows the edges of a mesh. Default True.
         show_labels: bool
             Show x, y, z axis labels. Default True.
         """
