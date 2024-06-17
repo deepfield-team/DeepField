@@ -23,23 +23,24 @@ def load_copy(field, buffer, logger=None):
     for row in df.itertuples():
         box = _get_box(getattr(row, c) for c in columns[2:])
         copy_successfull = False
-        for comp in field.components:
-            if isinstance(getattr(field, comp), SpatialComponent) and row.ATTR1 in  getattr(field, comp).attributes:
-                if row.ATTR2 not in comp.state.binary_attributes:
-                    if (box is not None) and row.ATTR2 not in  getattr(field, comp).attributes:
-                        default_value, dtype = DEFAULTS_DICT[row.ATTR1]
-                        getattr(field, comp).equals_attribute(row.ATTR2, default_value, box=None, dtype=dtype, create=True)
-                        if logger:
-                            logger.warning(f'Create attribute {comp}:{row.ATTR2}')
-                    getattr(field, comp).copy_attribute(row.ATTR1, row.ATTR2, box)
-                    if logger is not None:
-                        logger.info(f'Copy {comp}:{row.ATTR1} to {comp}:{row.ATTR2}' +
-                                    (f' in box {box}' if box is not None else ''))
-                    copy_successfull = True
-                else:
+        for name, comp in field.items():
+            if isinstance(comp, SpatialComponent) and row.ATTR1 in  comp.attributes:
+                if row.ATTR2 in comp.state.binary_attributes:
                     copy_successfull = True
                     if logger:
-                        logger.info(f'Copy {comp}:{row.ATTR1} to {comp}:{row.ATTR2} was not applied. {comp}:{row.ATTR2} was loaded from binary' )
+                        logger.info(f'Copy {name}:{row.ATTR1} to {name}:{row.ATTR2} was not applied. ' +
+                                    f'{name}:{row.ATTR2} was loaded from binary' )
+                    break
+                if (box is not None) and row.ATTR2 not in  comp.attributes:
+                    default_value, dtype = DEFAULTS_DICT[row.ATTR1]
+                    comp.equals_attribute(row.ATTR2, default_value, box=None, dtype=dtype, create=True)
+                    if logger:
+                        logger.warning(f'Create attribute {name}:{row.ATTR2}')
+                comp.copy_attribute(row.ATTR1, row.ATTR2, box)
+                if logger is not None:
+                    logger.info(f'Copy {name}:{row.ATTR1} to {name}:{row.ATTR2}' +
+                                (f' in box {box}' if box is not None else ''))
+                copy_successfull = True
                 break
         if not copy_successfull and logger is not None:
             logger.warning(f'Could not find attribute {row.ATTR1}')
@@ -57,17 +58,17 @@ def load_multiply(field, buffer, logger=None):
     for row in df.itertuples():
         box = _get_box(getattr(row, c) for c in columns[2:])
         multiply_successfull = False
-        for comp in field.components:
-            if isinstance(getattr(field, comp), SpatialComponent) and row.ATTR in  getattr(field, comp).attributes:
-                if row.ATTR not in comp.state.binary_attributes:
-                    getattr(field, comp).multiply_attribute(row.ATTR, row.MULT, box)
-                    if logger is not None:
-                        logger.info(f'Multiply {comp}:{row.ATTR} by {row.MULT} in box {box}')
-                    multiply_successfull = True
-                else:
+        for name, comp in field.items():
+            if isinstance(comp, SpatialComponent) and row.ATTR in  comp.attributes:
+                if row.ATTR in comp.state.binary_attributes:
                     multiply_successfull = True
                     if logger:
                         logger.info(f'Multiply was not applied. {comp}:{row.ATTR} was loaded from binary' )
+                    break
+                comp.multiply_attribute(row.ATTR, row.MULT, box)
+                if logger is not None:
+                    logger.info(f'Multiply {name}:{row.ATTR} by {row.MULT} in box {box}')
+                multiply_successfull = True
                 break
         if not multiply_successfull and logger is not None:
             logger.warning(f'Could not find attribute {row.ATTR}')
@@ -85,27 +86,27 @@ def load_equals(field, buffer, logger=None):
     for row in df.itertuples():
         box = _get_box(getattr(row, c) for c in columns[2:])
         component_found = False
-        for comp in field.components:
-            if isinstance(getattr(field, comp), SpatialComponent) and row.ATTR in  getattr(field, comp).attributes:
+        for name, comp in field.items():
+            if isinstance(comp, SpatialComponent) and row.ATTR in  comp.attributes:
                 component_found = True
                 break
         if not component_found:
-            for comp, attributes in ATTRIBUTES_DICT.items():
+            for name, attributes in ATTRIBUTES_DICT.items():
                 if row.ATTR in attributes:
+                    comp = getattr(field, name)
                     default_value, dtype = DEFAULTS_DICT[row.ATTR]
-                    getattr(field, comp).equals_attribute(row.ATTR, default_value, box=None, dtype=dtype, create=True)
+                    comp.equals_attribute(row.ATTR, default_value, box=None, dtype=dtype, create=True)
                     if logger:
-                        logger.warning(f'Create attribute {comp}:{row.ATTR}')
+                        logger.info(f'Create attribute {name}:{row.ATTR}')
                     component_found = True
                     break
         if component_found:
-            if row.ATTR not in getattr(field, comp).state.binary_attributes:
-                getattr(field, comp).equals_attribute(row.ATTR, row.VAL, box)
+            if row.ATTR in comp.state.binary_attributes:
                 if logger:
-                    logger.info(f'Set {comp}:{row.ATTR} to {row.VAL} in box {box}')
-            else:
-                if logger:
-                    logger.info(f'Equals was not applied. {comp}:{row.ATTR} was loaded from binary' )
+                    logger.info(f'Equals was not applied. {name}:{row.ATTR} was loaded from binary' )
+            comp.equals_attribute(row.ATTR, row.VAL, box)
+            if logger:
+                logger.info(f'Set {name}:{row.ATTR} to {row.VAL} in box {box}')
         else:
             if logger:
                 logger.warning(f'Could not find or create attribute {row.ATTR}')
@@ -123,16 +124,17 @@ def load_add(field, buffer, logger=None):
     for row in df.itertuples():
         box = _get_box(getattr(row, c) for c in columns[2:])
         addition_successfull = False
-        for comp in field.components:
-            if isinstance(getattr(field, comp), SpatialComponent) and row.ATTR in  getattr(field, comp).attributes:
-                if row.ATTR not in getattr(field, comp).state.binary_attributes:
-                    getattr(field, comp).add_to_attribute(row.ATTR, row.ADDITION, box)
-                    if logger is not None:
-                        logger.info(f'ADD {row.ADDITION} to {comp}:{row.ATTR} in box {box}')
-                    addition_successfull = True
-                else:
+        for name, comp in field.items():
+            if isinstance(comp, SpatialComponent) and row.ATTR in comp.attributes:
+                if row.ATTR in comp.state.binary_attributes:
                     if logger:
-                        logger.info(f'ADD was not applied. {comp}:{row.ATTR} was loaded from binary' )
+                        logger.info(f'ADD was not applied. {name}:{row.ATTR} was loaded from binary' )
+                    addition_successfull = True
+                    break
+                comp.add_to_attribute(row.ATTR, row.ADDITION, box)
+                if logger is not None:
+                    logger.info(f'ADD {row.ADDITION} to {name}:{row.ATTR} in box {box}')
+                addition_successfull = True
                 break
         if not addition_successfull and logger is not None:
             logger.warning(f'Could not find attribute {row.ATTR}')
