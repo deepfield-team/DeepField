@@ -24,6 +24,8 @@ class Grid(SpatialComponent):
         self._vtk_locator = None
         if 'MAPAXES' not in self:
             setattr(self, 'MAPAXES', np.array([0, 1, 0, 0, 1, 0]))
+        if 'ACTNUM' not in self and 'DIMENS' in self:
+            self.actnum = np.ones(self.dimens, dtype=bool)
 
     @property
     def origin(self):
@@ -43,7 +45,8 @@ class Grid(SpatialComponent):
     @cached_property
     def cell_volumes(self):
         """Volumes of cells."""
-        raise NotImplementedError()
+        grid = specify_grid(self)
+        return grid.cell_volumes
 
     @cached_property
     def xyz(self):
@@ -87,6 +90,11 @@ class Grid(SpatialComponent):
             super()._read_buffer(buffer, attr, dtype=float, compressed=True)
         elif attr == 'COORD':
             super()._read_buffer(buffer, attr, dtype=float, compressed=False)
+        elif attr == 'MINPV':
+            print(self.actnum.sum())
+            super()._read_buffer(buffer, attr, dtype=float, compressed=False)
+            self._apply_minpv()
+            print(self.actnum.sum())
         elif attr in 'ACTNUM':
             super()._read_buffer(buffer, attr, dtype=lambda x: bool(int(x)), logger=logger, compressed=True)
         else:
@@ -100,6 +108,15 @@ class Grid(SpatialComponent):
                 raise ValueError("Grid is not uniform ('{}').".format(attr))
             setattr(self, attr, self.TOPS[0])
 
+    def _apply_minpv(self):
+        assert hasattr(self, 'actnum')
+        minpv_value = self.minpv[0]
+        volumes  = self.cell_volumes
+        poro = self._field().rock.poro
+        ntg = self._field().rock.ntg
+        mask = poro * volumes*ntg >= minpv_value
+        self.actnum = self.actnum * mask
+
     @apply_to_each_input
     def _to_spatial(self, attr, inplace=True, **kwargs):
         """Spatial order 'F' transformations."""
@@ -107,7 +124,7 @@ class Grid(SpatialComponent):
         data = getattr(self, attr)
         if self.state.spatial:
             return self if inplace else data
-        if data.ndim == 1:
+        if isinstance(data, np.ndarray) and data.ndim == 1:
             if attr == 'ACTNUM':
                 data = data.reshape(self.dimens, order='F')
             elif attr == 'COORD':
@@ -247,6 +264,7 @@ class OrthogonalUniformGrid(Grid):
         super().__init__(**kwargs)
         if 'TOPS' not in self:
             setattr(self, 'TOPS', 0)
+        self.to_spatial()
 
     @cached_property(
         lambda self, x: x.reshape(tuple(self.dimens) + (3,), order='F') if self.state.spatial
@@ -445,6 +463,7 @@ class CornerPointGrid(Grid):
         super().__init__(*args, **kwargs)
         if 'MAPAXES' not in self:
             setattr(self, 'MAPAXES', np.array([0, 1, 0, 0, 1, 0]))
+        self.to_spatial()
 
     @property
     def origin(self):
@@ -864,3 +883,23 @@ class CornerPointGrid(Grid):
         self.coord[:, :, 3:5] = self.coord[:, :, 3:5].dot(new_basis) + self.origin[:2]
         setattr(self, 'MAPAXES', np.array([0, 1, 0, 0, 1, 0]))
         return self
+
+def specify_grid(grid):
+    """Specify grid class: `CornerPointGrid` or `OrthogonalUniformGrid`.
+
+    Parameters
+    ----------
+    grid : Grid
+        Initial grid.
+
+    Returns
+    -------
+    CornerPointGrid or OrthogonalUniformGrid
+        specified grid.
+    """
+    if not isinstance(grid, (CornerPointGrid, OrthogonalUniformGrid)):
+        if ('ZCORN' in grid) and ('COORD' in grid):
+            grid = CornerPointGrid(**dict(grid.items()))
+        else:
+            grid = OrthogonalUniformGrid(**dict(grid.items()))
+    return grid

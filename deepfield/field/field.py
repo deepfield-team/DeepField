@@ -20,7 +20,7 @@ from .base_spatial import SpatialComponent
 from .configs import default_config
 from .decorators import cached_property, state_check
 from .dump_ecl_utils import egrid, init, restart, summary
-from .grids import CornerPointGrid, Grid, OrthogonalUniformGrid
+from .grids import CornerPointGrid, Grid, OrthogonalUniformGrid, specify_grid
 from .parse_utils import (dates_to_str, preprocess_path,
                           read_dates_from_buffer, tnav_ascii_parser)
 from .plot_utils import lines_from_points
@@ -387,11 +387,7 @@ class Field:
         else:
             raise NotImplementedError('Format {} is not supported.'.format(fmt))
         if 'grid' in self.components:
-            if not isinstance(self.grid, (CornerPointGrid, OrthogonalUniformGrid)):
-                if ('ZCORN' in self.grid) and ('COORD' in self.grid):
-                    self.grid = CornerPointGrid(**dict(self.grid.items()))
-                else:
-                    self.grid = OrthogonalUniformGrid(**dict(self.grid.items()))
+            self.grid = specify_grid(self.grid)
             if 'ACTNUM' not in self.grid and 'DIMENS' in self.grid:
                 self.grid.actnum = np.full(self.grid.dimens.prod(), True)
         for k in self._components.values():
