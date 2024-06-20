@@ -91,10 +91,8 @@ class Grid(SpatialComponent):
         elif attr == 'COORD':
             super()._read_buffer(buffer, attr, dtype=float, compressed=False)
         elif attr == 'MINPV':
-            print(self.actnum.sum())
             super()._read_buffer(buffer, attr, dtype=float, compressed=False)
             self._apply_minpv()
-            print(self.actnum.sum())
         elif attr in 'ACTNUM':
             super()._read_buffer(buffer, attr, dtype=lambda x: bool(int(x)), logger=logger, compressed=True)
         else:
