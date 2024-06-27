@@ -90,6 +90,7 @@ def load_ecl_binary(wells, path_to_results, attrs, basename, logger=None, **kwar
         welldata[w]['RESULTS'][kw[i]] = smry_data[:, i]
     for v in welldata.values():
         v['RESULTS'].sort_values('DATE', inplace=True)
+    wells.state.binary_attributes.append('RESULTS')
     return wells.update(welldata)
 
 def load_group(wells, buffer, **kwargs):

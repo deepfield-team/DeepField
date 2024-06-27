@@ -18,6 +18,7 @@ class Rock(SpatialComponent):
         if path is None:
             return
         sections = read_ecl_bin(path, attrs, logger=logger)
+
         for k in ['PORO', 'PERMX', 'PERMY', 'PERMZ', "KRW"]:
             if (k in attrs) and (k in sections):
                 setattr(self, k, sections[k])
@@ -27,7 +28,7 @@ class Rock(SpatialComponent):
     def _to_spatial(self, attr, dimens=None, inplace=True):
         """Spatial order 'F' transformations."""
         if dimens is None:
-            dimens = self._field().grid.dimens
+            dimens = self.field.grid.dimens
         return self.reshape(attr=attr, newshape=dimens, order='F', inplace=inplace)
 
     def _make_data_dump(self, attr, fmt=None, float_dtype=None, **kwargs):
@@ -38,7 +39,7 @@ class Rock(SpatialComponent):
         return data if float_dtype is None else data.astype(float_dtype)
 
     @apply_to_each_input
-    def pad_na(self, attr, actnum, fill_na=0., inplace=True):
+    def pad_na(self, attr, fill_na=0., inplace=True):
         """Add dummy cells into the rock vector in the positions of non-active cells if necessary.
 
         Parameters
@@ -56,6 +57,7 @@ class Rock(SpatialComponent):
         -------
         output : component if inplace else padded attribute.
         """
+        actnum = self.field.grid.actnum
         data = getattr(self, attr)
         if np.prod(data.shape) == actnum.size:
             return self if inplace else data

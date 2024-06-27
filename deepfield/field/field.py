@@ -139,7 +139,7 @@ class Field:
             config = {k.lower(): self._config_parser(v) for k, v in default_config.items()}
 
         for k in config:
-            setattr(self, COMPONENTS_DICT[k][0], COMPONENTS_DICT[k][1]())
+            setattr(self, COMPONENTS_DICT[k][0], COMPONENTS_DICT[k][1](field=self))
         self._config = {COMPONENTS_DICT[k][0]: v for k, v in config.items()}
 
     @staticmethod
@@ -217,7 +217,7 @@ class Field:
     @grid.setter
     def grid(self, x):
         """Grid component setter."""
-        x.set_field(self)
+        x.field = self
         self._components['grid'] = x
         return self
 
@@ -229,7 +229,7 @@ class Field:
     @wells.setter
     def wells(self, x):
         """Wells component setter."""
-        x.set_field(self)
+        x.field = self
         self._components['wells'] = x
         return self
 
@@ -241,7 +241,7 @@ class Field:
     @rock.setter
     def rock(self, x):
         """Rock component setter."""
-        x.set_field(self)
+        x.field = self
         self._components['rock'] = x
         return self
 
@@ -253,7 +253,7 @@ class Field:
     @states.setter
     def states(self, x):
         """States component setter."""
-        x.set_field(self)
+        x.field = self
         self._components['states'] = x
         return self
 
@@ -265,7 +265,7 @@ class Field:
     @aquifers.setter
     def aquifers(self, x):
         """States component setter."""
-        x.set_field(self)
+        x.field = self
         self._components['aquifers'] = x
         return self
 
@@ -277,7 +277,7 @@ class Field:
     @tables.setter
     def tables(self, x):
         """Tables component setter."""
-        x.set_field(self)
+        x.field = self
         self._components['tables'] = x
         return self
 
@@ -437,11 +437,11 @@ class Field:
             self.grid.to_spatial()
         if 'rock' in self.components:
             if 'ACTNUM' in self.grid:
-                self.rock.pad_na(actnum=self.grid.actnum, fill_na=float(fill_na))
+                self.rock.pad_na(fill_na=float(fill_na))
             self.rock.to_spatial(dimens=self.grid.dimens)
         if 'states' in self.components:
             if 'ACTNUM' in self.grid:
-                self.states.pad_na(actnum=self.grid.actnum, fill_na=float(fill_na))
+                self.states.pad_na(fill_na=float(fill_na))
             self.states.to_spatial(dimens=self.grid.dimens)
         if 'wells' in self.components and self.wells.state.has_blocks:
             self.wells.blocks_to_spatial(self.grid)
@@ -490,7 +490,7 @@ class Field:
                                      **config['kwargs'])
         return self
 
-    def _load_binary(self, raise_errors):
+    def _load_binary(self, components, raise_errors):
         """Load data from binary files in RESULTS folder."""
         path_to_results = os.path.join(os.path.dirname(self.path), 'RESULTS')
         if not os.path.exists(path_to_results):
@@ -498,7 +498,7 @@ class Field:
                 raise ValueError("RESULTS folder was not found in model directory.")
             self._logger.warning("RESULTS folder was not found in model directory.")
             return
-        for comp in ['states', 'rock', 'grid', 'wells']:
+        for comp in components:
             if comp in self._config:
                 getattr(self, comp).load(path_to_results,
                                          attrs=self._config[comp]['attrs'],
@@ -562,7 +562,7 @@ class Field:
                 if raise_errors:
                     raise ValueError("RSM file was not found in model directory.")
                 self._logger.warning("RSM file was not found in model directory.")
-            if rsm is not None:
+            if rsm is not None and 'RESULTS' not in self.wells.state.binary_attributes:
                 self.wells.load(rsm, logger=self._logger)
         return self
 
@@ -582,11 +582,13 @@ class Field:
         """Load model in DATA format."""
 
         if include_binary:
-            self._load_binary(raise_errors=raise_errors)
+            self._load_binary(components=('grid', 'rock', 'wells'),
+                              raise_errors=raise_errors)
         loaders = self._get_loaders(self._config)
         tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
                           raise_errors=raise_errors)
-
+        if include_binary:
+            self._load_binary(components=('states',), raise_errors=raise_errors)
         self._load_results(self._config, raise_errors, include_binary)
         self._check_vapoil(self._config)
         return self

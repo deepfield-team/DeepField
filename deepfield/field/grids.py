@@ -71,8 +71,10 @@ class Grid(SpatialComponent):
         path = get_single_path(path_to_results, basename + '.EGRID', logger)
         if path is None:
             return
-
-        sections = read_ecl_bin(path, attrs, logger=logger)
+        attrs_tmp = attrs + ['GRIDHEAD'] if 'DIMENS' in attrs else attrs
+        sections = read_ecl_bin(path, attrs_tmp, logger=logger)
+        if 'DIMENS' in attrs:
+            setattr(self, 'DIMENS', sections['GRIDHEAD'][1:4])
         for k in ['ZCORN', 'COORD', 'MAPAXES', 'ACTNUM']:
             if (k in attrs) and (k in sections):
                 if k == 'ACTNUM':
@@ -92,7 +94,11 @@ class Grid(SpatialComponent):
             super()._read_buffer(buffer, attr, dtype=float, compressed=False)
         elif attr == 'MINPV':
             super()._read_buffer(buffer, attr, dtype=float, compressed=False)
-            self._apply_minpv()
+            if 'ACTNUM' not in self.state.binary_attributes:
+                self._apply_minpv()
+            else:
+                if logger:
+                    logger.info('ACTNUM is loaded from binary file: MINPV was not applied.')
         elif attr in 'ACTNUM':
             super()._read_buffer(buffer, attr, dtype=lambda x: bool(int(x)), logger=logger, compressed=True)
         else:
@@ -110,10 +116,32 @@ class Grid(SpatialComponent):
         assert hasattr(self, 'actnum')
         minpv_value = self.minpv[0]
         volumes  = self.cell_volumes
-        poro = self._field().rock.poro
-        ntg = self._field().rock.ntg
+        poro = self.field.rock.poro
+        ntg = self.field.rock.ntg
         mask = poro * volumes*ntg >= minpv_value
         self.actnum = self.actnum * mask
+
+    @apply_to_each_input
+    def pad_na(self, attr, fill_na=0., inplace=True):
+        """Add dummy cells into the state vector in the positions of non-active cells if necessary.
+
+        Parameters
+        ----------
+        attr: str, array-like
+            Attributes to be padded with non-active cells.
+        actnum: array-like of type bool
+            Vector representing a mask of active and non-active cells.
+        fill_na: float
+            Value to be used as filler.
+        inplace: bool
+            Modify сomponent inplace.
+
+        Returns
+        -------
+        output : component if inplace else padded attribute.
+        """
+        _, __ = fill_na, inplace
+        return getattr(self, attr)
 
     @apply_to_each_input
     def _to_spatial(self, attr, inplace=True, **kwargs):
@@ -897,7 +925,7 @@ def specify_grid(grid):
     """
     if not isinstance(grid, (CornerPointGrid, OrthogonalUniformGrid)):
         if ('ZCORN' in grid) and ('COORD' in grid):
-            grid = CornerPointGrid(**dict(grid.items()))
+            grid = CornerPointGrid(**dict(grid.items()), field=grid.field)
         else:
-            grid = OrthogonalUniformGrid(**dict(grid.items()))
+            grid = OrthogonalUniformGrid(**dict(grid.items()), field=grid.field)
     return grid

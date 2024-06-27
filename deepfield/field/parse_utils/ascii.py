@@ -441,15 +441,8 @@ def grouper(iterable, n, fillvalue=None):
 
 def _parse_data(data, names):
     """TBD."""
-    def hex_converter(s):
-        s = s.decode('latin1').strip()
-        return int(s, 16) if 'x' in s else float(s)
-
-    if 'x' in data:
-        converters = {_: hex_converter for _ in range(len(names))}
-    else:
-        converters = None
-    return np.loadtxt(StringIO(data), converters=converters)
+    data = pd.read_csv(StringIO(data), header=None, sep='\s+')
+    return  data
 
 def _parse_block(block, logger):
     """TBD."""
@@ -476,10 +469,12 @@ def _parse_block(block, logger):
             current_obj = res[obj]['_children'][number]
 
         if name not in current_obj:
+            values = (num_data[i].apply(int, base=16).values.reshape(-1) if name.startswith('#')
+                      else num_data[i].values.reshape(-1))
             current_obj[name] = {
                 'units': unit,
                 'multiplyer': multiplyer,
-                'data': num_data[:, i].reshape(-1)
+                'data': values
             }
 
         else:

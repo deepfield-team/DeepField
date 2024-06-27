@@ -63,7 +63,7 @@ def load_multiply(field, buffer, logger=None):
                 if row.ATTR in comp.state.binary_attributes:
                     multiply_successfull = True
                     if logger:
-                        logger.info(f'Multiply was not applied. {comp}:{row.ATTR} was loaded from binary' )
+                        logger.info(f'Multiply was not applied. {name}:{row.ATTR} was loaded from binary' )
                     break
                 comp.multiply_attribute(row.ATTR, row.MULT, box)
                 if logger is not None:
