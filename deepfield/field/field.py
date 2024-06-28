@@ -14,6 +14,8 @@ import pandas as pd
 import pyvista as pv
 from anytree import PreOrderIter
 
+from .arithmetics import load_add, load_copy, load_equals, load_multiply
+from .faults import Faults
 from .aquifer import Aquifers
 from .base_spatial import SpatialComponent
 from .configs import default_config
@@ -42,7 +44,8 @@ COMPONENTS_DICT = {'cornerpointgrid': ['grid', CornerPointGrid],
                    'states': ['states', States],
                    'wells': ['wells', Wells],
                    'tables': ['tables', Tables],
-                   'aquifers': ['aquifers', Aquifers]
+                   'aquifers': ['aquifers', Aquifers],
+                   'faults': ['faults', Faults]
                    }
 
 DEFAULT_HUNITS = {'METRIC': ['sm3/day', 'ksm3/day', 'ksm3', 'Msm3', 'bara'],
@@ -85,7 +88,7 @@ class Field:
         Components and attributes to load.
     logfile : str, optional
         Path to log file.
-    enoding : str, optional
+    encoding : str, optional
         Files encoding. Set 'auto' to infer encoding from initial file block.
         Sometimes it might help to specify block size, e.g. 'auto:3000' will
         read first 3000 bytes to infer encoding.
@@ -137,7 +140,8 @@ class Field:
             self._logger.info('Using default config.')
             config = {k.lower(): self._config_parser(v) for k, v in default_config.items()}
 
-        self._components = {COMPONENTS_DICT[k][0]: COMPONENTS_DICT[k][1]() for k in config}
+        for k in config:
+            setattr(self, COMPONENTS_DICT[k][0], COMPONENTS_DICT[k][1]())
         self._config = {COMPONENTS_DICT[k][0]: v for k, v in config.items()}
 
     @staticmethod
@@ -215,6 +219,7 @@ class Field:
     @grid.setter
     def grid(self, x):
         """Grid component setter."""
+        x.set_field(self)
         self._components['grid'] = x
         return self
 
@@ -226,6 +231,7 @@ class Field:
     @wells.setter
     def wells(self, x):
         """Wells component setter."""
+        x.set_field(self)
         self._components['wells'] = x
         return self
 
@@ -237,6 +243,7 @@ class Field:
     @rock.setter
     def rock(self, x):
         """Rock component setter."""
+        x.set_field(self)
         self._components['rock'] = x
         return self
 
@@ -248,6 +255,7 @@ class Field:
     @states.setter
     def states(self, x):
         """States component setter."""
+        x.set_field(self)
         self._components['states'] = x
         return self
 
@@ -259,6 +267,7 @@ class Field:
     @aquifers.setter
     def aquifers(self, x):
         """States component setter."""
+        x.set_field(self)
         self._components['aquifers'] = x
         return self
 
@@ -270,6 +279,7 @@ class Field:
     @tables.setter
     def tables(self, x):
         """Tables component setter."""
+        x.set_field(self)
         self._components['tables'] = x
         return self
 
@@ -385,7 +395,7 @@ class Field:
                 else:
                     self.grid = OrthogonalUniformGrid(**dict(self.grid.items()))
             if 'ACTNUM' not in self.grid and 'DIMENS' in self.grid:
-                self.grid.actnum = np.full(self.grid.dimens.prod(), True)
+                self.grid.actnum = np.full(self.grid.dimens.prod(), True) # ADD HERE (GRID SECTION) FAULTS CHECKING
         for k in self._components.values():
             if isinstance(k, SpatialComponent):
                 k.set_state(spatial=False)
@@ -509,13 +519,18 @@ class Field:
                   'RESTARTDATE']:
             loaders[k] = partial(self._read_buffer, attr=k, logger=self._logger)
 
+        loaders['COPY'] = partial(load_copy, self, logger=self._logger)
+        loaders['MULTIPLY'] = partial(load_multiply, self, logger=self._logger)
+        loaders['EQUALS'] = partial(load_equals, self, logger=self._logger)
+        loaders['ADD'] = partial(load_add, self, logger=self._logger)
         for comp, conf in config.items():
             if conf['attrs'] is not None:
                 attrs = list(set(conf['attrs']) - set(getattr(self, comp).attributes))
             else:
                 attrs = None
             kwargs = conf['kwargs']
-            if comp in ['grid', 'rock', 'states', 'tables']:
+            if comp in ['grid', 'rock', 'states', 'tables', 'faults']:
+                print(comp)
                 assert attrs is not None
                 for k in attrs:
                     loaders[k] = partial(getattr(self, comp).load, attr=k,

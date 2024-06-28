@@ -10,9 +10,11 @@ import chardet
 import numpy as np
 import pandas as pd
 
+INT_NAN = -99999999
+
 _COLUMN_LENGTH = 13
 
-IGNORE_SECTIONS = ['ARITHMETIC', 'COPY', 'MULTIPLY',
+IGNORE_SECTIONS = ['ARITHMETIC',
                    'RPTISOL', 'RPTPROPS', 'RPTREGS',
                    'RPTRUNSP', 'RPTSCHED', 'RPTSMRY', 'RPTSOL', 'RPTRST']
 
@@ -630,7 +632,68 @@ def parse_vals(columns, shift, full, vals):
         if i + shift >= len(columns):
             break
         if '*' in v:
+            if v == '*':
+                continue
             shift += int(v.strip('*')) - 1
         else:
             full[i+shift] = v
     return full
+
+def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, has_date=False, meta=None):
+    """PArse Eclipse keyword.
+
+    Parameters
+    ----------
+    buffer : StringIteratorIO
+        Buffer.
+    columns : Sequence[str]
+        Keyword columns.
+    column_types : Dict[str, str]
+        Types of values in corrsponding columns.
+    defaults : Dict[str, Any], optional
+        Dictionary with default values, by default None
+    has_date : bool, optional
+        Should the date column be included, by default False
+    meta : Dict[sre, Any], optional
+        Field metadata, should be provided if `has_date==True`, by default None
+
+    Returns
+    -------
+    pd.Dataframe
+        Loaded keyword dataframe
+    """
+    df = pd.DataFrame(columns=columns)
+    if has_date:
+        if meta is not None:
+            dates = meta['dates'] if 'dates' in meta else np.empty(0,)
+        else:
+            raise ValueError('`meta` should be provided if `has_date==True`')
+    for line in buffer:
+        if '/' not in line:
+            break
+        line = line.split('/')[0].strip()
+        if not line:
+            break
+        vals = line.split()[:len(columns)]
+        full = [None] * len(columns)
+        if has_date:
+            full[0] = dates[-1] if not dates.size==0 else pd.to_datetime('')
+            shift = 1
+        else:
+            shift = 0
+        full = parse_vals(columns, shift, full, vals)
+        df = pd.concat([df, pd.DataFrame(dict(zip(columns, full)), index=[0])], ignore_index=True)
+
+    if 'text' in column_types:
+        df[column_types['text']] = df[column_types['text']].applymap(
+            lambda x: x.strip('\'\"') if x is not None else x)
+    if 'float' in column_types:
+        df[column_types['float']] = df[column_types['float']].astype(float, errors='ignore')
+    if 'int' in column_types:
+        df[column_types['int']] = df[column_types['int']].fillna(INT_NAN)
+        df[column_types['int']] = df[column_types['int']].astype(int)
+    if defaults:
+        for k, v in defaults.items():
+            if k in df:
+                df[k] = df[k].fillna(v)
+    return df

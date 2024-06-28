@@ -1,4 +1,5 @@
 """SpatialComponent class."""
+from copy import deepcopy
 import numpy as np
 import skimage
 from skimage.transform import rescale, resize
@@ -88,7 +89,7 @@ class SpatialComponent(BaseComponent):
         """Ravel transformations."""
         return super().ravel(attr=attr, inplace=inplace, **kwargs)
 
-    def to_spatial(self, attr=None, inplace=True, **kwargs):
+    def to_spatial(self, attr=None, dimens=None, inplace=True, **kwargs):
         """Bring component to spatial state. If not inplace returns
         spatial representation for attributes with pre-defined spatial transformation.
 
@@ -107,18 +108,123 @@ class SpatialComponent(BaseComponent):
         """
         if attr is not None and inplace:
             raise ValueError('`attr` should be None for inplace operation.')
-        res = self._to_spatial(attr=attr, inplace=inplace, **kwargs)
+        res = self._to_spatial(attr=attr, dimens=dimens, inplace=inplace, **kwargs)
         if not inplace:
             return res
         self.set_state(spatial=True)
         return self
 
     @apply_to_each_input
-    def _to_spatial(self, attr, inplace, **kwargs):
+    def _to_spatial(self, attr, dimens, inplace, **kwargs):
         """Spatial transformations."""
-        _ = attr, inplace, kwargs
+        _ = attr, dimens, inplace, kwargs
         raise NotImplementedError()
 
     def _make_data_dump(self, attr, fmt=None, **kwargs):
         _ = fmt, kwargs
         return self.ravel(attr=attr, order='F', inplace=False)
+
+    def load(self, path_or_buffer, **kwargs):
+        self.set_state(spatial=False)
+        super().load(path_or_buffer, **kwargs)
+        self.to_spatial()
+
+    def copy_attribute(self, attr1, attr2, box=None):
+        """Copy attribute values to another atribute.
+
+        Parameters
+        ----------
+        attr1 : str
+            Attribute to be copied.
+        attr2 : str
+            Destination attribute
+        box : Sequence[int, int, int, int, int, int] or None, optional
+            (i1, i2, j1, j2, k1, k2) - Box in which
+            attribute values should be copied (`attr2[i1:i2, j1:j2, k1:k2]) = attr1[i1:i2, j1:j2, k1:k2]`),
+            by default None.
+
+        Returns
+        -------
+        self.__class__
+            self
+        """
+        if box is not None:
+            getattr(self, attr2)[box[0]:box[1], box[2]:box[3], box[4]:box[5]] = getattr(
+                self, attr1)[box[0]:box[1], box[2]:box[3], box[4]:box[5]]
+        setattr(self, attr2, deepcopy(getattr(self, attr1)))
+        return self
+
+    def multiply_attribute(self, attr, multiplier, box):
+        """Multiply attribute by a constant.
+
+        Parameters
+        ----------
+        attr : str
+            Attribute to be modfied.
+        multiplier : float
+            Multiplier.
+        box : Sequence[int, int, int, int, int, int]
+            (i1, i2, j1, j2, k1, k2) - Box in which
+            attribute values should be multiplyed by a constant
+            (`attr[i1:i2, j1:j2, k1:k2]) = attr[i1:i2, j1:j2, k1:k2]*multiplier`).
+
+        Returns
+        -------
+        self.__class__
+            self
+        """
+        getattr(self, attr)[box[0]:box[1], box[2]:box[3], box[4]:box[5]] *= multiplier
+        return self
+
+    def equals_attribute(self, attr, val, box=None, dtype=None, create=False):
+        """Set attribute values to a constant.
+
+        Parameters
+        ----------
+        attr : str
+            Attribute to be modified.
+        multiplier : float
+            Multiplier.
+        box : Sequence[int, int, int, int, int, int]
+            (i1, i2, j1, j2, k1, k2) - Box in which
+            attribute values should be set to a constant
+            (`attr[i1:i2, j1:j2, k1:k2]) = val`), by default None.
+        dtype: type
+            Type of created array.
+        create: bool
+            If `create==True` attribute is created, in case it does not exist.
+
+        Returns
+        -------
+        self.__class__
+            self
+        """
+        dimens = self._field().grid.dimens
+        if attr not in self.attributes and create:
+            dtype = float if dtype is None else dtype
+            setattr(self, attr, np.zeros(dimens, dtype=dtype))
+        if box is None:
+            box = (0, dimens[0], 0, dimens[1], 0, dimens[2])
+        getattr(self, attr)[box[0]:box[1], box[2]:box[3], box[4]:box[5]] = val
+
+    def add_to_attribute(self, attr, addition, box):
+        """Add a constant to an attribute.
+
+        Parameters
+        ----------
+        attr : str
+            Attribute to be modfied.
+        addition : float
+            Addition.
+        box : Sequence[int, int, int, int, int, int]
+            (i1, i2, j1, j2, k1, k2) - Box in which
+            a constant should be added to an attribute
+            (`attr[i1:i2, j1:j2, k1:k2]) = attr[i1:i2, j1:j2, k1:k2] + addition`).
+
+        Returns
+        -------
+        self.__class__
+            self
+        """
+        getattr(self, attr)[box[0]:box[1], box[2]:box[3], box[4]:box[5]] += addition
+        return self
