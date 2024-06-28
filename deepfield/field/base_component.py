@@ -1,6 +1,7 @@
 """BaseCompoment."""
 import os
 from copy import deepcopy
+from weakref import ref
 import numpy as np
 import h5py
 
@@ -14,6 +15,8 @@ class State:
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
+        if 'binary_attributes' not in kwargs:
+            self.binary_attributes = []
 
     def as_dict(self):
         """Dict of states."""
@@ -29,8 +32,26 @@ class BaseComponent:
         self._state = State()
         self._class_name = kwargs.pop('class_name', self.__class__.__name__)
         self._data = {}
+        if 'field' in kwargs:
+            self.field = kwargs['field']
+        else:
+            self.field = None
         for k, v in kwargs.items():
-            setattr(self, k, v)
+            if k != 'field':
+                setattr(self, k, v)
+
+    @property
+    def field(self):
+        """Field associated with the component."""
+        return self._field()
+    @field.setter
+    def field(self, field):
+        """Set field to which component belongs."""
+        if isinstance(field, ref) or field is None:
+            self._field = field
+            return self
+        self._field = ref(field)
+        return self
 
     @property
     def attributes(self):
