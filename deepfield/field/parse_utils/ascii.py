@@ -439,16 +439,16 @@ def grouper(iterable, n, fillvalue=None):
     args = [iter(iterable)] * n
     return zip_longest(*args, fillvalue=fillvalue)
 
-def _parse_data(data, names):
+def _parse_data(data):
     """TBD."""
-    data = pd.read_csv(StringIO(data), header=None, sep='\s+')
+    data = pd.read_csv(StringIO(data), header=None, sep=r'\s+')
     return  data
 
 def _parse_block(block, logger):
     """TBD."""
     header, data = _split_block(block)
     names, units, multiplyers, objects, numbers = _parse_header(header)
-    num_data = _parse_data(data, names)
+    num_data = _parse_data(data)
 
     res = {}
 
