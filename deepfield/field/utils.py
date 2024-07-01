@@ -1,6 +1,7 @@
 """Miscellaneous utils."""
 import glob
 import os
+from pathlib import Path
 import re
 import subprocess
 import signal
@@ -37,14 +38,15 @@ def signal_handler(signum, frame):
     _ = signum, frame
     raise TimeoutError("Timed out!")
 
-def execute_tnav_models(base_script_path, models, license_url=TNAV_LICENSE_URL,
+def execute_tnav_models(models, base_script_path=None, license_url=TNAV_LICENSE_URL,
                         tnav_path=TNAV_EXECUTABLE_PATH, logfile=None,
-                        global_timeout=None, process_timeout=None):
+                        global_timeout=None, process_timeout=None,
+                        dump_rsm=True, dump_egrid=False, dump_unsmry=False, dump_unrst=True):
     """Execute a bash script for each model in a set of models.
 
     Parameters
     ----------
-    base_script_path : str
+    base_script_path : Optional[str]
         Path to script to execute.
     models : str, list of str
         A path to model or list of pathes.
@@ -57,10 +59,24 @@ def execute_tnav_models(base_script_path, models, license_url=TNAV_LICENSE_URL,
     process_timeout : int
         Process timeout. Kill process that exceeds the timeout and go to the next model.
     """
+    if base_script_path is None:
+        base_script_path = Path(__file__).parents[2] / 'bin/tnav_run.sh'
     if license_url is None:
         raise ValueError('License url is not defined.')
     models = np.atleast_1d(models)
-    base_args = ['bash', base_script_path, tnav_path, license_url]
+    keys = ''
+    if dump_egrid:
+        keys += 'e'
+    if dump_unrst:
+        keys += 'r'
+    if dump_unsmry:
+        keys += 'um'
+    if len(keys) > 0:
+        keys = '-' + keys
+    if dump_rsm:
+        keys += ' --ecl-rsm'
+
+    base_args = ['bash', base_script_path, tnav_path, license_url, keys,]
     signal.signal(signal.SIGALRM, signal_handler)
     signal.alarm(-1 if global_timeout is None else global_timeout)
     with (open(logfile, 'w') if logfile is not None else _dummy_with()) as f:#pylint:disable=consider-using-with
