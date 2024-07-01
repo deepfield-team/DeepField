@@ -1027,7 +1027,10 @@ class Field:
                 return data[active_cells].astype(float)
             new_data = data.copy()
             new_data[~active_cells] = np.nan
+            if isinstance(self.grid, OrthogonalUniformGrid):
+                return new_data.ravel(order='F').astype(float)
             return new_data.ravel().astype(float)
+
 
         attributes.update({'ACTNUM': make_data(active_cells)})
 
