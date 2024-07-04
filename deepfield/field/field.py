@@ -260,6 +260,18 @@ class Field:
         return self
 
     @property
+    def faults(self):
+        """Faults component."""
+        return self._components['faults']
+
+    @faults.setter
+    def faults(self, x):
+        """Faults component setter."""
+        x.set_field(self)
+        self._components['faults'] = x
+        return self
+
+    @property
     def aquifers(self):
         """Aquifers component."""
         return self._components['aquifers']
@@ -530,7 +542,6 @@ class Field:
                 attrs = None
             kwargs = conf['kwargs']
             if comp in ['grid', 'rock', 'states', 'tables', 'faults']:
-                print(comp)
                 assert attrs is not None
                 for k in attrs:
                     loaders[k] = partial(getattr(self, comp).load, attr=k,
@@ -653,6 +664,11 @@ class Field:
                 for node in PreOrderIter(self.wells.root):
                     attrs.extend(list(node.attributes))
                 attrs = list(set(attrs))
+            elif comp == 'faults':
+               attrs = []
+               for node in PreOrderIter(self.faults.root):
+                    attrs.extend(list(node.attributes))
+               attrs = list(set(attrs)) 
             elif comp == 'aquifers':
                 attrs = []
                 for _, aqf in self.aquifers.items():

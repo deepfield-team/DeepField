@@ -250,9 +250,9 @@ class _Table(pd.DataFrame):  # pylint: disable=abstract-method
 
             x = np.hstack([idx_values, np.round(self.values, round_decimals)]).astype(np.str)
         else:
-            row_ends = np.zeros(self.shape[0]).astype(np.bool)
+            row_ends = np.zeros(self.shape[0]).astype(bool)
             row_ends[-1] = 1
-            x = np.round(self.values, round_decimals).astype(np.str)
+            x = np.round(self.values, round_decimals).astype(str)
 
         for i in range(x.shape[0]):
             if row_ends[i]:

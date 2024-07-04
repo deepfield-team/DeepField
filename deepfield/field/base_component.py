@@ -199,7 +199,7 @@ class BaseComponent:
         elif hasattr(data, 'reshape'):
             data = data.reshape(newshape, order=order)
         else:
-            raise ValueError('Attribute {} can not be reshaped.'.format(attr))
+            return data #raise ValueError('Attribute {} can not be reshaped.'.format(attr))
         if inplace:
             setattr(self, attr, data)
             return self
@@ -475,7 +475,7 @@ class BaseComponent:
         with open(path, mode) as f:
             for attr in attrs:
                 data = self._make_data_dump(attr, fmt='ascii', **kwargs)
-                if data.dtype == np.bool:
+                if data.dtype == bool:
                     data = data.astype(int)
                 self.dump_array_ascii(f, data, header=attr.upper(),
                                       fmt=fmt, compressed=compressed)
