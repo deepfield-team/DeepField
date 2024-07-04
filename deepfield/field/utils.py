@@ -14,12 +14,6 @@ import vtk
 import psutil
 from tqdm import tqdm
 
-try:
-    from credentials import TNAV_LICENSE_URL
-except ImportError:
-    TNAV_LICENSE_URL = None
-
-TNAV_EXECUTABLE_PATH = '/opt/RFD/tNavigator-con-mpi'
 
 @contextmanager
 def _dummy_with():
@@ -38,26 +32,36 @@ def signal_handler(signum, frame):
     _ = signum, frame
     raise TimeoutError("Timed out!")
 
-def execute_tnav_models(models, base_script_path=None, license_url=TNAV_LICENSE_URL,
-                        tnav_path=TNAV_EXECUTABLE_PATH, logfile=None,
+def execute_tnav_models(models, license_url,
+                        tnav_path, base_script_path=None, logfile=None,
                         global_timeout=None, process_timeout=None,
                         dump_rsm=True, dump_egrid=False, dump_unsmry=False, dump_unrst=True):
     """Execute a bash script for each model in a set of models.
 
     Parameters
     ----------
-    base_script_path : Optional[str]
-        Path to script to execute.
     models : str, list of str
         A path to model or list of pathes.
     license_url : str
         A license server url.
+    tnav_path : str
+        A path to tNavigator executable.
+    base_script_path : str
+        Path to script to execute.
     logfile : str
         A path to file where to point stdout and stderr.
     global_timeout : int
         Global timeout in seconds.
     process_timeout : int
         Process timeout. Kill process that exceeds the timeout and go to the next model.
+    dump_rsm: bool
+        Dump *.RSM file, by default True.
+    dump_rsm: bool
+        Dump *.EGRID file, by default False.
+    dump_unsmry: bool
+        Dump *.SMSPEC and *.UNSMRY files, by default False.
+    dump_unrst: bool
+        Dump *.UNRST file, by default True.
     """
     if base_script_path is None:
         base_script_path = Path(__file__).parents[2] / 'bin/tnav_run.sh'
