@@ -49,6 +49,14 @@ COMPONENTS_DICT = {'cornerpointgrid': ['grid', CornerPointGrid],
 DEFAULT_HUNITS = {'METRIC': ['sm3/day', 'ksm3/day', 'ksm3', 'Msm3', 'bara'],
                   'FIELD': ['stb/day', 'Mscf/day', 'Mstb', 'MMscf', 'psia']}
 
+SECTIONS_DICT = {
+    'GRID': [('PORO', 'rock'), ('PERMX', 'rock'), ('PERMY', 'rock'), ('PERMZ', 'rock'), ('MULTZ', 'rock')],
+    'PROPS': [('SWATINIT', 'rock'), ('SWL', 'rock'), ('SWCR', 'rock'), ('SGU', 'rock'), ('SGL', 'rock'),
+              ('SGCR', 'rock'), ('SOWCR', 'rock'), ('SOGCR', 'rock'), ('SWU', 'rock'), ('ISWCR', 'rock'),
+              ('ISGU', 'rock'), ('ISGL', 'rock'), ('ISGCR', 'rock'), ('ISWU', 'rock'), ('ISGU', 'rock'),
+              ('ISGL', 'rock'), ('ISWL', 'rock'), ('ISOGCR', 'rock'), ('ISOWCR', 'rock')]
+}
+
 #pylint: disable=protected-access
 class FieldState:
     """State holder."""
@@ -821,12 +829,13 @@ class Field:
         fill_values['actnum'] = inc
 
         tmp = ''
-        for attr in self.rock.attributes:
-            tmp += "INCLUDE\n'${}'\n\n".format(attr.lower())
-            inc = os.path.join('INCLUDE', attr.lower() + '.inc')
-            self.rock.dump(os.path.join(dir_path, inc), attrs=attr, fmt='%.3f')
-            fill_values[attr.lower()] = inc
-        template = Template(template.safe_substitute(rock=tmp))
+        for attr_name, comp_name in SECTIONS_DICT['GRID']:
+            if attr_name in getattr(self, comp_name).attributes:
+                tmp += "INCLUDE\n'${}'\n\n".format(attr_name.lower())
+                inc = os.path.join('INCLUDE', attr_name.lower() + '.inc')
+                getattr(self, comp_name).dump(os.path.join(dir_path, inc), attrs=attr_name, fmt='%.3f')
+                fill_values[attr_name.lower()] = inc
+        template = Template(template.safe_substitute(rock_grid=tmp))
 
         tmp = ''
         if 'aquifers' in self.components:
@@ -866,7 +875,14 @@ class Field:
                 self.tables.dump(os.path.join(dir_path, inc), attrs=attr)
                 fill_values[attr.lower()] = inc
         template = Template(template.safe_substitute(tables=tmp))
-
+        tmp = ''
+        for attr_name, comp_name in SECTIONS_DICT['PROPS']:
+            if attr_name in getattr(self, comp_name).attributes:
+                tmp += "INCLUDE\n'${}'\n\n".format(attr_name.lower())
+                inc = os.path.join('INCLUDE', attr_name.lower() + '.inc')
+                getattr(self, comp_name).dump(os.path.join(dir_path, inc), attrs=attr_name, fmt='%.3f')
+                fill_values[attr_name.lower()] = inc
+        template = Template(template.safe_substitute(rock_props=tmp))
         template = Template(template.safe_substitute(fill_values))
         template = Template(template.safe_substitute(kwargs))
 

@@ -660,7 +660,7 @@ def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, has_date
     df = pd.DataFrame(columns=columns)
     if has_date:
         if meta is not None:
-            dates = meta['dates'] if 'dates' in meta else np.empty(0,)
+            dates = meta['DATES'] if 'DATES' in meta else np.empty(0,)
         else:
             raise ValueError('`meta` should be provided if `has_date==True`')
     for line in buffer:

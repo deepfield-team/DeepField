@@ -269,7 +269,7 @@ class Grid(SpatialComponent):
             np.any(neighbours_matrix == fill_value, axis=-1),
             np.ones(shape=neighbours_matrix.shape[:2]),
             np.zeros(shape=neighbours_matrix.shape[:2])
-        ).astype(np.bool)
+        ).astype(bool)
         neighbor_centers = self.cell_centroids[
             neighbours_matrix[..., 0], neighbours_matrix[..., 1], neighbours_matrix[..., 2]
         ]
