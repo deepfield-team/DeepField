@@ -635,7 +635,7 @@ def parse_vals(columns, shift, full, vals):
     return full
 
 def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, has_date=False, meta=None):
-    """PArse Eclipse keyword.
+    """Parse Eclipse keyword.
 
     Parameters
     ----------
@@ -649,13 +649,13 @@ def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, has_date
         Dictionary with default values, by default None
     has_date : bool, optional
         Should the date column be included, by default False
-    meta : Dict[sre, Any], optional
+    meta : Dict[str, Any], optional
         Field metadata, should be provided if `has_date==True`, by default None
 
     Returns
     -------
     pd.Dataframe
-        Loaded keyword dataframe
+        Loaded keyword dataframe.
     """
     df = pd.DataFrame(columns=columns)
     if has_date:
