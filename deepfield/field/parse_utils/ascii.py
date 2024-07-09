@@ -634,23 +634,21 @@ def parse_vals(columns, shift, full, vals):
             full[i+shift] = v
     return full
 
-def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, has_date=False, meta=None):
-    """Parse Eclipse keyword.
+def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, date=None):
+    """Parse Eclipse keyword data to dataframe.
 
     Parameters
     ----------
     buffer : StringIteratorIO
-        Buffer.
-    columns : Sequence[str]
+        Buffer to read data from.
+    columns : list
         Keyword columns.
-    column_types : Dict[str, str]
+    column_types : dict
         Types of values in corrsponding columns.
-    defaults : Dict[str, Any], optional
-        Dictionary with default values, by default None
-    has_date : bool, optional
-        Should the date column be included, by default False
-    meta : Dict[str, Any], optional
-        Field metadata, should be provided if `has_date==True`, by default None
+    defaults : dict, optional
+        Dictionary with default values, by default None.
+    date : datetime, optional
+        Date to be included in the output DataFrame.
 
     Returns
     -------
@@ -658,11 +656,6 @@ def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, has_date
         Loaded keyword dataframe.
     """
     df = pd.DataFrame(columns=columns)
-    if has_date:
-        if meta is not None:
-            dates = meta['DATES'] if 'DATES' in meta else np.empty(0,)
-        else:
-            raise ValueError('`meta` should be provided if `has_date==True`')
     for line in buffer:
         if '/' not in line:
             break
@@ -671,8 +664,8 @@ def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, has_date
             break
         vals = line.split()[:len(columns)]
         full = [None] * len(columns)
-        if has_date:
-            full[0] = dates[-1] if not dates.size==0 else pd.to_datetime('')
+        if date is not None:
+            full[0] = date
             shift = 1
         else:
             shift = 0
