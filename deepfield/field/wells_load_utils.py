@@ -6,7 +6,7 @@ import pandas as pd
 from .well_segment import WellSegment
 from .utils import get_multout_paths, get_single_path
 from .parse_utils import (read_rsm, parse_perf_line, parse_control_line,
-                          parse_history_line, read_ecl_bin)
+                          parse_history_line, read_ecl_bin, parse_eclipse_keyword)
 
 DEFAULTS = {'RAD': 0.1524, 'DIAM': 0.3048, 'SKIN': 0, 'MULT': 1, 'CLOSE': False,
             'MODE': 'OPEN', 'DIR': 'Z', 'GROUP': 'FIELD'}
@@ -90,6 +90,7 @@ def load_ecl_binary(wells, path_to_results, attrs, basename, logger=None, **kwar
         welldata[w]['RESULTS'][kw[i]] = smry_data[:, i]
     for v in welldata.values():
         v['RESULTS'].sort_values('DATE', inplace=True)
+    wells.state.binary_attributes.append('RESULTS')
     return wells.update(welldata)
 
 def load_group(wells, buffer, **kwargs):
@@ -133,44 +134,16 @@ def load_grouptree(wells, buffer, **kwargs):
 
 def _load_control_table(wells, attribute, columns, column_types, has_date, buffer, meta, **kwargs):
     _ = kwargs
-    dates = meta['DATES']
-    df = pd.DataFrame(columns=columns)
-    for line in buffer:
-        if '/' not in line:
-            break
-        line = line.split('/')[0].strip()
-        if not line:
-            break
-        vals = line.split()[:len(columns)]
-        full = [None] * len(columns)
-        if has_date:
-            full[0] = dates[-1] if not dates.empty else pd.to_datetime('')
-            shift = 1
-        else:
-            shift = 0
-        for i, v in enumerate(vals):
-            if i + shift >= len(columns):
-                break
-            if '*' in v:
-                if v == '*':
-                    continue
-                shift += int(v.strip('*')) - 1
-            else:
-                full[i+shift] = v
-        df = pd.concat([df, pd.DataFrame(dict(zip(columns, full)), index=[0])], ignore_index=True)
-    if 'text' in column_types:
-        df[column_types['text']] = df[column_types['text']].applymap(
-            lambda x: x.strip('\'\"') if x is not None else x)
-    if 'float' in column_types:
-        df[column_types['float']] = df[column_types['float']].astype(float, errors='ignore')
-    if 'int' in column_types:
-        df[column_types['int']] = df[column_types['int']].astype(int, errors='ignore')
-    for k, v in DEFAULTS.items():
-        if k in df:
-            df[k] = df[k].fillna(v)
+    if has_date:
+        dates = meta['DATES']
+        date = dates[-1] if not dates.empty else pd.to_datetime('')
+    else:
+        date = None
+    df = parse_eclipse_keyword(buffer, columns, column_types, DEFAULTS, date)
     if not df.empty:
         welldata = {k: {attribute : v.reset_index(drop=True)} for k, v in df.groupby('WELL')}
         wells.update(welldata, mode='a', ignore_index=True)
+        wells.fill_na(attribute)
     return wells
 
 def load_welspecs(wells, buffer, meta, **kwargs):

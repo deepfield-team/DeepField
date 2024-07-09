@@ -24,6 +24,8 @@ class Grid(SpatialComponent):
         self._vtk_locator = None
         if 'MAPAXES' not in self:
             setattr(self, 'MAPAXES', np.array([0, 1, 0, 0, 1, 0]))
+        if 'ACTNUM' not in self and 'DIMENS' in self:
+            self.actnum = np.ones(self.dimens, dtype=bool)
 
     @property
     def origin(self):
@@ -43,7 +45,8 @@ class Grid(SpatialComponent):
     @cached_property
     def cell_volumes(self):
         """Volumes of cells."""
-        raise NotImplementedError()
+        grid = specify_grid(self)
+        return grid.cell_volumes
 
     @cached_property
     def xyz(self):
@@ -68,13 +71,17 @@ class Grid(SpatialComponent):
         path = get_single_path(path_to_results, basename + '.EGRID', logger)
         if path is None:
             return
-
-        sections = read_ecl_bin(path, attrs, logger=logger)
-        for k in ['ZCORN', 'COORD', 'MAPAXES']:
+        attrs_tmp = attrs + ['GRIDHEAD'] if 'DIMENS' in attrs else attrs
+        sections = read_ecl_bin(path, attrs_tmp, logger=logger)
+        if 'DIMENS' in attrs:
+            setattr(self, 'DIMENS', sections['GRIDHEAD'][1:4])
+        for k in ['ZCORN', 'COORD', 'MAPAXES', 'ACTNUM']:
             if (k in attrs) and (k in sections):
-                setattr(self, k, sections[k])
-        if 'ACTNUM' in attrs and 'ACTNUM' in sections:
-            setattr(self, 'ACTNUM', sections['ACTNUM'].astype(bool))
+                if k == 'ACTNUM':
+                    setattr(self, 'ACTNUM', sections['ACTNUM'].astype(bool))
+                else:
+                    setattr(self, k, sections[k])
+                self.state.binary_attributes.append(k)
 
     def _read_buffer(self, buffer, attr, logger=None, **kwargs):
         if attr == 'DIMENS':
@@ -85,6 +92,13 @@ class Grid(SpatialComponent):
             super()._read_buffer(buffer, attr, dtype=float, compressed=True)
         elif attr == 'COORD':
             super()._read_buffer(buffer, attr, dtype=float, compressed=False)
+        elif attr == 'MINPV':
+            super()._read_buffer(buffer, attr, dtype=float, compressed=False)
+            if 'ACTNUM' not in self.state.binary_attributes:
+                self._apply_minpv()
+            else:
+                if logger:
+                    logger.info('ACTNUM is loaded from binary file: MINPV was not applied.')
         elif attr in 'ACTNUM':
             super()._read_buffer(buffer, attr, dtype=lambda x: bool(int(x)), logger=logger, compressed=True)
         else:
@@ -98,6 +112,37 @@ class Grid(SpatialComponent):
                 raise ValueError("Grid is not uniform ('{}').".format(attr))
             setattr(self, attr, self.TOPS[0])
 
+    def _apply_minpv(self):
+        assert hasattr(self, 'actnum')
+        minpv_value = self.minpv[0]
+        volumes  = self.cell_volumes
+        poro = self.field.rock.poro
+        ntg = self.field.rock.ntg
+        mask = poro * volumes*ntg >= minpv_value
+        self.actnum = self.actnum * mask
+
+    @apply_to_each_input
+    def pad_na(self, attr, fill_na=0., inplace=True):
+        """Add dummy cells into the state vector in the positions of non-active cells if necessary.
+
+        Parameters
+        ----------
+        attr: str, array-like
+            Attributes to be padded with non-active cells.
+        actnum: array-like of type bool
+            Vector representing a mask of active and non-active cells.
+        fill_na: float
+            Value to be used as filler.
+        inplace: bool
+            Modify сomponent inplace.
+
+        Returns
+        -------
+        output : component if inplace else padded attribute.
+        """
+        _, __ = fill_na, inplace
+        return getattr(self, attr)
+
     @apply_to_each_input
     def _to_spatial(self, attr, inplace=True, **kwargs):
         """Spatial order 'F' transformations."""
@@ -105,20 +150,21 @@ class Grid(SpatialComponent):
         data = getattr(self, attr)
         if self.state.spatial:
             return self if inplace else data
-        if attr == 'ACTNUM':
-            data = data.reshape(self.dimens, order='F')
-        elif attr == 'COORD':
-            nx, ny, nz = self.dimens
-            data = data.reshape(-1, 6)
-            data = data.reshape((nx + 1, ny + 1, 6), order='F')
-        elif attr == 'ZCORN':
-            nx, ny, nz = self.dimens
-            data = data.reshape((2, nx, 2, ny, 2, nz), order='F')
-            data = np.moveaxis(data, range(6), (3, 0, 4, 1, 5, 2))
-            data = data.reshape((nx, ny, nz, 8), order='F')
-        if inplace:
-            setattr(self, attr, data)
-            return self
+        if isinstance(data, np.ndarray) and data.ndim == 1:
+            if attr == 'ACTNUM':
+                data = data.reshape(self.dimens, order='F')
+            elif attr == 'COORD':
+                nx, ny, nz = self.dimens
+                data = data.reshape(-1, 6)
+                data = data.reshape((nx + 1, ny + 1, 6), order='F')
+            elif attr == 'ZCORN':
+                nx, ny, nz = self.dimens
+                data = data.reshape((2, nx, 2, ny, 2, nz), order='F')
+                data = np.moveaxis(data, range(6), (3, 0, 4, 1, 5, 2))
+                data = data.reshape((nx, ny, nz, 8), order='F')
+            if inplace:
+                setattr(self, attr, data)
+                return self
         return data
 
     @apply_to_each_input
@@ -223,7 +269,7 @@ class Grid(SpatialComponent):
             np.any(neighbours_matrix == fill_value, axis=-1),
             np.ones(shape=neighbours_matrix.shape[:2]),
             np.zeros(shape=neighbours_matrix.shape[:2])
-        ).astype(np.bool)
+        ).astype(bool)
         neighbor_centers = self.cell_centroids[
             neighbours_matrix[..., 0], neighbours_matrix[..., 1], neighbours_matrix[..., 2]
         ]
@@ -244,6 +290,7 @@ class OrthogonalUniformGrid(Grid):
         super().__init__(**kwargs)
         if 'TOPS' not in self:
             setattr(self, 'TOPS', 0)
+        self.to_spatial()
 
     @cached_property(
         lambda self, x: x.reshape(tuple(self.dimens) + (3,), order='F') if self.state.spatial
@@ -442,6 +489,7 @@ class CornerPointGrid(Grid):
         super().__init__(*args, **kwargs)
         if 'MAPAXES' not in self:
             setattr(self, 'MAPAXES', np.array([0, 1, 0, 0, 1, 0]))
+        self.to_spatial()
 
     @property
     def origin(self):
@@ -861,3 +909,23 @@ class CornerPointGrid(Grid):
         self.coord[:, :, 3:5] = self.coord[:, :, 3:5].dot(new_basis) + self.origin[:2]
         setattr(self, 'MAPAXES', np.array([0, 1, 0, 0, 1, 0]))
         return self
+
+def specify_grid(grid):
+    """Specify grid class: `CornerPointGrid` or `OrthogonalUniformGrid`.
+
+    Parameters
+    ----------
+    grid : Grid
+        Initial grid.
+
+    Returns
+    -------
+    CornerPointGrid or OrthogonalUniformGrid
+        specified grid.
+    """
+    if not isinstance(grid, (CornerPointGrid, OrthogonalUniformGrid)):
+        if ('ZCORN' in grid) and ('COORD' in grid):
+            grid = CornerPointGrid(**dict(grid.items()), field=grid.field)
+        else:
+            grid = OrthogonalUniformGrid(**dict(grid.items()), field=grid.field)
+    return grid

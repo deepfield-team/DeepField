@@ -101,7 +101,7 @@ def write_schedule(f, wells, dates, start_date, **kwargs):
         f.write('/\n\n')
 
     _ = kwargs
-    attributes = ['COMPDAT', 'COMPDATL', 'COMPDATMD', 'WCONPROD', 'WCONIJE', 'WEFAC', 'WFRAC', 'WFRACP']
+    attributes = ['COMPDAT', 'COMPDATL', 'COMPDATMD', 'WCONPROD', 'WCONINJE', 'WEFAC', 'WFRAC', 'WFRACP']
     data = {key: [] for key in attributes}
 
     for node in wells:

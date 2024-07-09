@@ -93,7 +93,7 @@ class WellSegment(BaseComponent, NodeMixin):
             raise NotImplementedError('Time parameter is not yet implemented.')
         if 'BLOCKS_INFO' in self.attributes:
             return (self.blocks_info['PERF_RATIO'] > 0).values
-        return np.array([], dtype=np.bool)
+        return np.array([], dtype=bool)
 
     def perforated_blocks(self, t=None):
         """List of perforated blocks for current node."""
