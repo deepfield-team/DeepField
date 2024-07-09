@@ -60,7 +60,7 @@ class TestModelLoad:
         """Testing data types."""
         def isfloat_32_or_64(x):
             return np.issubdtype(x.dtype, np.floating)
-        assert np.issubdtype(model.grid.dimens.dtype, int)
+        assert np.issubdtype(model.grid.dimens.dtype, np.integer)
         assert np.issubdtype(model.grid.actnum.dtype, bool)
         assert isfloat_32_or_64(model.grid.zcorn)
         assert isfloat_32_or_64(model.grid.coord)
