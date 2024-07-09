@@ -134,7 +134,12 @@ def load_grouptree(wells, buffer, **kwargs):
 
 def _load_control_table(wells, attribute, columns, column_types, has_date, buffer, meta, **kwargs):
     _ = kwargs
-    df = parse_eclipse_keyword(buffer, columns, column_types, DEFAULTS, has_date, meta)
+    if has_date:
+        dates = meta['DATES']
+        date = dates[-1] if not dates.empty else pd.to_datetime('')
+    else:
+        date = None
+    df = parse_eclipse_keyword(buffer, columns, column_types, DEFAULTS, date)
     if not df.empty:
         welldata = {k: {attribute : v.reset_index(drop=True)} for k, v in df.groupby('WELL')}
         wells.update(welldata, mode='a', ignore_index=True)
