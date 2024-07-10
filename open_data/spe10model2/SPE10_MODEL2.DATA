@@ -48,6 +48,10 @@ TABDIMS
 WELLDIMS
     5   340  1    5  /
 
+RUNCTRL
+   DTMIN 1e-5
+/
+
 
 
 
