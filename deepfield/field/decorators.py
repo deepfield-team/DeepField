@@ -94,7 +94,7 @@ def apply_to_each_input(method):
         return res if is_list else res[0]
     return decorator
 
-def apply_to_each_segment(method, node_types=('well',)):
+def apply_to_each_segment(method, node_types=('well', 'fault')):
     """Apply a method to each well's segment.
 
     Parameters
