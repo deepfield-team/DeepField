@@ -22,6 +22,7 @@ from .wells_load_utils import load_rsm, load_ecl_binary, DEFAULTS, VALUE_CONTROL
 from .faults_load_utils import load_faults, load_multflt
 from .decorators import apply_to_each_segment, state_check
 
+FACES = {'X': [1, 3, 5, 7], 'Y': [0, 1, 4, 5], 'Z': [4, 5, 6, 7]}
 
 class IterableFaults:
     """Faults iterator."""
@@ -388,15 +389,14 @@ class Faults(BaseComponent):
         segment.faultTRACK = np.concatenate([track, np.full((len(track), 1), np.nan)], axis=1)
         return self
 
-    #?
     @apply_to_each_segment
-    def get_faultblocks(self, segment, grid, logger=None, **kwargs):
+    def get_blocks(self, segment, **kwargs):
         """Calculate grid blocks for the tree of faults.
 
         Parameters
         ----------
-        grid : class instance
-            Basic grid class.
+        segment : class instance
+            FaultSegment class.
         kwargs : misc
             Any additional named arguments to append.
 
@@ -405,19 +405,23 @@ class Faults(BaseComponent):
         comp : faults
             faults component with calculated grid blocks and fault in block projections.
         """
+        _ = kwargs
         blocks_fault = []
+        xyz_fault = []
         for idx in segment.faults.index:
-            cells = segment.faults.loc[idx, ['IX1', 'IX2', 'IY1', 'IY2', 'IZ1', 'IZ2']]
-            X_range = range(cells['IX1']-1, cells['IX2']-1)
-            Y_range = range(cells['IY1']-1, cells['IY2']-1)
-            Z_range = range(cells['IZ1']-1, cells['IZ2']-1)
-            blocks_segment = list(product(X_range, Y_range, Z_range))
+            cells = segment.faults.loc[idx, ['IX1', 'IX2', 'IY1', 'IY2', 'IZ1', 'IZ2', 'FACE']]
+            X_range = range(cells['IX1']-1, cells['IX2'])
+            Y_range = range(cells['IY1']-1, cells['IY2'])
+            Z_range = range(cells['IZ1']-1, cells['IZ2'])
+            blocks_segment = np.array(list(product(X_range, Y_range, Z_range)))
+            xyz_segment = self._field().grid.xyz[blocks_segment[:, 0], 
+                                                 blocks_segment[:, 1], 
+                                                 blocks_segment[:, 2]][:, FACES[cells['FACE']]]
             blocks_fault.extend(blocks_segment)
-            
+            xyz_fault.extend(xyz_segment)
+        
         segment.blocks = np.array(blocks_fault)
-        segment.blocks_xyz = grid.xyz[segment.blocks[:, 0], 
-                                      segment.blocks[:, 1], 
-                                      segment.blocks[:, 2]]
+        segment.blocks_xyz = np.array(xyz_fault)
 
         # self.set_state(has_blocks=True,
         #               has_cf=False,
