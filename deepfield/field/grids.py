@@ -312,11 +312,10 @@ class OrthogonalUniformGrid(Grid):
         """Volumes of cells."""
         return np.full(self.dimens, self.cell_size.prod())
 
-    # pylint: disable=invalid-overridden-method
     @property
     def xyz(self):
         """Cells' vertices coordinates."""
-        return self.grid.as_corner_point.xyz
+        return self.as_corner_point.xyz
 
     @property
     def cell_size(self):
