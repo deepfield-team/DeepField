@@ -122,6 +122,11 @@ def write_schedule(f, wells, dates, start_date, **kwargs):
         for attr, val in data.items():
             write_group(val, date, attr)
 
+    if hasattr(wells, 'TSTEP'):
+        f.write('TSTEP\n')
+        steps = pd.Series(wells.TSTEP).to_string(index=False)
+        f.write(steps+'/\n')
+
 
 def write_welspecs(f, wells):
     """Write WELSPECS to file."""
