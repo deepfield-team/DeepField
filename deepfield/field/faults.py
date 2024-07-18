@@ -264,28 +264,6 @@ class Faults(BaseComponent):
         self.set_state(has_blocks=True)
         return self
 
-    def show_faults(self, figsize=None, c='r', **kwargs):
-        """Return 3D visualization of faults.
-
-        Parameters
-        ----------
-        figsize : tuple
-            Output figsize.
-        c : str
-            Line color, default red.
-        kwargs : misc
-            Any additional kwargs for plot.
-        """
-        fig = plt.figure(figsize=figsize)
-        ax = fig.add_subplot(111, projection='3d')
-        for segment in self:
-            arr = segment.faulttrack
-            ax.plot(arr[:, 0], arr[:, 1], arr[:, 2], c=c, **kwargs)
-            ax.text(*arr[0, :3], s=segment.name)
-
-        ax.invert_zaxis()
-        ax.view_init(azim=60, elev=30)
-
     def _read_buffer(self, buffer, attr, **kwargs):
         """Load fault data from an ASCII file.
 
