@@ -1,5 +1,4 @@
-"""Load arithmetics."""
-import numpy as np
+"""Load faults."""
 from .parse_utils.ascii import parse_eclipse_keyword
 
 def _load_table(faults, attribute, columns, column_types, buffer, **kwargs):

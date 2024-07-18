@@ -1,28 +1,20 @@
 #pylint: disable=too-many-lines
 """faults and FaultSegment components."""
 from copy import deepcopy
-import warnings
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import h5py
-from anytree import (RenderTree, AsciiStyle, Resolver, PreOrderIter, PostOrderIter,
+from anytree import (RenderTree, AsciiStyle, Resolver, PreOrderIter,
                      find_by_attr)
 from itertools import product
 
-from .parse_utils.ascii import INT_NAN
-
 from .fault_segment import FaultSegment
-from .rates import calculate_cf, show_rates, show_rates2, show_blocks_dynamics
-from .grids import OrthogonalUniformGrid
 from .base_component import BaseComponent
 from .utils import full_ind_to_active_ind, active_ind_to_full_ind
-from .wells_load_utils import load_rsm, load_ecl_binary, DEFAULTS, VALUE_CONTROL
-#from .getting_faultblocks import defining_faultblocks_vtk, find_first_entering_point, defining_faultblocks_compdat
 from .faults_load_utils import load_faults, load_multflt
-from .decorators import apply_to_each_segment, state_check
+from .decorators import apply_to_each_segment
 
 FACES = {'X': [1, 3, 5, 7], 'Y': [0, 1, 4, 5], 'Z': [4, 5, 6, 7]}
+
 
 class IterableFaults:
     """Faults iterator."""
@@ -35,11 +27,10 @@ class IterableFaults:
             return next(self)
         return x
 
-
 class Faults(BaseComponent):
     """Faults component.
 
-    Contains faults and groups in a single tree structure, faults attributes
+    Contains faults in a single tree structure, faults attributes
     and preprocessing actions.
 
     Parameters
@@ -51,7 +42,6 @@ class Faults(BaseComponent):
     def __init__(self, node=None, **kwargs):
         super().__init__(**kwargs)
         self._root = FaultSegment(name='FIELD', ntype="group") if node is None else node
-        self._resolver = Resolver()
         self.init_state(has_blocks=False,
                         spatial=True)
 
@@ -70,16 +60,6 @@ class Faults(BaseComponent):
     def root(self):
         """Tree root."""
         return self._root
-
-    @property
-    def resolver(self):
-        """Tree resolver."""
-        return self._resolver #?
-
-    @property
-    def main_branches(self):
-        """List of main branches names."""
-        return [node.name for node in self if node.is_main_branch] #?
 
     @property
     def names(self):
@@ -154,18 +134,15 @@ class Faults(BaseComponent):
                 else:
                     raise ValueError("Unknown mode {}. Expected 'w' (write) or 'a' (append)".format(mode))
                 att = getattr(node, k)
-                if isinstance(att, pd.DataFrame) and 'DATE' in att.columns:
-                    att = att.sort_values(by='DATE').reset_index(drop=True)
-                    setattr(node, k, att)
         return self
 
     def drop(self, names):#pylint:disable=arguments-renamed
-        """Detach nodes by names.
+        """Detach faults by names.
 
         Parameters
         ----------
         names : str, array-like
-            Nodes to be detached.
+            Faults to be detached.
 
         Returns
         -------
@@ -248,16 +225,16 @@ class Faults(BaseComponent):
         xyz_fault = []
         for idx in segment.faults.index:
             cells = segment.faults.loc[idx, ['IX1', 'IX2', 'IY1', 'IY2', 'IZ1', 'IZ2', 'FACE']]
-            X_range = range(cells['IX1']-1, cells['IX2'])
-            Y_range = range(cells['IY1']-1, cells['IY2'])
-            Z_range = range(cells['IZ1']-1, cells['IZ2'])
-            blocks_segment = np.array(list(product(X_range, Y_range, Z_range)))
-            xyz_segment = self._field().grid.xyz[blocks_segment[:, 0], 
-                                                 blocks_segment[:, 1], 
+            x_range = range(cells['IX1']-1, cells['IX2'])
+            y_range = range(cells['IY1']-1, cells['IY2'])
+            z_range = range(cells['IZ1']-1, cells['IZ2'])
+            blocks_segment = np.array(list(product(x_range, y_range, z_range)))
+            xyz_segment = self._field().grid.xyz[blocks_segment[:, 0],
+                                                 blocks_segment[:, 1],
                                                  blocks_segment[:, 2]][:, FACES[cells['FACE']]]
             blocks_fault.extend(blocks_segment)
             xyz_fault.extend(xyz_segment)
-        
+
         segment.blocks = np.array(blocks_fault)
         segment.blocks_xyz = np.array(xyz_fault)
 

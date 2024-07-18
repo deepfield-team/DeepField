@@ -1,3 +1,4 @@
+"""FaultSegment component."""
 #pylint: disable=too-many-lines
 from anytree import NodeMixin
 from .base_component import BaseComponent

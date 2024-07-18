@@ -11,8 +11,6 @@ from .grid_utils import get_top_z_coords, numba_get_volumes, numba_get_xyz, get_
 from .utils import rolling_window, mk_vtk_id_list, get_single_path
 from .parse_utils import read_ecl_bin
 
-import pdb
-
 
 class Grid(SpatialComponent):
     """Basic grid class."""
@@ -172,7 +170,6 @@ class Grid(SpatialComponent):
     @apply_to_each_input
     def _ravel(self, attr, inplace=True, **kwargs):
         """Ravel order 'F' transformations."""
-        #pdb.set_trace()
         _ = kwargs
         data = getattr(self, attr)
         if not self.state.spatial:

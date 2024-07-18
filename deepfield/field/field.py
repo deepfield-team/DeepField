@@ -275,7 +275,7 @@ class Field:
     @faults.setter
     def faults(self, x):
         """Faults component setter."""
-        x.set_field(self)
+        x.set_field = self
         self._components['faults'] = x
         return self
 
@@ -671,10 +671,10 @@ class Field:
                     attrs.extend(list(node.attributes))
                 attrs = list(set(attrs))
             elif comp == 'faults':
-               attrs = []
-               for node in PreOrderIter(self.faults.root):
+                attrs = []
+                for node in PreOrderIter(self.faults.root):
                     attrs.extend(list(node.attributes))
-               attrs = list(set(attrs)) 
+                attrs = list(set(attrs))
             elif comp == 'aquifers':
                 attrs = []
                 for _, aqf in self.aquifers.items():
