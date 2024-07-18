@@ -1,8 +1,7 @@
 """Methods for rates calculation"""
-import multiprocessing
-from multiprocessing.connection import wait
 import numpy as np
 import pandas as pd
+import dask
 from IPython.display import clear_output
 from ..tables.table_interpolation import baker_linear_model
 
@@ -103,7 +102,8 @@ def rates_oil_disgas(model, time_ind, curr_date, wellname,
     results.loc[time_ind, ['WGPR', 'WFGPR']] = np.sum(gas_rate), np.sum(free_gas)
     return
 
-def launch_calculus(model, timesteps, wellname, cf_aggregation='sum', queue=None):
+@dask.delayed
+def launch_calculus(model, timesteps, wellname, cf_aggregation='sum'):
     """Calculate production rates.
 
     Returns
@@ -127,54 +127,45 @@ def launch_calculus(model, timesteps, wellname, cf_aggregation='sum', queue=None
     fluids = set(model.meta['FLUIDS'])
 
     well = model.wells[wellname]
-    setattr(well, 'RESULTS', empty_results)
-    setattr(well, 'BLOCKS_DYNAMICS', empty_dynamics)
+    well['RESULTS'] = empty_results
+    well['BLOCKS_DYNAMICS'] = empty_dynamics
     well.results['DATE'] = timesteps
     well.blocks_dynamics['DATE'] = timesteps
     well.results.loc[:, empty_results.columns[3:]] = 0.
     for col in empty_dynamics.columns[3:]:
         for t_ind in range(len(timesteps)):
             well.blocks_dynamics.at[t_ind, col] = np.zeros(len(well.blocks))
+
     if len(well.blocks_info) == 0:
-        return
+        return wellname, well.results, well.blocks_dynamics
+
     if 'PERF' in well.attributes:
         if len(well.perf) == 0:
-            return
+            return wellname, well.results, well.blocks_dynamics
+
     well.blocks_info['PERF_RATIO'] = 0.
     if fluids == set(('OIL', 'WATER', 'GAS', 'DISGAS')):
         for t, curr_date in enumerate(timesteps):
             rates_oil_disgas(model, t, curr_date, wellname, units, g_const, cf_aggregation)
 
-    if queue is not None:
-        queue.send(((wellname, well.results, well.blocks_dynamics),
-                    multiprocessing.current_process().name))
-        queue.close()
+    return wellname, well.results, well.blocks_dynamics
 
 #pylint: disable=too-many-branches
-def calc_rates_multiprocess(model, timesteps, wellnames, cf_aggregation='sum', verbose=True):
+def calc_rates_multiprocess(model, timesteps, wellnames, cf_aggregation='sum'):
     """Run multiprocessed calculation of rates."""
-    readers = []
-    for name in wellnames:
-        r, w = multiprocessing.Pipe(duplex=False)
-        readers.append(r)
-        p = multiprocessing.Process(target=launch_calculus,
-                                    args=(model, timesteps, name, cf_aggregation, w))
-        p.start()
-        w.close()
-    reader_counter = 0
-    while readers:
-        for r in wait(readers):
-            try:
-                msg = r.recv()
-                setattr(model.wells[msg[0][0]], 'RESULTS', msg[0][1])
-                setattr(model.wells[msg[0][0]], 'BLOCKS_DYNAMICS', msg[0][2])
-            except EOFError:
-                readers.remove(r)
-            else:
-                reader_counter += 1
-                if verbose:
-                    clear_output(wait=True)
-                    print(f'Processed {reader_counter} out of {len(wellnames)} wells')
+    results = []
+    for well in wellnames:
+        res = launch_calculus(model=model,
+                              timesteps=timesteps,
+                              wellname=well,
+                              cf_aggregation=cf_aggregation)
+        results.append(res)
+
+    results = dask.compute(results)
+    for r in results:
+        model.wells[r[0][0]]['RESULTS'] = r[0][1]
+        model.wells[r[0][0]]['BLOCKS_DYNAMICS'] = r[0][2]
+
     return model
 
 def calc_rates(model, timesteps, wellnames, cf_aggregation='sum', verbose=True):

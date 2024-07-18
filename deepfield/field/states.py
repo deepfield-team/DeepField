@@ -294,6 +294,6 @@ class States(SpatialComponent):
             if actnum is None:
                 data = self.ravel(attr=attr, inplace=False)
             else:
-                data = self.strip_na(attr=attr, actnum=actnum, inplace=False)
+                data = self.strip_na(attr=attr, inplace=False)
             return data if float_dtype is None else data.astype(float_dtype)
         return super()._make_data_dump(attr, fmt=fmt, **kwargs)

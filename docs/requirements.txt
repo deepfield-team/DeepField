@@ -11,3 +11,4 @@ numba
 tables
 pytest
 psutil
+dask

@@ -445,7 +445,7 @@ class Field:
                 self.states.pad_na(fill_na=float(fill_na))
             self.states.to_spatial(dimens=self.grid.dimens)
         if 'wells' in self.components and self.wells.state.has_blocks:
-            self.wells.blocks_to_spatial(self.grid)
+            self.wells.blocks_to_spatial()
         return self
 
     def ravel(self, only_active=True):
@@ -996,7 +996,7 @@ class Field:
         if wellnames is None:
             wellnames = self.wells.names
         if multiprocessing:
-            calc_rates_multiprocess(self, timesteps, wellnames, cf_aggregation, verbose)
+            calc_rates_multiprocess(self, timesteps, wellnames, cf_aggregation)
         else:
             calc_rates(self, timesteps, wellnames, cf_aggregation, verbose)
         return self
