@@ -1,11 +1,11 @@
 #pylint: disable=too-many-lines
 """faults and FaultSegment components."""
 from copy import deepcopy
+from itertools import product
 import numpy as np
 import pandas as pd
 from anytree import (RenderTree, AsciiStyle, Resolver, PreOrderIter,
                      find_by_attr)
-from itertools import product
 
 from .fault_segment import FaultSegment
 from .base_component import BaseComponent
@@ -42,6 +42,7 @@ class Faults(BaseComponent):
     def __init__(self, node=None, **kwargs):
         super().__init__(**kwargs)
         self._root = FaultSegment(name='FIELD', ntype="group") if node is None else node
+        self._resolver = Resolver()
         self.init_state(has_blocks=False,
                         spatial=True)
 
@@ -154,6 +155,11 @@ class Faults(BaseComponent):
             except KeyError:
                 continue
         return self
+
+    @property
+    def resolver(self):
+        """Tree resolver."""
+        return self._resolver
 
     def glob(self, name):
         """Return instances at ``name`` supporting wildcards."""
