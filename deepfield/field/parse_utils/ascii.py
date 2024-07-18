@@ -439,23 +439,16 @@ def grouper(iterable, n, fillvalue=None):
     args = [iter(iterable)] * n
     return zip_longest(*args, fillvalue=fillvalue)
 
-def _parse_data(data, names):
+def _parse_data(data):
     """TBD."""
-    def hex_converter(s):
-        s = s.decode('latin1').strip()
-        return int(s, 16) if 'x' in s else float(s)
-
-    if 'x' in data:
-        converters = {_: hex_converter for _ in range(len(names))}
-    else:
-        converters = None
-    return np.loadtxt(StringIO(data), converters=converters)
+    data = pd.read_csv(StringIO(data), header=None, sep=r'\s+')
+    return  data
 
 def _parse_block(block, logger):
     """TBD."""
     header, data = _split_block(block)
     names, units, multiplyers, objects, numbers = _parse_header(header)
-    num_data = _parse_data(data, names)
+    num_data = _parse_data(data)
 
     res = {}
 
@@ -476,10 +469,12 @@ def _parse_block(block, logger):
             current_obj = res[obj]['_children'][number]
 
         if name not in current_obj:
+            values = (num_data[i].apply(int, base=16).values.reshape(-1) if name.startswith('#')
+                      else num_data[i].values.reshape(-1))
             current_obj[name] = {
                 'units': unit,
                 'multiplyer': multiplyer,
-                'data': num_data[:, i].reshape(-1)
+                'data': values
             }
 
         else:
@@ -639,35 +634,28 @@ def parse_vals(columns, shift, full, vals):
             full[i+shift] = v
     return full
 
-def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, has_date=False, meta=None):
-    """PArse Eclipse keyword.
+def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, date=None):
+    """Parse Eclipse keyword data to dataframe.
 
     Parameters
     ----------
     buffer : StringIteratorIO
-        Buffer.
-    columns : Sequence[str]
+        Buffer to read data from.
+    columns : list
         Keyword columns.
-    column_types : Dict[str, str]
+    column_types : dict
         Types of values in corrsponding columns.
-    defaults : Dict[str, Any], optional
-        Dictionary with default values, by default None
-    has_date : bool, optional
-        Should the date column be included, by default False
-    meta : Dict[sre, Any], optional
-        Field metadata, should be provided if `has_date==True`, by default None
+    defaults : dict, optional
+        Dictionary with default values, by default None.
+    date : datetime, optional
+        Date to be included in the output DataFrame.
 
     Returns
     -------
     pd.Dataframe
-        Loaded keyword dataframe
+        Loaded keyword dataframe.
     """
     df = pd.DataFrame(columns=columns)
-    if has_date:
-        if meta is not None:
-            dates = meta['dates'] if 'dates' in meta else np.empty(0,)
-        else:
-            raise ValueError('`meta` should be provided if `has_date==True`')
     for line in buffer:
         if '/' not in line:
             break
@@ -676,8 +664,8 @@ def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, has_date
             break
         vals = line.split()[:len(columns)]
         full = [None] * len(columns)
-        if has_date:
-            full[0] = dates[-1] if not dates.size==0 else pd.to_datetime('')
+        if date is not None:
+            full[0] = date
             shift = 1
         else:
             shift = 0

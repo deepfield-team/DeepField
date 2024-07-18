@@ -21,7 +21,7 @@ from .base_spatial import SpatialComponent
 from .configs import default_config
 from .decorators import cached_property, state_check
 from .dump_ecl_utils import egrid, init, restart, summary
-from .grids import CornerPointGrid, Grid, OrthogonalUniformGrid
+from .grids import CornerPointGrid, Grid, OrthogonalUniformGrid, specify_grid
 from .parse_utils import (dates_to_str, preprocess_path,
                           read_dates_from_buffer, tnav_ascii_parser)
 from .plot_utils import lines_from_points
@@ -50,6 +50,14 @@ COMPONENTS_DICT = {'cornerpointgrid': ['grid', CornerPointGrid],
 
 DEFAULT_HUNITS = {'METRIC': ['sm3/day', 'ksm3/day', 'ksm3', 'Msm3', 'bara'],
                   'FIELD': ['stb/day', 'Mscf/day', 'Mstb', 'MMscf', 'psia']}
+
+SECTIONS_DICT = {
+    'GRID': [('PORO', 'rock'), ('PERMX', 'rock'), ('PERMY', 'rock'), ('PERMZ', 'rock'), ('MULTZ', 'rock')],
+    'PROPS': [('SWATINIT', 'rock'), ('SWL', 'rock'), ('SWCR', 'rock'), ('SGU', 'rock'), ('SGL', 'rock'),
+              ('SGCR', 'rock'), ('SOWCR', 'rock'), ('SOGCR', 'rock'), ('SWU', 'rock'), ('ISWCR', 'rock'),
+              ('ISGU', 'rock'), ('ISGL', 'rock'), ('ISGCR', 'rock'), ('ISWU', 'rock'), ('ISGU', 'rock'),
+              ('ISGL', 'rock'), ('ISWL', 'rock'), ('ISOGCR', 'rock'), ('ISOWCR', 'rock')]
+}
 
 #pylint: disable=protected-access
 class FieldState:
@@ -141,7 +149,7 @@ class Field:
             config = {k.lower(): self._config_parser(v) for k, v in default_config.items()}
 
         for k in config:
-            setattr(self, COMPONENTS_DICT[k][0], COMPONENTS_DICT[k][1]())
+            setattr(self, COMPONENTS_DICT[k][0], COMPONENTS_DICT[k][1](field=self))
         self._config = {COMPONENTS_DICT[k][0]: v for k, v in config.items()}
 
     @staticmethod
@@ -219,7 +227,7 @@ class Field:
     @grid.setter
     def grid(self, x):
         """Grid component setter."""
-        x.set_field(self)
+        x.field = self
         self._components['grid'] = x
         return self
 
@@ -231,7 +239,7 @@ class Field:
     @wells.setter
     def wells(self, x):
         """Wells component setter."""
-        x.set_field(self)
+        x.field = self
         self._components['wells'] = x
         return self
 
@@ -243,7 +251,7 @@ class Field:
     @rock.setter
     def rock(self, x):
         """Rock component setter."""
-        x.set_field(self)
+        x.field = self
         self._components['rock'] = x
         return self
 
@@ -255,7 +263,7 @@ class Field:
     @states.setter
     def states(self, x):
         """States component setter."""
-        x.set_field(self)
+        x.field = self
         self._components['states'] = x
         return self
 
@@ -279,7 +287,7 @@ class Field:
     @aquifers.setter
     def aquifers(self, x):
         """States component setter."""
-        x.set_field(self)
+        x.field = self
         self._components['aquifers'] = x
         return self
 
@@ -291,7 +299,7 @@ class Field:
     @tables.setter
     def tables(self, x):
         """Tables component setter."""
-        x.set_field(self)
+        x.field = self
         self._components['tables'] = x
         return self
 
@@ -401,11 +409,7 @@ class Field:
         else:
             raise NotImplementedError('Format {} is not supported.'.format(fmt))
         if 'grid' in self.components:
-            if not isinstance(self.grid, (CornerPointGrid, OrthogonalUniformGrid)):
-                if ('ZCORN' in self.grid) and ('COORD' in self.grid):
-                    self.grid = CornerPointGrid(**dict(self.grid.items()))
-                else:
-                    self.grid = OrthogonalUniformGrid(**dict(self.grid.items()))
+            self.grid = specify_grid(self.grid)
             if 'ACTNUM' not in self.grid and 'DIMENS' in self.grid:
                 self.grid.actnum = np.full(self.grid.dimens.prod(), True) # ADD HERE (GRID SECTION) FAULTS CHECKING
         for k in self._components.values():
@@ -455,11 +459,11 @@ class Field:
             self.grid.to_spatial()
         if 'rock' in self.components:
             if 'ACTNUM' in self.grid:
-                self.rock.pad_na(actnum=self.grid.actnum, fill_na=float(fill_na))
+                self.rock.pad_na(fill_na=float(fill_na))
             self.rock.to_spatial(dimens=self.grid.dimens)
         if 'states' in self.components:
             if 'ACTNUM' in self.grid:
-                self.states.pad_na(actnum=self.grid.actnum, fill_na=float(fill_na))
+                self.states.pad_na(fill_na=float(fill_na))
             self.states.to_spatial(dimens=self.grid.dimens)
         if 'wells' in self.components and self.wells.state.has_blocks:
             self.wells.blocks_to_spatial(self.grid)
@@ -508,7 +512,7 @@ class Field:
                                      **config['kwargs'])
         return self
 
-    def _load_binary(self, raise_errors):
+    def _load_binary(self, components, raise_errors):
         """Load data from binary files in RESULTS folder."""
         path_to_results = os.path.join(os.path.dirname(self.path), 'RESULTS')
         if not os.path.exists(path_to_results):
@@ -516,7 +520,7 @@ class Field:
                 raise ValueError("RESULTS folder was not found in model directory.")
             self._logger.warning("RESULTS folder was not found in model directory.")
             return
-        for comp in ['states', 'rock', 'grid', 'wells']:
+        for comp in components:
             if comp in self._config:
                 getattr(self, comp).load(path_to_results,
                                          attrs=self._config[comp]['attrs'],
@@ -580,7 +584,7 @@ class Field:
                 if raise_errors:
                     raise ValueError("RSM file was not found in model directory.")
                 self._logger.warning("RSM file was not found in model directory.")
-            if rsm is not None:
+            if rsm is not None and 'RESULTS' not in self.wells.state.binary_attributes:
                 self.wells.load(rsm, logger=self._logger)
         return self
 
@@ -600,11 +604,13 @@ class Field:
         """Load model in DATA format."""
 
         if include_binary:
-            self._load_binary(raise_errors=raise_errors)
+            self._load_binary(components=('grid', 'rock', 'wells'),
+                              raise_errors=raise_errors)
         loaders = self._get_loaders(self._config)
         tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
                           raise_errors=raise_errors)
-
+        if include_binary:
+            self._load_binary(components=('states',), raise_errors=raise_errors)
         self._load_results(self._config, raise_errors, include_binary)
         self._check_vapoil(self._config)
         return self
@@ -842,12 +848,13 @@ class Field:
         fill_values['actnum'] = inc
 
         tmp = ''
-        for attr in self.rock.attributes:
-            tmp += "INCLUDE\n'${}'\n\n".format(attr.lower())
-            inc = os.path.join('INCLUDE', attr.lower() + '.inc')
-            self.rock.dump(os.path.join(dir_path, inc), attrs=attr, fmt='%.3f')
-            fill_values[attr.lower()] = inc
-        template = Template(template.safe_substitute(rock=tmp))
+        for attr_name, comp_name in SECTIONS_DICT['GRID']:
+            if attr_name in getattr(self, comp_name).attributes:
+                tmp += "INCLUDE\n'${}'\n\n".format(attr_name.lower())
+                inc = os.path.join('INCLUDE', attr_name.lower() + '.inc')
+                getattr(self, comp_name).dump(os.path.join(dir_path, inc), attrs=attr_name, fmt='%.3f')
+                fill_values[attr_name.lower()] = inc
+        template = Template(template.safe_substitute(rock_grid=tmp))
 
         tmp = ''
         if 'aquifers' in self.components:
@@ -887,7 +894,14 @@ class Field:
                 self.tables.dump(os.path.join(dir_path, inc), attrs=attr)
                 fill_values[attr.lower()] = inc
         template = Template(template.safe_substitute(tables=tmp))
-
+        tmp = ''
+        for attr_name, comp_name in SECTIONS_DICT['PROPS']:
+            if attr_name in getattr(self, comp_name).attributes:
+                tmp += "INCLUDE\n'${}'\n\n".format(attr_name.lower())
+                inc = os.path.join('INCLUDE', attr_name.lower() + '.inc')
+                getattr(self, comp_name).dump(os.path.join(dir_path, inc), attrs=attr_name, fmt='%.3f')
+                fill_values[attr_name.lower()] = inc
+        template = Template(template.safe_substitute(rock_props=tmp))
         template = Template(template.safe_substitute(fill_values))
         template = Template(template.safe_substitute(kwargs))
 
@@ -1048,7 +1062,10 @@ class Field:
                 return data[active_cells].astype(float)
             new_data = data.copy()
             new_data[~active_cells] = np.nan
+            if isinstance(self.grid, OrthogonalUniformGrid):
+                return new_data.ravel(order='F').astype(float)
             return new_data.ravel().astype(float)
+
 
         attributes.update({'ACTNUM': make_data(active_cells)})
 

@@ -153,7 +153,7 @@ class Tables(BaseComponent):
         rv = pvtg.index.get_level_values('RV')
 
         if as_saturated:
-            mask = np.zeros_like(pressure, dtype=np.bool)
+            mask = np.zeros_like(pressure, dtype=bool)
             for p in sorted(list(set(pressure))):
                 level_rv = rv[pressure == p]
                 sat_rv = np.max(level_rv)
@@ -242,13 +242,13 @@ class _Table(pd.DataFrame):  # pylint: disable=abstract-method
                         row_ends.append(1)
                     idx_values.append(idx)
                 idx_values = np.array(idx_values)
-                row_ends = np.array(row_ends + [1])[1:].astype(np.bool)
+                row_ends = np.array(row_ends + [1])[1:].astype(bool)
             else:
                 idx_values = self.index.values.reshape(-1, 1)
-                row_ends = np.zeros(self.shape[0]).astype(np.bool)
+                row_ends = np.zeros(self.shape[0]).astype(bool)
                 row_ends[-1] = 1
 
-            x = np.hstack([idx_values, np.round(self.values, round_decimals)]).astype(np.str)
+            x = np.hstack([idx_values, np.round(self.values, round_decimals)]).astype(str)
         else:
             row_ends = np.zeros(self.shape[0]).astype(bool)
             row_ends[-1] = 1

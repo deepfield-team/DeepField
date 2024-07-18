@@ -1,6 +1,7 @@
 """Miscellaneous utils."""
 import glob
 import os
+from pathlib import Path
 import re
 import subprocess
 import signal
@@ -13,12 +14,6 @@ import vtk
 import psutil
 from tqdm import tqdm
 
-try:
-    from credentials import TNAV_LICENSE_URL
-except ImportError:
-    TNAV_LICENSE_URL = None
-
-TNAV_EXECUTABLE_PATH = '/opt/RFD/tNavigator-con-mpi'
 
 @contextmanager
 def _dummy_with():
@@ -37,30 +32,55 @@ def signal_handler(signum, frame):
     _ = signum, frame
     raise TimeoutError("Timed out!")
 
-def execute_tnav_models(base_script_path, models, license_url=TNAV_LICENSE_URL,
-                        tnav_path=TNAV_EXECUTABLE_PATH, logfile=None,
-                        global_timeout=None, process_timeout=None):
+def execute_tnav_models(models, license_url,
+                        tnav_path, base_script_path=None, logfile=None,
+                        global_timeout=None, process_timeout=None,
+                        dump_rsm=True, dump_egrid=False, dump_unsmry=False, dump_unrst=True):
     """Execute a bash script for each model in a set of models.
 
     Parameters
     ----------
-    base_script_path : str
-        Path to script to execute.
     models : str, list of str
         A path to model or list of pathes.
     license_url : str
         A license server url.
+    tnav_path : str
+        A path to tNavigator executable.
+    base_script_path : str
+        Path to script to execute.
     logfile : str
         A path to file where to point stdout and stderr.
     global_timeout : int
         Global timeout in seconds.
     process_timeout : int
         Process timeout. Kill process that exceeds the timeout and go to the next model.
+    dump_rsm: bool
+        Dump *.RSM file, by default True.
+    dump_rsm: bool
+        Dump *.EGRID file, by default False.
+    dump_unsmry: bool
+        Dump *.SMSPEC and *.UNSMRY files, by default False.
+    dump_unrst: bool
+        Dump *.UNRST file, by default True.
     """
+    if base_script_path is None:
+        base_script_path = Path(__file__).parents[2] / 'bin/tnav_run.sh'
     if license_url is None:
         raise ValueError('License url is not defined.')
     models = np.atleast_1d(models)
-    base_args = ['bash', base_script_path, tnav_path, license_url]
+    keys = ''
+    if dump_egrid:
+        keys += 'e'
+    if dump_unrst:
+        keys += 'r'
+    if dump_unsmry:
+        keys += 'um'
+    if len(keys) > 0:
+        keys = '-' + keys
+    if dump_rsm:
+        keys += ' --ecl-rsm'
+
+    base_args = ['bash', base_script_path, tnav_path, license_url, keys,]
     signal.signal(signal.SIGALRM, signal_handler)
     signal.alarm(-1 if global_timeout is None else global_timeout)
     with (open(logfile, 'w') if logfile is not None else _dummy_with()) as f:#pylint:disable=consider-using-with

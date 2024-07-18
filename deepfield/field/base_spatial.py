@@ -108,6 +108,7 @@ class SpatialComponent(BaseComponent):
         """
         if attr is not None and inplace:
             raise ValueError('`attr` should be None for inplace operation.')
+        self.pad_na(attr=attr)
         res = self._to_spatial(attr=attr, dimens=dimens, inplace=inplace, **kwargs)
         if not inplace:
             return res
@@ -199,7 +200,7 @@ class SpatialComponent(BaseComponent):
         self.__class__
             self
         """
-        dimens = self._field().grid.dimens
+        dimens = self.field.grid.dimens
         if attr not in self.attributes and create:
             dtype = float if dtype is None else dtype
             setattr(self, attr, np.zeros(dimens, dtype=dtype))
@@ -228,3 +229,24 @@ class SpatialComponent(BaseComponent):
         """
         getattr(self, attr)[box[0]:box[1], box[2]:box[3], box[4]:box[5]] += addition
         return self
+
+    @apply_to_each_input
+    def pad_na(self, attr, fill_na=0., inplace=True):
+        """Add dummy cells into the state vector in the positions of non-active cells if necessary.
+
+        Parameters
+        ----------
+        attr: str, array-like
+            Attributes to be padded with non-active cells.
+        actnum: array-like of type bool
+            Vector representing a mask of active and non-active cells.
+        fill_na: float
+            Value to be used as filler.
+        inplace: bool
+            Modify сomponent inplace.
+
+        Returns
+        -------
+        output : component if inplace else padded attribute.
+        """
+        raise NotImplementedError

@@ -63,7 +63,7 @@ INCLUDE
 
 $aquifers
 
-$rock
+$rock_grid
 
 EDIT
 
@@ -72,6 +72,8 @@ PROPS
 --ROCK
 
 $tables
+
+$rock_props
 
 SOLUTION
 
@@ -161,7 +163,7 @@ INCLUDE
 
 $aquifers
 
-$rock
+$rock_grid
 
 EDIT
 
@@ -170,6 +172,8 @@ PROPS
 --ROCK
 
 $tables
+
+$rock_props
 
 SOLUTION
 

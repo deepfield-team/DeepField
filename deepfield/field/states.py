@@ -54,7 +54,7 @@ class States(SpatialComponent):
     def _to_spatial(self, attr, dimens=None, inplace=True):
         """Spatial order 'F' transformations."""
         if dimens is None:
-            dimens = self._field().grid.dimens
+            dimens = self.field.grid.dimens
         return self.reshape(attr=attr, newshape=(-1,) + tuple(dimens),
                             order='F', inplace=inplace)
 
@@ -64,7 +64,7 @@ class States(SpatialComponent):
         return self.reshape(attr=attr, newshape=(self.n_timesteps, -1), order='F', inplace=inplace)
 
     @apply_to_each_input
-    def pad_na(self, attr, actnum, fill_na=0., inplace=True):
+    def pad_na(self, attr, fill_na=0., inplace=True):
         """Add dummy cells into the state vector in the positions of non-active cells if necessary.
 
         Parameters
@@ -82,6 +82,7 @@ class States(SpatialComponent):
         -------
         output : component if inplace else padded attribute.
         """
+        actnum = self.field.grid.actnum
         data = getattr(self, attr)
         if np.prod(data.shape[1:]) == actnum.size:
             return self if inplace else data
