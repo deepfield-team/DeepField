@@ -35,7 +35,7 @@ class TestModelLoad:
     """Testing model load in tNav and HDF5 formats."""
     def test_content(self, model):
         """Testing components and attributes content."""
-        assert set(model.components).issubset({'grid', 'rock', 'states', 'tables', 'wells', 'aquifers'})
+        assert set(model.components).issubset({'grid', 'rock', 'states', 'tables', 'wells', 'aquifers', 'faults'})
         assert set(model.grid.attributes) == {'DIMENS', 'ZCORN', 'COORD', 'ACTNUM', 'MAPAXES'}
         assert set(model.rock.attributes) == {'PORO', }
         assert set(model.states.attributes) == {'PRESSURE', }
