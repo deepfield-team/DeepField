@@ -91,7 +91,7 @@ class Faults(BaseComponent):
         return super()._get_fmt_loader(fmt)
 
     def update(self, faultsdata, mode='w', **kwargs):
-        """Update tree nodes with new faultsdata. If node does not exists,
+        """Update tree nodes with new faultsdata. If fault does not exists,
         it will be attached to root.
 
         Parameters
@@ -105,8 +105,8 @@ class Faults(BaseComponent):
 
         Returns
         -------
-        out : faults
-            faults with updated attributes.
+        out : Faults
+            Faults with updated attributes.
         """
         def _get_parent(name):
             if ':' in name:
@@ -117,23 +117,22 @@ class Faults(BaseComponent):
             data = faultsdata[name]
             name = name.strip(' \t\'"')
             try:
-                node = self[name]
+                segment = self[name]
             except KeyError:
                 parent = _get_parent(name)
-                node = FaultSegment(parent=parent, name=name, ntype='fault')
+                segment = FaultSegment(parent=parent, name=name, ntype='fault')
 
             for k, v in data.items():
                 if mode == 'w':
-                    setattr(node, k, v)
+                    setattr(segment, k, v)
                 elif mode == 'a':
-                    if k in node.attributes:
-                        att = getattr(node, k)
-                        setattr(node, k, pd.concat([att, v], **kwargs))
+                    if k in segment.attributes:
+                        att = getattr(segment, k)
+                        setattr(segment, k, pd.concat([att, v], **kwargs))
                     else:
-                        setattr(node, k, v)
+                        setattr(segment, k, v)
                 else:
                     raise ValueError("Unknown mode {}. Expected 'w' (write) or 'a' (append)".format(mode))
-                att = getattr(node, k)
         return self
 
     def drop(self, names):#pylint:disable=arguments-renamed
@@ -146,8 +145,8 @@ class Faults(BaseComponent):
 
         Returns
         -------
-        out : faults
-            faults without detached nodes.
+        out : Faults
+            Faults without detached segments.
         """
         for name in np.atleast_1d(names):
             try:
