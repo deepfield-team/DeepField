@@ -4,7 +4,7 @@ import numpy as np
 
 from .decorators import apply_to_each_input, state_check, ndim_check
 from .base_spatial import SpatialComponent
-from .plot_utils import show_cube_static, show_cube_interactive
+from .plot_utils import show_slice_static, show_slice_interactive
 from .parse_utils import read_ecl_bin
 from .utils import get_single_path, get_multout_paths
 
@@ -103,7 +103,7 @@ class States(SpatialComponent):
         return padded_data
 
     @apply_to_each_input
-    def strip_na(self, attr, actnum, inplace=True):
+    def strip_na(self, attr, inplace=True):
         """Remove non-active cells from the state vector.
 
         Parameters
@@ -126,6 +126,7 @@ class States(SpatialComponent):
         if self.state.spatial and inplace:
             raise ValueError('Inplace is not allowed in spatial state.')
         data = self.ravel(attr, inplace=False)
+        actnum = self.field.grid.actnum
         if data.shape[1] == np.sum(actnum):
             return self if inplace else data
         stripped_data = data[..., actnum.ravel(order='F')]
@@ -144,7 +145,7 @@ class States(SpatialComponent):
 
     @state_check(lambda state: state.spatial)
     @ndim_check(4)
-    def show_cube(self, attr, t=None, x=None, y=None, z=None, actnum=None, figsize=None, **kwargs):
+    def show_slice(self, attr, t=None, x=None, y=None, z=None, figsize=None, **kwargs):
         """Visualize slices of 4D states arrays. If no slice is specified, spatial slices
         will be shown with interactive slider widgets.
 
@@ -160,20 +161,21 @@ class States(SpatialComponent):
             Slice along y-axis to show.
         z : int or None, optional
             Slice along z-axis to show.
-        actnum : array, optional
-            Actnum array. If None, all cell are active.
         figsize : array-like, optional
             Output plot size.
         kwargs : dict, optional
             Additional keyword arguments for plot.
         """
         data = getattr(self, attr)
-        if actnum is not None:
+        try:
+            actnum = self.field.grid.actnum
             data = data * actnum
+        except AttributeError:
+            pass
         if np.all([t is None, x is None, y is None, z is None]):
-            show_cube_interactive(data, figsize=figsize, **kwargs)
+            show_slice_interactive(data, figsize=figsize, **kwargs)
         else:
-            show_cube_static(data, t=t, x=x, y=y, z=z, figsize=figsize, **kwargs)
+            show_slice_static(data, t=t, x=x, y=y, z=z, figsize=figsize, **kwargs)
         return self
 
     def _read_buffer(self, path_or_buffer, attr, **kwargs):

@@ -84,7 +84,7 @@ class FieldState:
 class Field:
     """Reservoir model.
 
-    Contains components of reservoir model and preprocessing actions.
+    Contains components of the reservoir model and preprocessing tools.
 
     Parameters
     ----------
@@ -99,7 +99,7 @@ class Field:
         Sometimes it might help to specify block size, e.g. 'auto:3000' will
         read first 3000 bytes to infer encoding.
     loglevel : str, optional
-            Log level to be printed while loading. Default to 'INFO'.
+        Log level to be printed while loading. Default to 'INFO'.
     """
     _default_config = default_config
     def __init__(self, path=None, config=None, logfile=None, encoding='auto', loglevel='INFO'):
@@ -172,13 +172,6 @@ class Field:
             raise TypeError("Component's config should be of type str, list, tuple or dict. Found {}."
                             .format(type(value)))
         return {'attrs': attrs, 'kwargs': kwargs}
-
-    def assert_components_available(self, *comp_names):
-        # FIXME add to all the methods where required
-        """Raises ValueError in case comp_names are not presented in self."""
-        for comp in comp_names:
-            if not hasattr(self, comp):
-                raise ValueError('Component %s is not loaded!' % comp)
 
     @property
     def meta(self):
@@ -289,7 +282,7 @@ class Field:
         self._components['tables'] = x
         return self
 
-    def get_spatial_connection_factors_and_perforation_ratio(self, date_range=None, mode=None):
+    def spatial_cf_and_perf(self, date_range=None, mode=None):
         """Get model's connection factors and perforation ratios in a spatial form.
 
         Parameters
@@ -331,8 +324,8 @@ class Field:
         """
         return get_well_mask(self)
 
-    def get_spatial_well_control(self, attrs, date_range=None, fill_shut=0., fill_outside=0.):
-        """Get the model's control in a spatial form
+    def spatial_well_control(self, attrs, date_range=None, fill_shut=0., fill_outside=0.):
+        """Get the model's control in a spatial form.
 
         Parameters
         ----------
@@ -341,9 +334,9 @@ class Field:
         date_range: tuple
             Minimal and maximal dates for control events.
         fill_shut: float
-            Value to fill shutted perforations
+            Value to fill shutted perforations.
         fill_outside:
-            Value to fill non-perforated cells
+            Value to fill non-perforated cells.
 
         Returns
         -------
@@ -413,7 +406,7 @@ class Field:
                         df.sort_values(by='DATE', inplace=True)
                         df.reset_index(drop=True, inplace=True)
             if 'GRID' in loaded:
-                self.wells.add_welltrack(self.grid)
+                self.wells.add_welltrack()
         else:
             self.meta['MODEL_TYPE'] = 'TN'
 
