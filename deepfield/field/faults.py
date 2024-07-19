@@ -9,7 +9,6 @@ from anytree import (RenderTree, AsciiStyle, Resolver, PreOrderIter,
 
 from .fault_segment import FaultSegment
 from .base_component import BaseComponent
-from .utils import full_ind_to_active_ind, active_ind_to_full_ind
 from .faults_load_utils import load_faults, load_multflt
 from .decorators import apply_to_each_segment
 
@@ -168,45 +167,6 @@ class Faults(BaseComponent):
     def render_tree(self):
         """Print tree structure."""
         print(RenderTree(self.root, style=AsciiStyle()).by_attr())
-        return self
-
-    def blocks_ravel(self):
-        """Transforms block coordinates into 1D representation."""
-        if not self.state.spatial:
-            return self
-        self.set_state(spatial=False)
-        return self._blocks_ravel()
-
-    def blocks_to_spatial(self):
-        """Transforms block coordinates into 3D representation."""
-        if self.state.spatial:
-            return self
-        self.set_state(spatial=True)
-        return self._blocks_to_spatial()
-
-    @apply_to_each_segment
-    def _blocks_ravel(self, segment):
-        grid = self._field().grid
-        if 'BLOCKS' not in segment or not len(segment.blocks):
-            return self
-        res = np.ravel_multi_index(
-            tuple(segment.blocks[:, i] for i in range(3)),
-            dims=grid.dimens,
-            order='F'
-        )
-        res = full_ind_to_active_ind(res, grid)
-        setattr(segment, 'BLOCKS', res)
-        return self
-
-    @apply_to_each_segment
-    def _blocks_to_spatial(self, segment):
-        grid = self._field().grid
-        if 'BLOCKS' not in segment or not len(segment.blocks):
-            return self
-        res = active_ind_to_full_ind(segment.blocks, grid)
-        res = np.unravel_index(res, shape=grid.dimens, order='F')
-        res = np.stack(res, axis=1)
-        setattr(segment, 'BLOCKS', res)
         return self
 
     @apply_to_each_segment
