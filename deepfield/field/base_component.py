@@ -211,7 +211,7 @@ class BaseComponent:
         elif hasattr(data, 'reshape'):
             data = data.reshape(newshape, order=order)
         else:
-            return data #raise ValueError('Attribute {} can not be reshaped.'.format(attr))
+            raise ValueError('Attribute {} can not be reshaped.'.format(attr))
         if inplace:
             setattr(self, attr, data)
             return self
