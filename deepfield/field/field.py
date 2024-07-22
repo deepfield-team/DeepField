@@ -15,6 +15,7 @@ import pyvista as pv
 from anytree import PreOrderIter
 
 from .arithmetics import load_add, load_copy, load_equals, load_multiply
+from .faults import Faults
 from .aquifer import Aquifers
 from .base_spatial import SpatialComponent
 from .configs import default_config
@@ -43,7 +44,8 @@ COMPONENTS_DICT = {'cornerpointgrid': ['grid', CornerPointGrid],
                    'states': ['states', States],
                    'wells': ['wells', Wells],
                    'tables': ['tables', Tables],
-                   'aquifers': ['aquifers', Aquifers]
+                   'aquifers': ['aquifers', Aquifers],
+                   'faults': ['faults', Faults]
                    }
 
 DEFAULT_HUNITS = {'METRIC': ['sm3/day', 'ksm3/day', 'ksm3', 'Msm3', 'bara'],
@@ -94,7 +96,7 @@ class Field:
         Components and attributes to load.
     logfile : str, optional
         Path to log file.
-    enoding : str, optional
+    encoding : str, optional
         Files encoding. Set 'auto' to infer encoding from initial file block.
         Sometimes it might help to specify block size, e.g. 'auto:3000' will
         read first 3000 bytes to infer encoding.
@@ -266,6 +268,18 @@ class Field:
         return self
 
     @property
+    def faults(self):
+        """Faults component."""
+        return self._components['faults']
+
+    @faults.setter
+    def faults(self, x):
+        """Faults component setter."""
+        x.set_field = self
+        self._components['faults'] = x
+        return self
+
+    @property
     def aquifers(self):
         """Aquifers component."""
         return self._components['aquifers']
@@ -397,7 +411,7 @@ class Field:
         if 'grid' in self.components:
             self.grid = specify_grid(self.grid)
             if 'ACTNUM' not in self.grid and 'DIMENS' in self.grid:
-                self.grid.actnum = np.full(self.grid.dimens.prod(), True)
+                self.grid.actnum = np.full(self.grid.dimens.prod(), True) # ADD HERE (GRID SECTION) FAULTS CHECKING
         for k in self._components.values():
             if isinstance(k, SpatialComponent):
                 k.set_state(spatial=False)
@@ -531,7 +545,7 @@ class Field:
             else:
                 attrs = None
             kwargs = conf['kwargs']
-            if comp in ['grid', 'rock', 'states', 'tables']:
+            if comp in ['grid', 'rock', 'states', 'tables', 'faults']:
                 assert attrs is not None
                 for k in attrs:
                     loaders[k] = partial(getattr(self, comp).load, attr=k,
@@ -654,6 +668,11 @@ class Field:
             if comp == 'wells':
                 attrs = []
                 for node in PreOrderIter(self.wells.root):
+                    attrs.extend(list(node.attributes))
+                attrs = list(set(attrs))
+            elif comp == 'faults':
+                attrs = []
+                for node in PreOrderIter(self.faults.root):
                     attrs.extend(list(node.attributes))
                 attrs = list(set(attrs))
             elif comp == 'aquifers':

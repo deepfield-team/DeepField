@@ -15,6 +15,7 @@ base_config = {
     'Tables': {'attrs': list(TABLE_INFO.keys())},
     'Wells': {'attrs': ['EVENTS', 'HISTORY', 'RESULTS', 'PERF', 'WELLTRACK',
                         'COMPDAT', 'WELSPECS', 'WCONPROD', 'WCONINJE', 'COMPDATL', 'COMPDATMD', 'WEFAC', 'WFRAC', 'WFRACP']},
+    'Faults': {'attrs': ['FAULTS', 'MULTFLT']},                        
     'Aquifers': {'attrs': None}
 }
 
