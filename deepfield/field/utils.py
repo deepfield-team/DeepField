@@ -210,7 +210,7 @@ def full_ind_to_active_ind(ind, grid):
         Transformed indices.
     """
     ind = ind.copy()
-    f2a = grid.ravel(attr='actnum', inplace=False).astype(np.int)
+    f2a = grid.ravel(attr='actnum', inplace=False).astype(int)
     ind[f2a[ind] == 0] = -1
     f2a[f2a == 1] = np.arange(f2a.sum())
     f2a = np.concatenate([f2a, [-1]])
@@ -231,7 +231,7 @@ def active_ind_to_full_ind(ind, grid):
     ind: array-like
         Transformed indices.
     """
-    actnum = grid.ravel(attr='actnum', inplace=False).astype(np.int)
+    actnum = grid.ravel(attr='actnum', inplace=False).astype(int)
     a2f = np.arange(len(actnum))[actnum == 1]
     a2f = np.concatenate([a2f, [-1]])
     return a2f[ind]

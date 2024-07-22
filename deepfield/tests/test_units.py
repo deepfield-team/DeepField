@@ -76,7 +76,7 @@ class TestPipeline():
         model.wells.update({'no_welltrack': {'perf': pd.DataFrame()}})
         model.wells.drop_incomplete()
         assert 'no_welltrack' not in model.wells.names
-        model.wells.get_wellblocks(model.grid)
+        model.wells.get_blocks()
         assert np.all(['BLOCKS' in node for node in model.wells])
         model.wells.drop_outside()
         assert len(model.wells.names) == 25

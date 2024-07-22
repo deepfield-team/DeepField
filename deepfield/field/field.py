@@ -439,11 +439,11 @@ class Field:
         if 'rock' in self.components:
             if 'ACTNUM' in self.grid:
                 self.rock.pad_na(fill_na=float(fill_na))
-            self.rock.to_spatial(dimens=self.grid.dimens)
+            self.rock.to_spatial()
         if 'states' in self.components:
             if 'ACTNUM' in self.grid:
                 self.states.pad_na(fill_na=float(fill_na))
-            self.states.to_spatial(dimens=self.grid.dimens)
+            self.states.to_spatial()
         if 'wells' in self.components and self.wells.state.has_blocks:
             self.wells.blocks_to_spatial()
         return self
