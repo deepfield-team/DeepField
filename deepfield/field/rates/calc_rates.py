@@ -133,8 +133,8 @@ def launch_calculus(model, timesteps, wellname, cf_aggregation='sum'):
     fluids = set(model.meta['FLUIDS'])
 
     well = model.wells[wellname]
-    well['RESULTS'] = empty_results
-    well['BLOCKS_DYNAMICS'] = empty_dynamics
+    well.results = empty_results
+    well.blocks_dynamics = empty_dynamics
     well.results['DATE'] = timesteps
     well.blocks_dynamics['DATE'] = timesteps
     well.results.loc[:, empty_results.columns[3:]] = 0.
