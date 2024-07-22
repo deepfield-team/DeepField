@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 from .base_spatial import SpatialComponent
 from .decorators import apply_to_each_input, state_check, ndim_check
-from .plot_utils import show_cube_static, show_cube_interactive
+from .plot_utils import show_slice_static, show_slice_interactive
 from .utils import rolling_window, get_single_path
 from .parse_utils import read_ecl_bin
 
@@ -25,10 +25,9 @@ class Rock(SpatialComponent):
             self.state.binary_attributes.append(k)
 
     @apply_to_each_input
-    def _to_spatial(self, attr, dimens=None, inplace=True):
+    def _to_spatial(self, attr, inplace=True):
         """Spatial order 'F' transformations."""
-        if dimens is None:
-            dimens = self.field.grid.dimens
+        dimens = self.field.grid.dimens
         return self.reshape(attr=attr, newshape=dimens, order='F', inplace=inplace)
 
     def _make_data_dump(self, attr, fmt=None, float_dtype=None, **kwargs):
@@ -71,15 +70,13 @@ class Rock(SpatialComponent):
         return padded_data
 
     @apply_to_each_input
-    def strip_na(self, attr, actnum, inplace=True):
+    def strip_na(self, attr, inplace=True):
         """Remove non-active cells from the rock vector.
 
         Parameters
         ----------
         attr: str, array-like
             Attributes to be stripped
-        actnum: array-like of type bool
-            Vector representing mask of active and non-active cells.
         inplace: bool
             Modify сomponent inplace.
 
@@ -90,6 +87,7 @@ class Rock(SpatialComponent):
         if self.state.spatial and inplace:
             raise ValueError('Inplace is not allowed in spatial state.')
         data = self.ravel(attr, inplace=False)
+        actnum = self.field.grid.actnum
         if data.size == np.sum(actnum):
             return self if inplace else data
         stripped_data = data[actnum.ravel(order='F')]
@@ -98,15 +96,13 @@ class Rock(SpatialComponent):
             return self
         return stripped_data
 
-    def show_histogram(self, attr, actnum=None, **kwargs):
+    def show_histogram(self, attr, **kwargs):
         """Show properties distribution.
 
         Parameters
         ----------
         attr : str
             Attribute to compute the histogram.
-        actnum : array, optional
-            Actnum array. If None, all cell are active.
         kwargs : misc
             Any additional named arguments to ``plt.hist``.
 
@@ -115,15 +111,18 @@ class Rock(SpatialComponent):
         plot : Histogram plot.
         """
         data = getattr(self, attr)
-        if actnum is not None:
+        try:
+            actnum = self.field.grid.actnum
             data = data * actnum
+        except AttributeError:
+            pass
         plt.hist(data.ravel(), **kwargs)
         plt.show()
         return self
 
     @state_check(lambda state: state.spatial)
     @ndim_check(3)
-    def show_cube(self, attr, x=None, y=None, z=None, actnum=None, figsize=None, **kwargs):
+    def show_slice(self, attr, x=None, y=None, z=None, figsize=None, **kwargs):
         """Visualize slices of 3D array. If no slice is specified, all 3 slices
         will be shown with interactive slider widgets.
 
@@ -137,25 +136,26 @@ class Rock(SpatialComponent):
             Slice along y-axis to show.
         z : int or None, optional
             Slice along z-axis to show.
-        actnum : array, optional
-            Actnum array. If None, all cell are active.
         figsize : array-like, optional
             Output plot size.
         kwargs : dict, optional
             Additional keyword arguments for plot.
         """
         data = getattr(self, attr)
-        if actnum is not None:
+        try:
+            actnum = self.field.grid.actnum
             data = data * actnum
+        except AttributeError:
+            pass
         if np.all([x is None, y is None, z is None]):
-            show_cube_interactive(data, figsize=figsize, **kwargs)
+            show_slice_interactive(data, figsize=figsize, **kwargs)
         else:
-            show_cube_static(data, x=x, y=y, z=z, figsize=figsize, **kwargs)
+            show_slice_static(data, x=x, y=y, z=z, figsize=figsize, **kwargs)
         return self
 
     @state_check(lambda state: state.spatial)
     @apply_to_each_input
-    def upscale(self, attr, factors, volumes, weights=None):
+    def upscale(self, attr, factors, weights=None):
         """Upscale properties.
 
         Parameters
@@ -164,8 +164,6 @@ class Rock(SpatialComponent):
             Attributes to be upscaled.
         factors : tuple, int
             Scale factors along each axis. If int, factors are the same for each axis.
-        volumes : ndarray, same shape as `attr`
-            Cell volumes.
         weights : ndarray, same shape as `attr`, optional
             Cell weights.
 
@@ -178,6 +176,7 @@ class Rock(SpatialComponent):
         if factors.size == 1:
             factors = np.repeat(factors, 3)
         data = getattr(self, attr)
+        volumes = self.field.grid.cell_volumes
         binned_weights = rolling_window(volumes, factors)
         if weights is not None:
             binned_weights *= rolling_window(weights, factors)

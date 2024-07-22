@@ -9,8 +9,8 @@ import pyvista as pv
 COLORS = ['r', 'b', 'm', 'g']
 
 
-def show_cube_static(data, x=None, y=None, z=None, t=None, figsize=None, aspect='auto', **kwargs):
-    """Plot a given cube slice.
+def show_slice_static(data, x=None, y=None, z=None, t=None, figsize=None, aspect='auto', **kwargs):
+    """Plot slice of the 3d/4d data array.
 
     Parameters
     ----------
@@ -55,8 +55,8 @@ def show_cube_static(data, x=None, y=None, z=None, t=None, figsize=None, aspect=
     plt.show()
 
 
-def show_cube_interactive(data, figsize=None, aspect='auto', **kwargs):
-    """Plot 3 cube slices with interactive sliders.
+def show_slice_interactive(data, figsize=None, aspect='auto', **kwargs):
+    """Plot cube slices with interactive sliders.
 
     Parameters
     ----------

@@ -1,8 +1,7 @@
 """Methods for rates calculation"""
-import multiprocessing
-from multiprocessing.connection import wait
 import numpy as np
 import pandas as pd
+import dask
 from IPython.display import clear_output
 from ..tables.table_interpolation import baker_linear_model
 
@@ -103,17 +102,24 @@ def rates_oil_disgas(model, time_ind, curr_date, wellname,
     results.loc[time_ind, ['WGPR', 'WFGPR']] = np.sum(gas_rate), np.sum(free_gas)
     return
 
-def launch_calculus(model, timesteps, wellname, cf_aggregation='sum', queue=None):
+def launch_calculus(model, timesteps, wellname, cf_aggregation='sum'):
     """Calculate production rates.
+
+    Parameters
+    ----------
+    model : Field
+        Reservoir model.
+    timesteps : array
+        Array of timesteps to compute rates for.
+    wellname : str
+        Well name to compute rates for.
+    cf_aggregation: str, 'sum' or 'eucl'
+        The way of aggregating cf projection ('sum' - sum, 'eucl' - Euclid norm).
 
     Returns
     -------
-    rates : pd.DataFrame
-        pd.Dataframe filled with production rates for each phase.
-    block_rates : pd.DataFrame of ndarrays
-        pd.Dataframe filled with arrays of production rates in each grid block.
-    cf_aggregation: str, 'sum' or 'eucl'
-        The way of aggregating cf projection ('sum' - sum, 'eucl' - Euclid norm).
+    (wellname, results, blocks_dynamics) : tuple
+        Production rates per well and blocks.
     """
     empty_results = pd.DataFrame(columns=['DATE', 'MODE', 'STATUS', 'WBHP',
                                           'WOPR', 'WWPR', 'WGPR', 'WFGPR'])
@@ -127,67 +133,84 @@ def launch_calculus(model, timesteps, wellname, cf_aggregation='sum', queue=None
     fluids = set(model.meta['FLUIDS'])
 
     well = model.wells[wellname]
-    setattr(well, 'RESULTS', empty_results)
-    setattr(well, 'BLOCKS_DYNAMICS', empty_dynamics)
+    well.results = empty_results
+    well.blocks_dynamics = empty_dynamics
     well.results['DATE'] = timesteps
     well.blocks_dynamics['DATE'] = timesteps
     well.results.loc[:, empty_results.columns[3:]] = 0.
     for col in empty_dynamics.columns[3:]:
         for t_ind in range(len(timesteps)):
             well.blocks_dynamics.at[t_ind, col] = np.zeros(len(well.blocks))
+
     if len(well.blocks_info) == 0:
-        return
+        return wellname, well.results, well.blocks_dynamics
+
     if 'PERF' in well.attributes:
         if len(well.perf) == 0:
-            return
+            return wellname, well.results, well.blocks_dynamics
+
     well.blocks_info['PERF_RATIO'] = 0.
     if fluids == set(('OIL', 'WATER', 'GAS', 'DISGAS')):
         for t, curr_date in enumerate(timesteps):
             rates_oil_disgas(model, t, curr_date, wellname, units, g_const, cf_aggregation)
 
-    if queue is not None:
-        queue.send(((wellname, well.results, well.blocks_dynamics),
-                    multiprocessing.current_process().name))
-        queue.close()
+    return wellname, well.results, well.blocks_dynamics
 
 #pylint: disable=too-many-branches
-def calc_rates_multiprocess(model, timesteps, wellnames, cf_aggregation='sum', verbose=True):
-    """Run multiprocessed calculation of rates."""
-    readers = []
-    for name in wellnames:
-        r, w = multiprocessing.Pipe(duplex=False)
-        readers.append(r)
-        p = multiprocessing.Process(target=launch_calculus,
-                                    args=(model, timesteps, name, cf_aggregation, w))
-        p.start()
-        w.close()
-    reader_counter = 0
-    while readers:
-        for r in wait(readers):
-            try:
-                msg = r.recv()
-                setattr(model.wells[msg[0][0]], 'RESULTS', msg[0][1])
-                setattr(model.wells[msg[0][0]], 'BLOCKS_DYNAMICS', msg[0][2])
-            except EOFError:
-                readers.remove(r)
-            else:
-                reader_counter += 1
-                if verbose:
-                    clear_output(wait=True)
-                    print(f'Processed {reader_counter} out of {len(wellnames)} wells')
-    return model
+def calc_rates_multiprocess(model, timesteps, wellnames, cf_aggregation='sum'):
+    """Run multiprocessed calculation of rates.
 
-def calc_rates(model, timesteps, wellnames, cf_aggregation='sum', verbose=True):
-    """Calculate production rates.
+    Parameters
+    ----------
+    model : Field
+        Reservoir model.
+    timesteps : array
+        Array of timesteps to compute rates for.
+    wellnames : array
+        List of well namen to compute rates for.
+    cf_aggregation: str, 'sum' or 'eucl'
+        The way of aggregating cf projection ('sum' - sum, 'eucl' - Euclid norm).
 
     Returns
     -------
-    rates : pd.DataFrame
-        pd.Dataframe filled with production rates for each phase.
-    block_rates : pd.DataFrame of ndarrays
-        pd.Dataframe filled with arrays of production rates in each grid block.
+    model : Field
+        Reservoir model with computed rates.
+    """
+    results = []
+    for well in wellnames:
+        res = dask.delayed(launch_calculus)(model=model,
+                                            timesteps=timesteps,
+                                            wellname=well,
+                                            cf_aggregation=cf_aggregation)
+        results.append(res)
+
+    results = dask.compute(results)
+    for r in results:
+        model.wells[r[0][0]]['RESULTS'] = r[0][1]
+        model.wells[r[0][0]]['BLOCKS_DYNAMICS'] = r[0][2]
+
+    return model
+
+def calc_rates(model, timesteps, wellnames, cf_aggregation='sum', verbose=True):
+    """Run single process calculation of rates.
+
+    Parameters
+    ----------
+    model : Field
+        Reservoir model.
+    timesteps : array
+        Array of timesteps to compute rates for.
+    wellnames : list of str
+        List of well namen to compute rates for.
     cf_aggregation: str, 'sum' or 'eucl'
         The way of aggregating cf projection ('sum' - sum, 'eucl' - Euclid norm).
+    verbose : bool
+        Print a number of currently processed wells. Default True.
+
+    Returns
+    -------
+    model : Field
+        Reservoir model with computed rates.
     """
     for i, wellname in enumerate(wellnames):
         launch_calculus(model, timesteps, wellname, cf_aggregation)

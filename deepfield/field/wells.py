@@ -331,24 +331,25 @@ class Wells(BaseComponent):
         print(RenderTree(self.root, style=AsciiStyle()).by_attr())
         return self
 
-    def blocks_ravel(self, grid):
+    def blocks_ravel(self):
         """Transforms block coordinates into 1D representation."""
         if not self.state.spatial:
             return self
         self.set_state(spatial=False)
-        return self._blocks_ravel(grid)
+        return self._blocks_ravel()
 
-    def blocks_to_spatial(self, grid):
+    def blocks_to_spatial(self):
         """Transforms block coordinates into 3D representation."""
         if self.state.spatial:
             return self
         self.set_state(spatial=True)
-        return self._blocks_to_spatial(grid)
+        return self._blocks_to_spatial()
 
     @apply_to_each_segment
-    def _blocks_ravel(self, segment, grid):
+    def _blocks_ravel(self, segment):
         if 'BLOCKS' not in segment or not len(segment.blocks):
             return self
+        grid = self.field.grid
         res = np.ravel_multi_index(
             tuple(segment.blocks[:, i] for i in range(3)),
             dims=grid.dimens,
@@ -359,9 +360,10 @@ class Wells(BaseComponent):
         return self
 
     @apply_to_each_segment
-    def _blocks_to_spatial(self, segment, grid):
+    def _blocks_to_spatial(self, segment):
         if 'BLOCKS' not in segment or not len(segment.blocks):
             return self
+        grid = self.field.grid
         res = active_ind_to_full_ind(segment.blocks, grid)
         res = np.unravel_index(res, shape=grid.dimens, order='F')
         res = np.stack(res, axis=1)
@@ -369,24 +371,16 @@ class Wells(BaseComponent):
         return self
 
     @apply_to_each_segment
-    def add_welltrack(self, segment, grid):
+    def add_welltrack(self, segment):
         """Reconstruct welltrack from COMPDAT table.
 
         To connect the end point of the current segment with the start point of the next segment
         we find a set of segments with nearest start point and take a segment with the lowest depth.
         Works fine for simple trajectories only.
-        Parameters
-        ----------
-        grid : Grid class instance
-            Grid parameters.
-
-        Returns
-        -------
-        comp : Wells
-            Wells component with WELLTRACK attribute added.
         """
         if ('WELLTRACK' in segment) or ('COMPDAT' not in segment and 'COMPDATL' not in segment):
             return self
+        grid = self.field.grid
         if 'COMPDAT' in segment:
             df = segment.COMPDAT[['I', 'J', 'K1', 'K2']].drop_duplicates().sort_values(['K1', 'K2'])
         else:
@@ -414,13 +408,11 @@ class Wells(BaseComponent):
         return self
 
     @apply_to_each_segment
-    def get_wellblocks(self, segment, grid, logger=None, **kwargs):
+    def get_blocks(self, segment, logger=None, **kwargs):
         """Calculate grid blocks for the tree of wells.
 
         Parameters
         ----------
-        grid : class instance
-            Basic grid class.
         kwargs : misc
             Any additional named arguments to append.
 
@@ -429,7 +421,7 @@ class Wells(BaseComponent):
         comp : Wells
             Wells component with calculated grid blocks and well in block projections.
         """
-
+        grid = self.field.grid
         if 'COMPDAT' in segment.attributes:
             segment.blocks = defining_wellblocks_compdat(segment.compdat)
             segment.blocks_info = pd.DataFrame(np.empty((segment.blocks.shape[0], 0)))
@@ -504,13 +496,11 @@ class Wells(BaseComponent):
 
     @state_check(lambda state: state.full_perforation)
     @apply_to_each_segment
-    def compute_events(self, segment, grid, attr='EVENTS'):
+    def compute_events(self, segment, attr='EVENTS'):
         """Make events from WCONPROD and WCONINJE if present.
 
         Parameters
         ----------
-        grid : Grid
-            Grid component.
         attr : str, optional
             Attribute name for events. Default to 'EVENTS'.
 
@@ -521,6 +511,7 @@ class Wells(BaseComponent):
         """
         if 'wconprod' not in segment and 'wconinje' not in segment:
             return self
+        grid = self.field.grid
         df = pd.DataFrame(columns=['DATE', 'MODE', 'DREF', 'GIT', 'WIT', 'BHPT', 'LPT'])
         if segment.perforated_blocks().size == 0:
             setattr(segment, attr, df)
@@ -555,14 +546,12 @@ class Wells(BaseComponent):
 
     @state_check(lambda state: state.full_perforation)
     @apply_to_each_segment
-    def results_to_events(self, segment, grid, production_mode='BHPT', attr='EVENTS',
+    def results_to_events(self, segment, production_mode='BHPT', attr='EVENTS',
                           drop_duplicates=True):
         """Make events from results.
 
         Parameters
         ----------
-        grid : Grid
-            Grid component.
         production_mode: str, 'BHPT' or 'LPT'. Default to 'BHPT'.
             Control mode for production wells.
         attr : str, optional
@@ -577,6 +566,7 @@ class Wells(BaseComponent):
         """
         if 'RESULTS' not in segment.attributes:
             return self
+        grid = self.field.grid
         df = pd.DataFrame(columns=['DATE', 'MODE', 'DREF', 'WIT', 'BHPT', 'LPT', 'GIT'])
         if segment.perforated_blocks().size == 0 or segment.results.empty:
             setattr(segment, attr, df)
@@ -677,28 +667,25 @@ class Wells(BaseComponent):
         return self
 
     @apply_to_each_segment
-    def calculate_cf(self, segment, rock, grid, beta=1, units='METRIC', cf_aggregation='sum', **kwargs):
+    def calculate_cf(self, segment, beta=1, units='METRIC', cf_aggregation='sum', **kwargs):
         """Calculate connection factor values for each grid block of a segment.
 
         Parameters
         ----------
-        rock : Rock class instance
-            Rock component of geological model.
-        grid : Grid class instance
-            Rock component of geological model.
-        segment : WellSegment class instance
-            Well's node.
-        beta : list or ndarray
-            Additional multiplicator for productivity index of well.
-        conversion_const : float
-            Сonversion factor for field units.
+        beta : list or ndarray, optional
+            Additional multiplicator for productivity index of well. Default 1.
+        units : str, optional
+            Utints used. Default 'METRIC'.
+        cf_aggregation : str, optional
+            Aggragation method for connection factors. Default 'sum'.
 
         Returns
         -------
         comp : Wells
             Wells component with a 'CF' columns in a blocks_info attribute.
         """
-        calculate_cf(rock, grid, segment, beta, units, cf_aggregation, **kwargs)
+        calculate_cf(self.field.rock, self.field.grid, segment,
+                     beta, units, cf_aggregation, **kwargs)
         self.set_state(has_cf=True)
         return self
 
@@ -708,8 +695,6 @@ class Wells(BaseComponent):
 
         Parameters
         ----------
-        segment : WellSegment
-            Well's node.
         current_date : pandas.Timestamp, optional
             Final date to open new perforations.
 
@@ -727,18 +712,7 @@ class Wells(BaseComponent):
 
     @apply_to_each_segment
     def split_perforations(self, segment):
-        """Split well perforations in a way that each perforation correspond
-        to one specific cell.
-
-        Parameters
-        ----------
-        segment : WellSegment
-            Well node
-        Returns
-        -------
-        Wells
-            Wells component with updated perforations.
-        """
+        """Split well perforations in a way that each perforation correspond to one specific cell."""
         new_perf_df = pd.DataFrame().reindex(
             columns=np.concatenate((segment.perf.columns, ['I', 'J', 'K'])))
         new_perf_df = new_perf_df.astype({
@@ -781,8 +755,6 @@ class Wells(BaseComponent):
 
         Parameters
         ----------
-        segment : WellSegment
-            Well node
         mults : pandas.DataFrame
             Multiplyers to be updated.
             A table with following columns
@@ -1097,7 +1069,7 @@ class Wells(BaseComponent):
     @apply_to_each_segment
     def fill_na(self, segment, attr):
         """
-        Fill ionvalid values in wells segment attribute.
+        Fill nan values in wells segment attribute.
 
         Parameters
         ----------
@@ -1175,13 +1147,11 @@ class Wells(BaseComponent):
                 raise NotImplementedError("Dump for {} is not implemented.".format(attr.upper()))
 
     @apply_to_each_segment
-    def _get_first_entering_point(self, segment, grid, **kwargs):
+    def _get_first_entering_point(self, segment, **kwargs):
         """Calculate grid blocks for the tree of wells.
 
         Parameters
         ----------
-        grid : Grid
-            Basic grid class.
         kwargs : misc
             Any additional named arguments to append.
 
@@ -1191,7 +1161,7 @@ class Wells(BaseComponent):
             Wells component with calculated grid blocks and well in block projections.
         """
         _ = kwargs
-        grid = grid.as_corner_point
+        grid = self.field.grid.as_corner_point
         if grid._vtk_locator is None or grid._cell_id_d is None: #pylint: disable=protected-access
             grid.create_vtk_locator(use_only_active=True, scaling=False)
 

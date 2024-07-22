@@ -36,7 +36,8 @@ setup(
 	'numba',
 	'tables',
 	'pytest',
-	'psutil'
+	'psutil',
+    'dask'
     ],
     extras_require={
     },

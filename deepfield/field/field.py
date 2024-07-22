@@ -86,7 +86,7 @@ class FieldState:
 class Field:
     """Reservoir model.
 
-    Contains components of reservoir model and preprocessing actions.
+    Contains components of the reservoir model and preprocessing tools.
 
     Parameters
     ----------
@@ -101,7 +101,7 @@ class Field:
         Sometimes it might help to specify block size, e.g. 'auto:3000' will
         read first 3000 bytes to infer encoding.
     loglevel : str, optional
-            Log level to be printed while loading. Default to 'INFO'.
+        Log level to be printed while loading. Default to 'INFO'.
     """
     _default_config = default_config
     def __init__(self, path=None, config=None, logfile=None, encoding='auto', loglevel='INFO'):
@@ -174,13 +174,6 @@ class Field:
             raise TypeError("Component's config should be of type str, list, tuple or dict. Found {}."
                             .format(type(value)))
         return {'attrs': attrs, 'kwargs': kwargs}
-
-    def assert_components_available(self, *comp_names):
-        # FIXME add to all the methods where required
-        """Raises ValueError in case comp_names are not presented in self."""
-        for comp in comp_names:
-            if not hasattr(self, comp):
-                raise ValueError('Component %s is not loaded!' % comp)
 
     @property
     def meta(self):
@@ -303,7 +296,7 @@ class Field:
         self._components['tables'] = x
         return self
 
-    def get_spatial_connection_factors_and_perforation_ratio(self, date_range=None, mode=None):
+    def spatial_cf_and_perf(self, date_range=None, mode=None):
         """Get model's connection factors and perforation ratios in a spatial form.
 
         Parameters
@@ -345,8 +338,8 @@ class Field:
         """
         return get_well_mask(self)
 
-    def get_spatial_well_control(self, attrs, date_range=None, fill_shut=0., fill_outside=0.):
-        """Get the model's control in a spatial form
+    def spatial_well_control(self, attrs, date_range=None, fill_shut=0., fill_outside=0.):
+        """Get the model's control in a spatial form.
 
         Parameters
         ----------
@@ -355,9 +348,9 @@ class Field:
         date_range: tuple
             Minimal and maximal dates for control events.
         fill_shut: float
-            Value to fill shutted perforations
+            Value to fill shutted perforations.
         fill_outside:
-            Value to fill non-perforated cells
+            Value to fill non-perforated cells.
 
         Returns
         -------
@@ -427,7 +420,7 @@ class Field:
                         df.sort_values(by='DATE', inplace=True)
                         df.reset_index(drop=True, inplace=True)
             if 'GRID' in loaded:
-                self.wells.add_welltrack(self.grid)
+                self.wells.add_welltrack()
         else:
             self.meta['MODEL_TYPE'] = 'TN'
 
@@ -460,13 +453,13 @@ class Field:
         if 'rock' in self.components:
             if 'ACTNUM' in self.grid:
                 self.rock.pad_na(fill_na=float(fill_na))
-            self.rock.to_spatial(dimens=self.grid.dimens)
+            self.rock.to_spatial()
         if 'states' in self.components:
             if 'ACTNUM' in self.grid:
                 self.states.pad_na(fill_na=float(fill_na))
-            self.states.to_spatial(dimens=self.grid.dimens)
+            self.states.to_spatial()
         if 'wells' in self.components and self.wells.state.has_blocks:
-            self.wells.blocks_to_spatial(self.grid)
+            self.wells.blocks_to_spatial()
         return self
 
     def ravel(self, only_active=True):
@@ -487,13 +480,13 @@ class Field:
         if 'rock' in self.components:
             self.rock.ravel()
             if only_active:
-                self.rock.strip_na(actnum=self.grid.actnum)
+                self.rock.strip_na()
         if 'states' in self.components:
             self.states.ravel()
             if only_active:
-                self.states.strip_na(actnum=self.grid.actnum)
+                self.states.strip_na()
         if 'wells' in self.components and self.wells.state.has_blocks:
-            self.wells.blocks_ravel(self.grid)
+            self.wells.blocks_ravel()
         return self
 
     def _load_hdf5(self, raise_errors):
@@ -971,21 +964,7 @@ class Field:
 
         restart.save_restart(is_unified,
                              dir_name,
-                             [self.states.strip_na(attr='PRESSURE',
-                                                   actnum=self.grid.as_corner_point.actnum,
-                                                   inplace=False),
-                              self.states.strip_na(attr='SGAS',
-                                                   actnum=self.grid.as_corner_point.actnum,
-                                                   inplace=False),
-                              self.states.strip_na(attr='SOIL',
-                                                   actnum=self.grid.as_corner_point.actnum,
-                                                   inplace=False),
-                              self.states.strip_na(attr='SWAT',
-                                                   actnum=self.grid.as_corner_point.actnum,
-                                                   inplace=False),
-                              self.states.strip_na(attr='RS',
-                                                   actnum=self.grid.as_corner_point.actnum,
-                                                   inplace=False)],
+                             self.states.strip_na(inplace=False),
                              self.result_dates,
                              grid_dim,
                              time_size,
@@ -1010,21 +989,24 @@ class Field:
         Parameters
         ----------
         wellnames : list of str
-            Wellnames for rates calculation. If None, all wells are included. Default to None.
+            Wellnames for rates calculation. If None, all wells are included. Default None.
         cf_aggregation: str, 'sum' or 'eucl'
             The way of aggregating cf projection ('sum' - sum, 'eucl' - Euclid norm).
+        multiprocessing : bool
+            Use multiprocessing for rates calculation. Default True.
+        verbose : bool
+            Print a number of currently processed wells (if multiprocessing=False). Default True.
+
         Returns
         -------
-        rates : pd.DataFrame
-            pd.Dataframe filled with production rates for each phase.
-        block_rates : pd.DataFrame of ndarrays
-            pd.Dataframe filled with arrays of production rates in each grid block.
+        model : Field
+            Reservoir model with computed rates.
         """
         timesteps = self.result_dates
         if wellnames is None:
             wellnames = self.wells.names
         if multiprocessing:
-            calc_rates_multiprocess(self, timesteps, wellnames, cf_aggregation, verbose)
+            calc_rates_multiprocess(self, timesteps, wellnames, cf_aggregation)
         else:
             calc_rates(self, timesteps, wellnames, cf_aggregation, verbose)
         return self

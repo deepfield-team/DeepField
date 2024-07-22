@@ -89,7 +89,7 @@ class SpatialComponent(BaseComponent):
         """Ravel transformations."""
         return super().ravel(attr=attr, inplace=inplace, **kwargs)
 
-    def to_spatial(self, attr=None, dimens=None, inplace=True, **kwargs):
+    def to_spatial(self, attr=None, inplace=True, **kwargs):
         """Bring component to spatial state. If not inplace returns
         spatial representation for attributes with pre-defined spatial transformation.
 
@@ -109,16 +109,16 @@ class SpatialComponent(BaseComponent):
         if attr is not None and inplace:
             raise ValueError('`attr` should be None for inplace operation.')
         self.pad_na(attr=attr)
-        res = self._to_spatial(attr=attr, dimens=dimens, inplace=inplace, **kwargs)
+        res = self._to_spatial(attr=attr, inplace=inplace, **kwargs)
         if not inplace:
             return res
         self.set_state(spatial=True)
         return self
 
     @apply_to_each_input
-    def _to_spatial(self, attr, dimens, inplace, **kwargs):
+    def _to_spatial(self, attr, inplace, **kwargs):
         """Spatial transformations."""
-        _ = attr, dimens, inplace, kwargs
+        _ = attr, inplace, kwargs
         raise NotImplementedError()
 
     def _make_data_dump(self, attr, fmt=None, **kwargs):
