@@ -63,6 +63,7 @@ Grid
 * COORD
 * DIMENS
 * ZCORN
+* MINPV
 
 Rock
 
@@ -116,3 +117,10 @@ Wells
 * WEFAC
 * WFRAC
 * WFRACP
+
+Arithmetics (operations with array-like data)
+
+* EQUALS
+* ADD
+* MULTIPLY
+* COPY
