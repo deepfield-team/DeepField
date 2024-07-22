@@ -102,18 +102,24 @@ def rates_oil_disgas(model, time_ind, curr_date, wellname,
     results.loc[time_ind, ['WGPR', 'WFGPR']] = np.sum(gas_rate), np.sum(free_gas)
     return
 
-@dask.delayed
 def launch_calculus(model, timesteps, wellname, cf_aggregation='sum'):
     """Calculate production rates.
 
-    Returns
-    -------
-    rates : pd.DataFrame
-        pd.Dataframe filled with production rates for each phase.
-    block_rates : pd.DataFrame of ndarrays
-        pd.Dataframe filled with arrays of production rates in each grid block.
+    Parameters
+    ----------
+    model : Field
+        Reservoir model.
+    timesteps : array
+        Array of timesteps to compute rates for.
+    wellname : str
+        Well name to compute rates for.
     cf_aggregation: str, 'sum' or 'eucl'
         The way of aggregating cf projection ('sum' - sum, 'eucl' - Euclid norm).
+
+    Returns
+    -------
+    (wellname, results, blocks_dynamics) : tuple
+        Production rates per well and blocks.
     """
     empty_results = pd.DataFrame(columns=['DATE', 'MODE', 'STATUS', 'WBHP',
                                           'WOPR', 'WWPR', 'WGPR', 'WFGPR'])
@@ -152,13 +158,30 @@ def launch_calculus(model, timesteps, wellname, cf_aggregation='sum'):
 
 #pylint: disable=too-many-branches
 def calc_rates_multiprocess(model, timesteps, wellnames, cf_aggregation='sum'):
-    """Run multiprocessed calculation of rates."""
+    """Run multiprocessed calculation of rates.
+
+    Parameters
+    ----------
+    model : Field
+        Reservoir model.
+    timesteps : array
+        Array of timesteps to compute rates for.
+    wellnames : array
+        List of well namen to compute rates for.
+    cf_aggregation: str, 'sum' or 'eucl'
+        The way of aggregating cf projection ('sum' - sum, 'eucl' - Euclid norm).
+
+    Returns
+    -------
+    model : Field
+        Reservoir model with computed rates.
+    """
     results = []
     for well in wellnames:
-        res = launch_calculus(model=model,
-                              timesteps=timesteps,
-                              wellname=well,
-                              cf_aggregation=cf_aggregation)
+        res = dask.delayed(launch_calculus)(model=model,
+                                            timesteps=timesteps,
+                                            wellname=well,
+                                            cf_aggregation=cf_aggregation)
         results.append(res)
 
     results = dask.compute(results)
@@ -169,16 +192,25 @@ def calc_rates_multiprocess(model, timesteps, wellnames, cf_aggregation='sum'):
     return model
 
 def calc_rates(model, timesteps, wellnames, cf_aggregation='sum', verbose=True):
-    """Calculate production rates.
+    """Run single process calculation of rates.
+
+    Parameters
+    ----------
+    model : Field
+        Reservoir model.
+    timesteps : array
+        Array of timesteps to compute rates for.
+    wellnames : list of str
+        List of well namen to compute rates for.
+    cf_aggregation: str, 'sum' or 'eucl'
+        The way of aggregating cf projection ('sum' - sum, 'eucl' - Euclid norm).
+    verbose : bool
+        Print a number of currently processed wells. Default True.
 
     Returns
     -------
-    rates : pd.DataFrame
-        pd.Dataframe filled with production rates for each phase.
-    block_rates : pd.DataFrame of ndarrays
-        pd.Dataframe filled with arrays of production rates in each grid block.
-    cf_aggregation: str, 'sum' or 'eucl'
-        The way of aggregating cf projection ('sum' - sum, 'eucl' - Euclid norm).
+    model : Field
+        Reservoir model with computed rates.
     """
     for i, wellname in enumerate(wellnames):
         launch_calculus(model, timesteps, wellname, cf_aggregation)

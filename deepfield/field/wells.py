@@ -336,19 +336,20 @@ class Wells(BaseComponent):
         if not self.state.spatial:
             return self
         self.set_state(spatial=False)
-        return self._blocks_ravel(self.field.grid)
+        return self._blocks_ravel()
 
     def blocks_to_spatial(self):
         """Transforms block coordinates into 3D representation."""
         if self.state.spatial:
             return self
         self.set_state(spatial=True)
-        return self._blocks_to_spatial(self.field.grid)
+        return self._blocks_to_spatial()
 
     @apply_to_each_segment
-    def _blocks_ravel(self, segment, grid):
+    def _blocks_ravel(self, segment):
         if 'BLOCKS' not in segment or not len(segment.blocks):
             return self
+        grid = self.field.grid
         res = np.ravel_multi_index(
             tuple(segment.blocks[:, i] for i in range(3)),
             dims=grid.dimens,
@@ -359,9 +360,10 @@ class Wells(BaseComponent):
         return self
 
     @apply_to_each_segment
-    def _blocks_to_spatial(self, segment, grid):
+    def _blocks_to_spatial(self, segment):
         if 'BLOCKS' not in segment or not len(segment.blocks):
             return self
+        grid = self.field.grid
         res = active_ind_to_full_ind(segment.blocks, grid)
         res = np.unravel_index(res, shape=grid.dimens, order='F')
         res = np.stack(res, axis=1)

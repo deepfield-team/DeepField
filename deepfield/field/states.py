@@ -51,10 +51,9 @@ class States(SpatialComponent):
         return res
 
     @apply_to_each_input
-    def _to_spatial(self, attr, dimens=None, inplace=True):
+    def _to_spatial(self, attr, inplace=True):
         """Spatial order 'F' transformations."""
-        if dimens is None:
-            dimens = self.field.grid.dimens
+        dimens = self.field.grid.dimens
         return self.reshape(attr=attr, newshape=(-1,) + tuple(dimens),
                             order='F', inplace=inplace)
 

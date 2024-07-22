@@ -25,10 +25,9 @@ class Rock(SpatialComponent):
             self.state.binary_attributes.append(k)
 
     @apply_to_each_input
-    def _to_spatial(self, attr, dimens=None, inplace=True):
+    def _to_spatial(self, attr, inplace=True):
         """Spatial order 'F' transformations."""
-        if dimens is None:
-            dimens = self.field.grid.dimens
+        dimens = self.field.grid.dimens
         return self.reshape(attr=attr, newshape=dimens, order='F', inplace=inplace)
 
     def _make_data_dump(self, attr, fmt=None, float_dtype=None, **kwargs):
@@ -123,7 +122,7 @@ class Rock(SpatialComponent):
 
     @state_check(lambda state: state.spatial)
     @ndim_check(3)
-    def show_slice(self, attr, x=None, y=None, z=None, actnum=None, figsize=None, **kwargs):
+    def show_slice(self, attr, x=None, y=None, z=None, figsize=None, **kwargs):
         """Visualize slices of 3D array. If no slice is specified, all 3 slices
         will be shown with interactive slider widgets.
 

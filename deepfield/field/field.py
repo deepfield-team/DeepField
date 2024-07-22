@@ -466,13 +466,13 @@ class Field:
         if 'rock' in self.components:
             self.rock.ravel()
             if only_active:
-                self.rock.strip_na(actnum=self.grid.actnum)
+                self.rock.strip_na()
         if 'states' in self.components:
             self.states.ravel()
             if only_active:
-                self.states.strip_na(actnum=self.grid.actnum)
+                self.states.strip_na()
         if 'wells' in self.components and self.wells.state.has_blocks:
-            self.wells.blocks_ravel(self.grid)
+            self.wells.blocks_ravel()
         return self
 
     def _load_hdf5(self, raise_errors):
@@ -943,21 +943,7 @@ class Field:
 
         restart.save_restart(is_unified,
                              dir_name,
-                             [self.states.strip_na(attr='PRESSURE',
-                                                   actnum=self.grid.as_corner_point.actnum,
-                                                   inplace=False),
-                              self.states.strip_na(attr='SGAS',
-                                                   actnum=self.grid.as_corner_point.actnum,
-                                                   inplace=False),
-                              self.states.strip_na(attr='SOIL',
-                                                   actnum=self.grid.as_corner_point.actnum,
-                                                   inplace=False),
-                              self.states.strip_na(attr='SWAT',
-                                                   actnum=self.grid.as_corner_point.actnum,
-                                                   inplace=False),
-                              self.states.strip_na(attr='RS',
-                                                   actnum=self.grid.as_corner_point.actnum,
-                                                   inplace=False)],
+                             self.states.strip_na(inplace=False).values(),
                              self.result_dates,
                              grid_dim,
                              time_size,
@@ -982,15 +968,18 @@ class Field:
         Parameters
         ----------
         wellnames : list of str
-            Wellnames for rates calculation. If None, all wells are included. Default to None.
+            Wellnames for rates calculation. If None, all wells are included. Default None.
         cf_aggregation: str, 'sum' or 'eucl'
             The way of aggregating cf projection ('sum' - sum, 'eucl' - Euclid norm).
+        multiprocessing : bool
+            Use multiprocessing for rates calculation. Default True.
+        verbose : bool
+            Print a number of currently processed wells (if multiprocessing=False). Default True.
+
         Returns
         -------
-        rates : pd.DataFrame
-            pd.Dataframe filled with production rates for each phase.
-        block_rates : pd.DataFrame of ndarrays
-            pd.Dataframe filled with arrays of production rates in each grid block.
+        model : Field
+            Reservoir model with computed rates.
         """
         timesteps = self.result_dates
         if wellnames is None:
