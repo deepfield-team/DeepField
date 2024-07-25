@@ -2,6 +2,7 @@
 """Wells and WellSegment components."""
 from copy import deepcopy
 import warnings
+from weakref import ref
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -70,6 +71,21 @@ class Wells(BaseComponent):
             node_copy = node.copy()
             node_copy.parent = copy[node.parent.name]
         return copy
+
+    @property
+    def field(self):
+        return self._field()
+    @field.setter
+    def field(self, field):
+        """Set field to which component belongs."""
+        if isinstance(field, ref) or field is None:
+            self._field = field
+            return self
+        self._field = ref(field)
+        if hasattr(self, 'root'):
+            for node in self:
+                node.field = field
+        return self
 
     @property
     def root(self):
@@ -174,7 +190,7 @@ class Wells(BaseComponent):
                 try:
                     return self[groupname]
                 except KeyError:
-                    return WellSegment(parent=self.root, name=groupname, ntype='group')
+                    return WellSegment(parent=self.root, name=groupname, ntype='group', field=self.field)
             return self.root
 
         for name in sorted(wellsdata):
@@ -184,7 +200,7 @@ class Wells(BaseComponent):
                 node = self[name]
             except KeyError:
                 parent = _get_parent(name, data)
-                node = WellSegment(parent=parent, name=name, ntype='well')
+                node = WellSegment(parent=parent, name=name, ntype='well', field=self.field)
 
             if 'WELSPECS' in data:
                 parent = _get_parent(name, data)
@@ -425,9 +441,13 @@ class Wells(BaseComponent):
         if 'COMPDAT' in segment.attributes:
             segment.blocks = defining_wellblocks_compdat(segment.compdat)
             segment.blocks_info = pd.DataFrame(np.empty((segment.blocks.shape[0], 0)))
+            h_well = np.stack([(0, 0, self.field.grid.dz) for _ in range(segment.blocks.shape[0])])
+            segment.blocks_info = pd.DataFrame(h_well, columns=['Hx', 'Hy', 'Hz'])
         elif 'COMPDATL' in segment.attributes and (segment.compdatl['LGR']=='GLOBAL').all():
             segment.blocks = defining_wellblocks_compdat(segment.compdatl)
             segment.blocks_info = pd.DataFrame(np.empty((segment.blocks.shape[0], 0)))
+            h_well = np.stack([(0, 0, self.field.grid.dz) for _ in range(segment.blocks.shape[0])])
+            segment.blocks_info = pd.DataFrame(h_well, columns=['Hx', 'Hy', 'Hz'])
         else:
             grid = grid.as_corner_point
             if isinstance(grid, OrthogonalUniformGrid):
@@ -459,12 +479,12 @@ class Wells(BaseComponent):
             segment.blocks_info = pd.DataFrame(h_well, columns=['Hx', 'Hy', 'Hz'])
             segment._inters = inters #pylint: disable=protected-access
             segment.blocks_info['MD'] = welltr_block_md
-            segment.blocks_info = segment.blocks_info.assign(
-                PERF_RATIO=np.nan if len(segment.blocks_info) == 0 else 0,
-                RAD=np.nan if len(segment.blocks_info) == 0 else DEFAULTS['RAD'],
-                SKIN=np.nan if len(segment.blocks_info) == 0 else DEFAULTS['SKIN'],
-                MULT=np.nan if len(segment.blocks_info) == 0 else DEFAULTS['MULT'],
-            )
+        segment.blocks_info = segment.blocks_info.assign(
+            PERF_RATIO=np.nan if len(segment.blocks_info) == 0 else 0,
+            RAD=np.nan if len(segment.blocks_info) == 0 else DEFAULTS['RAD'],
+            SKIN=np.nan if len(segment.blocks_info) == 0 else DEFAULTS['SKIN'],
+            MULT=np.nan if len(segment.blocks_info) == 0 else DEFAULTS['MULT'],
+        )
 
         self.set_state(has_blocks=True,
                        has_cf=False,
