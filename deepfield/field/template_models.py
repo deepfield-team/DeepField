@@ -161,6 +161,12 @@ $grid_specs
 INCLUDE
 '$actnum' /
 
+INCLUDE
+'$faults' /
+
+INCLUDE
+'$multflt' /
+
 $aquifers
 
 $rock_grid
