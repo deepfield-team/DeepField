@@ -1094,16 +1094,50 @@ class Field:
             add_mesh_kwargs_ = {'line_width': 2, 'color': 'k'}
             if isinstance(add_mesh_kwargs, dict):
                 add_mesh_kwargs_.update(add_mesh_kwargs)
-            plotter.add_mesh(pv_line, **add_mesh_kwargs_)
+            plotter.add_mesh(pv_line, **add_mesh_kwargs_, name='well_{}'.format(well_name))
 
             labeled_points[well_name] = pv_line.points[0]
 
         return labeled_points
 
+    def _add_faults(self, plotter, add_mesh_kwargs=None):
+        """Adds all faults to the plot."""
+        FACES = {'X': [1, 3, 5, 7], 'Y': [2, 3, 6, 7], 'Z': [4, 5, 6, 7]}
+
+        for segment in self.faults:
+            blocks_fault = []
+            xyz_fault = []
+            for idx in segment.faults.index:
+                cells = segment.faults.loc[idx, ['IX1', 'IX2', 'IY1', 'IY2', 'IZ1', 'IZ2', 'FACE']]
+                x_range = range(cells['IX1']-1, cells['IX2'])
+                y_range = range(cells['IY1']-1, cells['IY2'])
+                z_range = range(cells['IZ1']-1, cells['IZ2'])
+                blocks_segment = np.array(list(product(x_range, y_range, z_range)))
+                active = model.grid.actnum[*blocks_segment.T]
+                blocks_segment = blocks_segment[active]
+                if len(blocks_segment) == 0:
+                    continue
+                xyz_segment = model.grid.xyz[blocks_segment[:, 0],
+                                             blocks_segment[:, 1],
+                                             blocks_segment[:, 2]][:, FACES[cells['FACE']]]
+                blocks_fault.extend(blocks_segment)
+                xyz_fault.extend(xyz_segment)
+
+            if len(xyz_fault) == 0:
+                continue
+            data = np.array(xyz_fault)
+            vertices = data.reshape(-1, 3)
+            ids = 4*np.arange(len(data))
+            faces1 = np.stack([0*ids+3, ids, ids+1, ids+3]).T
+            faces2 = np.stack([0*ids+3, ids, ids+2, ids+3]).T
+            faces = np.vstack([faces1, faces2])
+            mesh = pv.PolyData(vertices, faces)
+            plotter.add_mesh(mesh, name='faults')
+
     @state_check(lambda state: state.spatial)
     def show(self, attr=None, opacity=0.5, thresholding=False, slicing=False,
              timestamp=None, use_only_active=True, cell_size=None, scaling=True,
-             cmap=None, show_wells=True, notebook=False,
+             cmap=None, notebook=False,
              theme='default', show_edges=True, show_labels=True):
         """Field visualization.
 
@@ -1130,8 +1164,6 @@ class Field:
             if False then no scaling is applied. Default True.
         cmap: object
             Matplotlib, Colorcet, cmocean, or custom colormap
-        show_wells: bool
-            Show well trajectories. Default True.
         notebook: bool
             When True, the resulting plot is placed inline a jupyter notebook.
             Assumes a jupyter console is active. Automatically enables off_screen.
@@ -1150,7 +1182,7 @@ class Field:
 
         plot_params = {'show_edges': show_edges, 'cmap': cmap}
 
-        if show_wells and 'wells' in self.components:
+        if 'wells' in self.components:
             self.wells._get_first_entering_point(grid=self.grid)
 
         old_vtk_grid_params = self.grid._vtk_grid_params
@@ -1284,22 +1316,44 @@ class Field:
             plotter.add_slider_widget(ch_slice_y, rng=[y_min, y_max], title='Y', **y_pos)
             plotter.add_slider_widget(ch_slice_z, rng=[z_min, z_max], title='Z', **z_pos)
 
-        if show_wells and 'wells' in self.components:
-            labeled_points = self._add_welltracks(plotter)
-            (labels, points) = zip(*labeled_points.items())
-            points = np.array(points)*scaling
-            def show_well_name(value):
-                if value:
-                    plotter.add_point_labels(points, labels,
-                        font_size=20,
-                        show_points=False,
-                        name='wells_names')
-                else:
-                    plotter.remove_actor('wells_names')
+        def show_wells(value):
+            if value and ('wells' in self.components):
+                labeled_points = self._add_welltracks(plotter)
+                (labels, points) = zip(*labeled_points.items())
+                points = np.array(points)*scaling
+                plotter.add_point_labels(points, labels,
+                    font_size=20,
+                    show_points=False,
+                    name='wells_names')
+            else:
+                for name in self.wells.names:
+                    try:
+                        plotter.remove_actor('well_{}'.format(name))
+                    except ValueError:
+                        continue
+                plotter.remove_actor('wells_names')
 
-            if not notebook:
-                plotter.add_checkbox_button_widget(show_well_name, value=False)
-                plotter.add_text("      Wells' names", position=(10.0, 10.0), font_size=16)
+        if not notebook:
+            plotter.add_checkbox_button_widget(show_wells, value=True)
+            plotter.add_text("      Wells", position=(10.0, 10.0), font_size=16)
+
+        def show_faults(value):
+            if value and ('faults' in self.components):
+                # labeled_points = 
+                self._add_faults(plotter)
+                # (labels, points) = zip(*labeled_points.items())
+                # points = np.array(points)*scaling
+                # plotter.add_point_labels(points, labels,
+                #     font_size=20,
+                #     show_points=False,
+                #     name='faults_names')
+            else:
+                plotter.remove_actor('faults')
+                # plotter.remove_actor('faults_names')
+
+        if not notebook:
+            plotter.add_checkbox_button_widget(show_faults, value=True)
+            plotter.add_text("      Faults", position=(9.0, 10.0), font_size=16)
 
         plotter.show_grid(show_xlabels=show_labels, show_ylabels=show_labels, show_zlabels=show_labels)
         plotter.show()
