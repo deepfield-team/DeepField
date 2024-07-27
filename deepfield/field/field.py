@@ -268,7 +268,7 @@ class Field:
     @faults.setter
     def faults(self, x):
         """Faults component setter."""
-        x.set_field = self
+        x.field = self
         self._components['faults'] = x
         return self
 
