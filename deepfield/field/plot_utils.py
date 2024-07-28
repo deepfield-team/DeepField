@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d # pylint: disable=unused-import
 from mpl_toolkits.mplot3d import Axes3D # pylint: disable=unused-import
 from ipywidgets import interact, widgets
-import pyvista as pv
 
 COLORS = ['r', 'b', 'm', 'g']
 
@@ -217,14 +216,3 @@ def plot_table_2d(table, figsize=None):
         cropped_table.domain = [domain_names[1]]
         plot_table_1d(cropped_table, figsize)
     interact(update, domain0_value=domain0_value_widget)
-
-
-def lines_from_points(points):
-    """Given an array of points, make a line set"""
-    poly = pv.PolyData()
-    poly.points = points
-    cells = np.full((len(points)-1, 3), 2, dtype=np.int32)
-    cells[:, 1] = np.arange(0, len(points)-1, dtype=np.int32)
-    cells[:, 2] = np.arange(1, len(points), dtype=np.int32)
-    poly.lines = cells
-    return poly
