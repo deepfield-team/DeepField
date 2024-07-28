@@ -75,6 +75,7 @@ class Wells(BaseComponent):
     @property
     def field(self):
         return self._field()
+
     @field.setter
     def field(self, field):
         """Set field to which component belongs."""

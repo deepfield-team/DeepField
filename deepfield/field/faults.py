@@ -12,7 +12,7 @@ from .base_component import BaseComponent
 from .faults_load_utils import load_faults, load_multflt
 from .decorators import apply_to_each_segment
 
-FACES = {'X': [1, 3, 5, 7], 'Y': [0, 1, 4, 5], 'Z': [4, 5, 6, 7]}
+FACES = {'X': [1, 3, 5, 7], 'Y': [2, 3, 6, 7], 'Z': [4, 5, 6, 7]}
 
 
 class IterableFaults:
@@ -194,9 +194,9 @@ class Faults(BaseComponent):
             y_range = range(cells['IY1']-1, cells['IY2'])
             z_range = range(cells['IZ1']-1, cells['IZ2'])
             blocks_segment = np.array(list(product(x_range, y_range, z_range)))
-            xyz_segment = self._field().grid.xyz[blocks_segment[:, 0],
-                                                 blocks_segment[:, 1],
-                                                 blocks_segment[:, 2]][:, FACES[cells['FACE']]]
+            xyz_segment = self.field.grid.xyz[blocks_segment[:, 0],
+                                              blocks_segment[:, 1],
+                                              blocks_segment[:, 2]][:, FACES[cells['FACE']]]
             blocks_fault.extend(blocks_segment)
             xyz_fault.extend(xyz_segment)
 
