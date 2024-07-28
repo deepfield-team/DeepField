@@ -983,6 +983,8 @@ class Field:
 
     def calculate_rates(self, wellnames=None, cf_aggregation='sum', multiprocessing=True, verbose=True):
         """Calculate oil/water/gas rates for each well segment.
+        NOTE: Rate calculation is supported only for three phase fluid with dissolved gas (
+            OIL, WATER, GAS, DISGAS). Eclipse style control is not supported.
 
         Parameters
         ----------
