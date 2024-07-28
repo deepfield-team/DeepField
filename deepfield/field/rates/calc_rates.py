@@ -29,6 +29,8 @@ def find_control(model, curr_date, wname):
     well_mode = ''
     status = 'CLOSED'
     if (not 'EVENTS' in well) or well.events.empty:
+        if 'WCONPROD' in well:
+            raise NotImplementedError('WCONPROD is not supported fo rate calculation.')
         return p_bh, well_mode, status
     mask = well.events['DATE'] < curr_date
     if not mask.any():
@@ -58,7 +60,6 @@ def rates_oil_disgas(model, time_ind, curr_date, wellname,
 
     well.apply_perforations(current_date=curr_date)
     well.calculate_cf(model.rock, model.grid, units=units, cf_aggregation=cf_aggregation)
-
     conn_factors = well.blocks_info['CF'][well.blocks_info['PERF_RATIO'] > 0.].values
     p_bh, well_mode, status = find_control(model, curr_date, wellname)
     perf_blocks = well.perforated_blocks()
@@ -141,7 +142,6 @@ def launch_calculus(model, timesteps, wellname, cf_aggregation='sum'):
     for col in empty_dynamics.columns[3:]:
         for t_ind in range(len(timesteps)):
             well.blocks_dynamics.at[t_ind, col] = np.zeros(len(well.blocks))
-
     if len(well.blocks_info) == 0:
         return wellname, well.results, well.blocks_dynamics
 
@@ -153,6 +153,9 @@ def launch_calculus(model, timesteps, wellname, cf_aggregation='sum'):
     if fluids == set(('OIL', 'WATER', 'GAS', 'DISGAS')):
         for t, curr_date in enumerate(timesteps):
             rates_oil_disgas(model, t, curr_date, wellname, units, g_const, cf_aggregation)
+    else:
+        raise ValueError('Rate calculation is implemented only for three phase fluid with ' +
+                         'dissolved gas.')
 
     return wellname, well.results, well.blocks_dynamics
 
