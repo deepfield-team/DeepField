@@ -3,7 +3,7 @@
 
 # DeepField
 
-Python-based framework for reservoir engineering.
+Python framework for reservoir engineering.
 
 ![img](static/3d_basic.PNG)
 
