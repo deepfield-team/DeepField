@@ -597,7 +597,7 @@ class Field:
         """Load model in DATA format."""
 
         if include_binary:
-            self._load_binary(components=('grid', 'wells'),
+            self._load_binary(components=('grid',),
                               raise_errors=raise_errors)
             if 'ACTNUM' in self.grid.attributes:
                 self._load_binary(components=('rock',), raise_errors=raise_errors)
@@ -605,7 +605,7 @@ class Field:
         tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
                           raise_errors=raise_errors)
         if include_binary:
-            self._load_binary(components=('states',), raise_errors=raise_errors)
+            self._load_binary(components=('states', 'wells'), raise_errors=raise_errors)
         self._load_results(self._config, raise_errors, include_binary)
         self._check_vapoil(self._config)
         return self

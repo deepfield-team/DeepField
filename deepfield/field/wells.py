@@ -281,7 +281,7 @@ class Wells(BaseComponent):
             Wells without incomplete nodes.
         """
         for node in self:
-            if not 'COMPDAT' in node.attributes or 'COMPDATL' in node.attributes:
+            if not (('COMPDAT' in node.attributes) or ('COMPDATL' in node.attributes)):
                 if not set(['WELLTRACK', 'PERF']).issubset(node.attributes):
                     self.drop(node.name)
                     if logger is not None:
@@ -441,7 +441,10 @@ class Wells(BaseComponent):
         if 'COMPDAT' in segment.attributes:
             segment.blocks = defining_wellblocks_compdat(segment.compdat)
             segment.blocks_info = pd.DataFrame(np.empty((segment.blocks.shape[0], 0)))
-            h_well = np.stack([(0, 0, self.field.grid.dz) for _ in range(segment.blocks.shape[0])])
+            if isinstance(self.field.grid, OrthogonalUniformGrid):
+                h_well = np.stack([(0, 0, self.field.grid.dz) for _ in range(segment.blocks.shape[0])])
+            else:
+                h_well = np.stack([(np.NaN, np.NaN, np.NaN) for _ in range(segment.blocks.shape[0])])
             segment.blocks_info = pd.DataFrame(h_well, columns=['Hx', 'Hy', 'Hz'])
         elif 'COMPDATL' in segment.attributes and (segment.compdatl['LGR']=='GLOBAL').all():
             segment.blocks = defining_wellblocks_compdat(segment.compdatl)

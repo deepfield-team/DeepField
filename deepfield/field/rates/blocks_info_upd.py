@@ -23,7 +23,7 @@ def calculate_cf(rock, grid, segment, beta=1, units='METRIC', cf_aggregation='su
         d_block = grid.cell_sizes((x_blocks, y_blocks, z_blocks)).T
 
     if 'CF' in segment.blocks_info.columns:
-        ind = np.isnan(segment.blocks_info.CF.values)
+        ind = np.isnan(segment.blocks_info.CF.values) & (segment.blocks_info.PERF_RATIO.values > 0)
     else:
         ind = np.arange(segment.blocks.shape[0])
     h_well = (segment.blocks_info[['Hx', 'Hy', 'Hz']].values.T *
@@ -169,8 +169,7 @@ def apply_perforations_compdat(segment, current_date=None):
         rad[condition] = line['DIAM'] / 2
 
     segment.blocks_info['PERF_RATIO'] = perf_ratio
-    if 'CF' in compdat.columns:
-        segment.blocks_info['CF'] = cf
+    segment.blocks_info['CF'] = cf
     segment.blocks_info['SKIN'] = skin
     segment.blocks_info['MULT'] = mult
     segment.blocks_info['RAD'] = rad
