@@ -24,7 +24,6 @@ from .dump_ecl_utils import egrid, init, restart, summary
 from .grids import CornerPointGrid, Grid, OrthogonalUniformGrid, specify_grid
 from .parse_utils import (dates_to_str, preprocess_path,
                           read_dates_from_buffer, tnav_ascii_parser)
-from .plot_utils import lines_from_points
 from .rates import calc_rates, calc_rates_multiprocess
 from .rock import Rock
 from .states import States
@@ -494,7 +493,7 @@ class Field:
         with h5py.File(self.path, 'r') as f:
             for k, v in f.attrs.items():
                 if k == 'DATES':
-                    self.meta['DATES'] = pd.to_datetime(v)
+                    self.meta['DATES'] = pd.to_datetime(v, format='mixed')
                 else:
                     self.meta[k] = v
         for comp, config in self._config.items():
@@ -597,7 +596,7 @@ class Field:
         """Load model in DATA format."""
 
         if include_binary:
-            self._load_binary(components=('grid', 'wells'),
+            self._load_binary(components=('grid',),
                               raise_errors=raise_errors)
             if 'ACTNUM' in self.grid.attributes:
                 self._load_binary(components=('rock',), raise_errors=raise_errors)
@@ -605,7 +604,7 @@ class Field:
         tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
                           raise_errors=raise_errors)
         if include_binary:
-            self._load_binary(components=('states',), raise_errors=raise_errors)
+            self._load_binary(components=('states', 'wells'), raise_errors=raise_errors)
         self._load_results(self._config, raise_errors, include_binary)
         self._check_vapoil(self._config)
         return self
@@ -931,7 +930,6 @@ class Field:
         out : Field
             Field unchanged.
         """
-
         dir_res = os.path.join(dir_path, 'RESULTS')
         if not os.path.exists(dir_res):
             os.mkdir(dir_res)
@@ -992,6 +990,8 @@ class Field:
 
     def calculate_rates(self, wellnames=None, cf_aggregation='sum', multiprocessing=True, verbose=True):
         """Calculate oil/water/gas rates for each well segment.
+        NOTE: Rate calculation is supported only for three phase fluid with dissolved gas (
+            OIL, WATER, GAS, DISGAS). Eclipse style control is not supported.
 
         Parameters
         ----------
@@ -1070,7 +1070,7 @@ class Field:
 
         self._pyvista_grid.cell_data.update(attributes)
 
-    def _add_welltracks(self, plotter, add_mesh_kwargs=None):
+    def _add_welltracks(self, plotter):
         """Adds all welltracks to the plot."""
         well_tracks = {node.name: self.wells[node.name].welltrack[:, :3].copy()
                        for node in self.wells if 'WELLTRACK' in node.attributes}
@@ -1086,6 +1086,9 @@ class Field:
         else:
             z_min = self._pyvista_grid.bounds[4]
 
+        vertices = []
+        faces = []
+        size = 0
         for well_name, value in well_tracks.items():
             wtrack_idx, first_intersection = self.wells[well_name]._first_entering_point # pylint: disable=protected-access
             if first_intersection is not None:
@@ -1097,29 +1100,54 @@ class Field:
             else:
                 value = np.concatenate([np.array([[value[0, 0], value[0, 1], z_min]]), value])
 
-            pv_line = lines_from_points(value)
-            add_mesh_kwargs_ = {'line_width': 2, 'color': 'k'}
-            if isinstance(add_mesh_kwargs, dict):
-                add_mesh_kwargs_.update(add_mesh_kwargs)
-            plotter.add_mesh(pv_line, **add_mesh_kwargs_)
+            vertices.append(value)
+            ids = np.arange(size, size+len(value))
+            faces.append(np.stack([0*ids[:-1]+2, ids[:-1], ids[1:]]).T)
+            size += len(value)
+            labeled_points[well_name] = value[0]
 
-            labeled_points[well_name] = pv_line.points[0]
+        mesh = pv.PolyData(np.vstack(vertices), lines=np.vstack(faces))
+        plotter.add_mesh(mesh, name='wells', color='k', line_width=2)
+
+        return labeled_points
+
+    def _add_faults(self, plotter, use_only_active=True, color='red'):
+        """Adds all faults to the plot."""
+        faces = []
+        vertices = []
+        labeled_points = {}
+        size = 0
+        for segment in self.faults:
+            blocks = segment.blocks
+            xyz = segment.blocks_xyz
+            if use_only_active:
+                active = self.grid.actnum[*blocks.T]
+                xyz = xyz[active]
+            if len(xyz) == 0:
+                continue
+            vertices.append(xyz.reshape(-1, 3))
+            ids = np.arange(size, size+4*len(xyz))
+            faces1 = np.stack([0*ids[::4]+3, ids[::4], ids[1::4], ids[3::4]]).T
+            faces2 = np.stack([0*ids[::4]+3, ids[::4], ids[2::4], ids[3::4]]).T
+            size += 4*len(xyz)
+            faces.extend([faces1, faces2])
+            labeled_points[segment.name] = xyz[0, 0]
+
+        mesh = pv.PolyData(np.vstack(vertices), np.vstack(faces))
+        plotter.add_mesh(mesh, name='faults', color=color)
 
         return labeled_points
 
     @state_check(lambda state: state.spatial)
-    def show(self, attr=None, opacity=0.5, thresholding=False, slicing=False,
-             timestamp=None, use_only_active=True, cell_size=None, scaling=True,
-             cmap=None, show_wells=True, notebook=False,
-             theme='default', show_edges=True, show_labels=True):
+    def show(self, attr=None, thresholding=False, slicing=False, timestamp=None,
+             use_only_active=True, cell_size=None, scaling=True, cmap=None,
+             notebook=False, theme='default', show_edges=True, faults_color='red', show_labels=True):
         """Field visualization.
 
         Parameters
         ----------
         attr: str or None
             Attribute of the grid to show. If None, ACTNUM will be shown.
-        opacity: float or None
-            Opacity of the visualization. Default is 0.5.
         thresholding: bool
             Show slider for thresholding. Cells with attribute value less than
             threshold will not be shown. Default False.
@@ -1137,8 +1165,6 @@ class Field:
             if False then no scaling is applied. Default True.
         cmap: object
             Matplotlib, Colorcet, cmocean, or custom colormap
-        show_wells: bool
-            Show well trajectories. Default True.
         notebook: bool
             When True, the resulting plot is placed inline a jupyter notebook.
             Assumes a jupyter console is active. Automatically enables off_screen.
@@ -1147,6 +1173,8 @@ class Field:
             See https://docs.pyvista.org/examples/02-plot/themes.html for more options.
         show_edges: bool
             Shows the edges of a mesh. Default True.
+        faults_color: str
+            Corol to show faults. Default 'red'.
         show_labels: bool
             Show x, y, z axis labels. Default True.
         """
@@ -1157,8 +1185,11 @@ class Field:
 
         plot_params = {'show_edges': show_edges, 'cmap': cmap}
 
-        if show_wells and 'wells' in self.components:
-            self.wells._get_first_entering_point(grid=self.grid)
+        if 'wells' in self.components:
+            self.wells._get_first_entering_point()
+
+        if 'faults' in self.components:
+            self.faults.get_blocks()
 
         old_vtk_grid_params = self.grid._vtk_grid_params
 
@@ -1177,7 +1208,6 @@ class Field:
         plotter.set_viewup([0, 0, -1])
         plotter.set_position([1, 1, -0.3])
 
-        opacity_widget = opacity is None
         threshold_widget = thresholding
         timestamp_widget = sequential and timestamp is None
         slice_xyz_widget = slicing
@@ -1203,7 +1233,7 @@ class Field:
             'plotter': plotter,
             'grid': grid,
             'attribute': attribute,
-            'opacity': 0.5 if opacity is None else opacity,
+            'opacity': 0.5,
             'threshold': threshold,
             'slice_xyz': np.array(grid.bounds).reshape(3, 2).mean(axis=1) if slicing else None,
             'timestamp': None if not sequential else 0 if timestamp is None else timestamp,
@@ -1220,20 +1250,22 @@ class Field:
         slider_positions = [
             {'pointa': (0.03, 0.90), 'pointb': (0.30, 0.90)},
             {'pointa': (0.36, 0.90), 'pointb': (0.63, 0.90)},
-            {'pointa': (0.69, 0.90), 'pointb': (0.97, 0.90)},
-            {'pointa': (0.03, 0.76), 'pointb': (0.30, 0.76)},
-            {'pointa': (0.36, 0.76), 'pointb': (0.63, 0.76)},
-            {'pointa': (0.69, 0.76), 'pointb': (0.97, 0.76)},
+            {'pointa': (0.69, 0.90), 'pointb': (0.97, 0.90)}
         ]
 
-        if opacity_widget:
-            def ch_opacity(x):
-                return _create_mesh_wrapper(
-                    opacity=x, **{k: v for k, v in widget_values.items() if k != 'opacity'}
-                )
-            slider_pos = slider_positions.pop(0)
-            slider_range = [0., 1.]
-            plotter.add_slider_widget(ch_opacity, rng=slider_range, title='Opacity', **slider_pos)
+        slicing_slider_positions = [
+            {'pointa': (0.03, 0.76), 'pointb': (0.30, 0.76)},
+            {'pointa': (0.03, 0.62), 'pointb': (0.30, 0.62)},
+            {'pointa': (0.03, 0.48), 'pointb': (0.30, 0.48)}
+        ]
+
+        def ch_opacity(x):
+            return _create_mesh_wrapper(
+                opacity=x, **{k: v for k, v in widget_values.items() if k != 'opacity'}
+            )
+        slider_pos = slider_positions.pop(0)
+        slider_range = [0., 1.]
+        plotter.add_slider_widget(ch_opacity, rng=slider_range, title='Opacity', **slider_pos)
 
         if threshold_widget:
             def ch_threshold(x):
@@ -1285,28 +1317,49 @@ class Field:
                     slice_xyz=tuple(new_slice_xyz), **{k: v for k, v in
                                                        widget_values.items() if k != 'slice_xyz'}
                 )
-            x_pos, y_pos, z_pos = slider_positions[:3]
+            x_pos, y_pos, z_pos = slicing_slider_positions
             x_min, x_max, y_min, y_max, z_min, z_max = grid.bounds
             plotter.add_slider_widget(ch_slice_x, rng=[x_min, x_max], title='X', **x_pos)
             plotter.add_slider_widget(ch_slice_y, rng=[y_min, y_max], title='Y', **y_pos)
             plotter.add_slider_widget(ch_slice_z, rng=[z_min, z_max], title='Z', **z_pos)
 
-        if show_wells and 'wells' in self.components:
-            labeled_points = self._add_welltracks(plotter)
-            (labels, points) = zip(*labeled_points.items())
-            points = np.array(points)*scaling
-            def show_well_name(value):
-                if value:
-                    plotter.add_point_labels(points, labels,
-                        font_size=20,
-                        show_points=False,
-                        name='wells_names')
-                else:
-                    plotter.remove_actor('wells_names')
+        def show_wells(value=True):
+            if value and ('wells' in self.components):
+                labeled_points = self._add_welltracks(plotter)
+                (labels, points) = zip(*labeled_points.items())
+                points = np.array(points)*scaling
+                plotter.add_point_labels(points, labels,
+                    font_size=20,
+                    show_points=False,
+                    name='well_names')
+            else:
+                plotter.remove_actor('well_names')
+                plotter.remove_actor('wells')
+        show_wells()
 
-            if not notebook:
-                plotter.add_checkbox_button_widget(show_well_name, value=False)
-                plotter.add_text("      Wells' names", position=(10.0, 10.0), font_size=16)
+        if not notebook:
+            plotter.add_checkbox_button_widget(show_wells, value=True)
+            plotter.add_text("      Wells", position=(10.0, 10.0), font_size=16)
+
+        def show_faults(value=True):
+            if value and ('faults' in self.components):
+                labeled_points = self._add_faults(plotter,
+                                                  use_only_active=use_only_active,
+                                                  color=faults_color)
+                (labels, points) = zip(*labeled_points.items())
+                points = np.array(points)*scaling
+                plotter.add_point_labels(points, labels,
+                    font_size=20,
+                    show_points=False,
+                    name='fault_names')
+            else:
+                plotter.remove_actor('fault_names')
+                plotter.remove_actor('faults')
+        show_faults()
+
+        if not notebook:
+            plotter.add_checkbox_button_widget(show_faults, value=True, position=(10.0, 70.0))
+            plotter.add_text("      Faults", position=(10.0, 70.0), font_size=16)
 
         plotter.show_grid(show_xlabels=show_labels, show_ylabels=show_labels, show_zlabels=show_labels)
         plotter.show()
@@ -1314,7 +1367,7 @@ class Field:
 
 def create_mesh(plotter, grid, attribute, opacity, threshold, slice_xyz, timestamp, plot_params, scaling):
     """Create mesh for pyvista visualisation."""
-    plotter.remove_actor('actor')
+    plotter.remove_actor('cells')
     try:
         plotter.remove_scalar_bar()
     except IndexError:
@@ -1332,7 +1385,7 @@ def create_mesh(plotter, grid, attribute, opacity, threshold, slice_xyz, timesta
         grid = grid.slice_orthogonal(x=slice_xyz[0], y=slice_xyz[1], z=slice_xyz[2])
 
     plot_params['scalar_bar_args'] = dict(title='', label_font_size=12, width=0.5, position_y=0.03, position_x=0.45)
-    plotter.add_mesh(grid, name='actor', opacity=opacity, **plot_params)
+    plotter.add_mesh(grid, name='cells', opacity=opacity, **plot_params)
 
     if timestamp is None:
         plotter.add_text(attribute, position='upper_edge', name='title', font_size=14)

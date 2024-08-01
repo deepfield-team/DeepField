@@ -5,8 +5,6 @@ from ..grids import OrthogonalUniformGrid
 
 def calculate_cf(rock, grid, segment, beta=1, units='METRIC', cf_aggregation='sum'):
     """Calculate connection factor values for each grid block of a segment."""
-    if 'COMPDAT' in segment.attributes:
-        return calculate_cf_compdat
     x_blocks, y_blocks, z_blocks = segment.blocks.T
     blocks_size = len(x_blocks)
     try:
@@ -24,6 +22,10 @@ def calculate_cf(rock, grid, segment, beta=1, units='METRIC', cf_aggregation='su
     else:
         d_block = grid.cell_sizes((x_blocks, y_blocks, z_blocks)).T
 
+    if 'CF' in segment.blocks_info.columns:
+        ind = np.isnan(segment.blocks_info.CF.values) & (segment.blocks_info.PERF_RATIO.values > 0)
+    else:
+        ind = np.arange(segment.blocks.shape[0])
     h_well = (segment.blocks_info[['Hx', 'Hy', 'Hz']].values.T *
               segment.blocks_info['PERF_RATIO'].values)
     r_well = segment.blocks_info['RAD'].values
@@ -43,9 +45,9 @@ def calculate_cf(rock, grid, segment, beta=1, units='METRIC', cf_aggregation='su
         cf_projections = ((beta * wpi_mult * 2 * np.pi * conversion_const * k_h) /
                           (np.log(radius_equiv / r_well) + skin)).T
         if cf_aggregation == 'sum':
-            segment.blocks_info['CF'] = cf_projections.sum(axis=1)
+            segment.blocks_info.loc[ind, 'CF'] = cf_projections.sum(axis=1)
         elif cf_aggregation == 'eucl':
-            segment.blocks_info['CF'] = np.sqrt((cf_projections ** 2).sum(axis=1))
+            segment.blocks_info.loc[ind, 'CF'] = np.sqrt((cf_projections ** 2).sum(axis=1))
         else:
             raise ValueError('Wrong value cf_aggregation={}, should be "sum" or "eucl".'.format(cf_aggregation))
     segment.blocks_info['CF'] = segment.blocks_info['CF'].fillna(0)
@@ -142,6 +144,8 @@ def apply_perforations_compdat(segment, current_date=None):
     cf = np.full(segment.blocks.shape[0], np.nan)
     skin = np.full(segment.blocks.shape[0], np.nan)
     perf_ratio = np.zeros(segment.blocks.shape[0])
+    mult = np.full(segment.blocks.shape[0], np.nan)
+    rad = np.full(segment.blocks.shape[0], np.nan)
 
     for i, line in compdat.iterrows():
         condition = np.where(
@@ -161,17 +165,12 @@ def apply_perforations_compdat(segment, current_date=None):
         perf_ratio[condition] = 0 if close_flag else 1
         skin[condition] = line['SKIN'] if 'SKIN' in line else 0
         cf[condition] = line['CF'] if 'CF' in line else np.nan
+        mult[condition] = line['MULT'] if 'MULT' in line else 1
+        rad[condition] = line['DIAM'] / 2
 
     segment.blocks_info['PERF_RATIO'] = perf_ratio
-    if 'CF' in compdat.columns:
-        segment.blocks_info['CF'] = cf
+    segment.blocks_info['CF'] = cf
     segment.blocks_info['SKIN'] = skin
-
-    return segment
-
-def calculate_cf_compdat(segment):
-    "Calculate connection factors from `COMPDAT` table."
-    if 'CF' not in segment.blocks_info.columns:
-        raise KeyError(('No `CF` in `blocks_info` table of well {}. ' +
-                        'Probably no `CF` in `COMPDAT` or `COMPDATL`').format(segment.name))
+    segment.blocks_info['MULT'] = mult
+    segment.blocks_info['RAD'] = rad
     return segment
