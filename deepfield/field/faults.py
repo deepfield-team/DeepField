@@ -2,8 +2,10 @@
 """faults and FaultSegment components."""
 from copy import deepcopy
 from itertools import product
+import warnings
 import numpy as np
 import pandas as pd
+import h5py
 from anytree import (RenderTree, AsciiStyle, Resolver, PreOrderIter,
                      find_by_attr)
 
@@ -43,8 +45,7 @@ class Faults(BaseComponent):
         super().__init__(**kwargs)
         self._root = FaultSegment(name='FIELD', ntype="group") if node is None else node
         self._resolver = Resolver()
-        self.init_state(has_blocks=False,
-                        spatial=True)
+        self.init_state(has_blocks=False)
 
     def copy(self):
         """Returns a deepcopy. Cached properties are not copied."""
@@ -65,7 +66,7 @@ class Faults(BaseComponent):
     @property
     def names(self):
         """List of fault names."""
-        return [node.name for node in self] #?
+        return [node.name for node in self]
 
     def __getitem__(self, key):
         node = find_by_attr(self.root, key)
@@ -257,3 +258,110 @@ class Faults(BaseComponent):
                 write_multflt(f, self)
             else:
                 raise NotImplementedError("Dump for {} is not implemented.".format(attr.upper()))
+
+    def _dump_hdf5(self, path, mode='a', state=True, **kwargs):  #pylint: disable=too-many-branches
+        """Save data into HDF5 file.
+
+        Parameters
+        ----------
+        path : str
+            Path to output file.
+        mode : str
+            Mode to open file.
+            'w': write, a new file is created (an existing file with
+            the same name would be deleted).
+            'a': append, an existing file is opened for reading and writing,
+            and if the file does not exist it is created.
+            Default to 'a'.
+        state : bool
+            Dump compoments's state.
+
+        Returns
+        -------
+        comp : Wells
+            Wells unchanged.
+        """
+        _ = kwargs
+        with h5py.File(path, mode) as f:
+            faults = f[self.class_name] if self.class_name in f else f.create_group(self.class_name)
+            if state:
+                for k, v in self.state.as_dict().items():
+                    faults.attrs[k] = v
+            for node in PreOrderIter(self.root):
+                if node.is_root:
+                    continue
+                node_path = node.fullname
+                if node.name == 'data':
+                    raise ValueError("Name 'data' is not allowed for nodes.")
+                grp = faults[node_path] if node_path in faults else faults.create_group(node_path)
+                grp.attrs['ntype'] = node.ntype
+                if 'data' not in grp:
+                    grp_data = faults.create_group(node_path + '/data')
+                else:
+                    grp_data = grp['data']
+                for att, data in node.items():
+                    if isinstance(data, pd.DataFrame):
+                        continue
+                    if att in grp_data:
+                        del grp_data[att]
+                    grp_data.create_dataset(att, data=data)
+
+        with warnings.catch_warnings():
+             warnings.simplefilter('ignore')
+             for node in PreOrderIter(self.root):
+                if node.is_root:
+                  continue
+                for att, data in node.items():
+                    if isinstance(data, pd.DataFrame):
+                        data.to_hdf(path, key='/'.join([self.class_name, node.fullname,
+                                                            'data', att]), mode='a')
+
+    def _load_hdf5(self, path, attrs=None, **kwargs):
+        """Load data from a HDF5 file.
+
+        Parameters
+        ----------
+        path : str
+            Path to file to load data from.
+        attrs : str or array of str, optional
+            Array of dataset's names to get from file. If not given, loads all.
+
+        Returns
+        -------
+        comp : BaseComponent
+            BaseComponent with loaded attributes.
+        """
+        _ = kwargs
+        if isinstance(attrs, str):
+            attrs = [attrs]
+
+        def update_tree(grp, parent=None):
+            """Build tree recursively following HDF5 node hierarchy."""
+            if not grp.items():
+                print('None')
+            if parent is None:
+                node = self.root
+            else:
+                ntype = grp.attrs.get('ntype', None)
+                if ntype is None: #backward compatibility, will be removed in a future
+                    ntype = 'group' if grp.attrs.get('is_group', False) else 'fault'
+                node = FaultSegment(parent=parent, name=grp.name.split('/')[-1], ntype=ntype)
+            for k, v in grp.items():
+                if k == 'data':
+                    for att in v.keys() if attrs is None else attrs:
+                        try:
+                            data = v[att]
+                        except KeyError:
+                            continue
+                        if isinstance(data, h5py.Group):
+                            data = pd.read_hdf(path, key='/'.join([grp.name, 'data', att]), mode='r')
+                            setattr(node, att, data)
+                        else:
+                            setattr(node, att, data[()])
+                else:
+                    update_tree(v, node)
+
+        with h5py.File(path, 'r') as f:
+            self.set_state(**dict(f[self.class_name].attrs.items()))
+            update_tree(f[self.class_name])
+        return self
