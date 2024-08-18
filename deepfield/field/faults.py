@@ -228,7 +228,7 @@ class Faults(BaseComponent):
         if attr == 'MULTFLT':
             return load_multflt(self, buffer, **kwargs)
         raise ValueError("Keyword {} is not supported in faults.".format(attr))
-    
+
     def _dump_ascii(self, path, attr, mode='w', **kwargs):
         """Save data into text file.
 
@@ -307,10 +307,10 @@ class Faults(BaseComponent):
                     grp_data.create_dataset(att, data=data)
 
         with warnings.catch_warnings():
-             warnings.simplefilter('ignore')
-             for node in PreOrderIter(self.root):
+            warnings.simplefilter('ignore')
+            for node in PreOrderIter(self.root):
                 if node.is_root:
-                  continue
+                    continue
                 for att, data in node.items():
                     if isinstance(data, pd.DataFrame):
                         data.to_hdf(path, key='/'.join([self.class_name, node.fullname,
