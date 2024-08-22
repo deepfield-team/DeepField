@@ -10,7 +10,13 @@ TABLE_INFO = {
     'PVDG': dict(attrs=['PRESSURE', 'FVF', 'VISC'], domain=[0],
                  defaults=None),
 
+    'PVDO': dict(attrs=['PRESSURE', 'FVF', 'VISC'], domain=[0],
+                 defaults=None),
+
     'PVTW': dict(attrs=['PRESSURE', 'FVF', 'COMPR', 'VISC', 'VISCOSIBILITY'], domain=[0],
+                 defaults=[None, None, None, None, 0]),
+
+    'PVCDO': dict(attrs=['PRESSURE', 'FVF', 'COMPR', 'VISC', 'VISCOSIBILITY'], domain=[0],
                  defaults=[None, None, None, None, 0]),
 
     'SWOF': dict(attrs=['SW', 'KRWO', 'KROW', 'POW'], domain=[0],

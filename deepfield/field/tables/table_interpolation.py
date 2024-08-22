@@ -211,4 +211,5 @@ def baker_linear_model(tables, sat_w, sat_g, swc, eps=0.001):
 TABLE_INTERPOLATOR = {None: _linear_table_interpolator,
                       'PVDG': _pvd_table_interpolator, 'PVDO': _pvd_table_interpolator,
                       'PVTO': _pvto_table_interpolator, 'PVTW': _pvtw_table_interpolator,
+                      'PVCDO': _pvtw_table_interpolator,
                       'SWOF': _relative_perm_table_interpolator, 'SGOF': _relative_perm_table_interpolator}
