@@ -278,8 +278,8 @@ class Faults(BaseComponent):
 
         Returns
         -------
-        comp : Wells
-            Wells unchanged.
+        comp : Faults
+            Faults unchanged.
         """
         _ = kwargs
         with h5py.File(path, mode) as f:
@@ -287,33 +287,33 @@ class Faults(BaseComponent):
             if state:
                 for k, v in self.state.as_dict().items():
                     faults.attrs[k] = v
-            for node in PreOrderIter(self.root):
-                if node.is_root:
+            for fault in PreOrderIter(self.root):
+                if fault.is_root:
                     continue
-                node_path = node.fullname
-                if node.name == 'data':
+                fault_path = fault.fullname
+                if fault.name == 'data':
                     raise ValueError("Name 'data' is not allowed for nodes.")
-                grp = faults[node_path] if node_path in faults else faults.create_group(node_path)
-                grp.attrs['ntype'] = node.ntype
+                grp = faults[fault_path] if fault_path in faults else faults.create_group(fault_path)
+                grp.attrs['ntype'] = fault.ntype
                 if 'data' not in grp:
-                    grp_data = faults.create_group(node_path + '/data')
+                    grp_faults_data = faults.create_group(fault_path + '/data')
                 else:
-                    grp_data = grp['data']
-                for att, data in node.items():
+                    grp_faults_data = grp['data']
+                for att, data in fault.items():
                     if isinstance(data, pd.DataFrame):
                         continue
-                    if att in grp_data:
-                        del grp_data[att]
-                    grp_data.create_dataset(att, data=data)
+                    if att in grp_faults_data:
+                        del grp_faults_data[att]
+                    grp_faults_data.create_dataset(att, data=data)
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
-            for node in PreOrderIter(self.root):
-                if node.is_root:
+            for fault in PreOrderIter(self.root):
+                if fault.is_root:
                     continue
-                for att, data in node.items():
+                for att, data in fault.items():
                     if isinstance(data, pd.DataFrame):
-                        data.to_hdf(path, key='/'.join([self.class_name, node.fullname,
+                        data.to_hdf(path, key='/'.join([self.class_name, fault.fullname,
                                                             'data', att]), mode='a')
 
     def _load_hdf5(self, path, attrs=None, **kwargs):
@@ -335,17 +335,17 @@ class Faults(BaseComponent):
         if isinstance(attrs, str):
             attrs = [attrs]
 
-        def update_tree(grp, parent=None):
+        def update_faults(grp, parent=None):
             """Build tree recursively following HDF5 node hierarchy."""
             if not grp.items():
                 print('None')
             if parent is None:
-                node = self.root
+                fault = self.root
             else:
                 ntype = grp.attrs.get('ntype', None)
                 if ntype is None: #backward compatibility, will be removed in a future
                     ntype = 'group' if grp.attrs.get('is_group', False) else 'fault'
-                node = FaultSegment(parent=parent, name=grp.name.split('/')[-1], ntype=ntype)
+                fault = FaultSegment(parent=parent, name=grp.name.split('/')[-1], ntype=ntype)
             for k, v in grp.items():
                 if k == 'data':
                     for att in v.keys() if attrs is None else attrs:
@@ -355,13 +355,13 @@ class Faults(BaseComponent):
                             continue
                         if isinstance(data, h5py.Group):
                             data = pd.read_hdf(path, key='/'.join([grp.name, 'data', att]), mode='r')
-                            setattr(node, att, data)
+                            setattr(fault, att, data)
                         else:
-                            setattr(node, att, data[()])
+                            setattr(fault, att, data[()])
                 else:
-                    update_tree(v, node)
+                    update_faults(v, fault)
 
         with h5py.File(path, 'r') as f:
             self.set_state(**dict(f[self.class_name].attrs.items()))
-            update_tree(f[self.class_name])
+            update_faults(f[self.class_name])
         return self
