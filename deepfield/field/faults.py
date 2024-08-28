@@ -203,7 +203,7 @@ class Faults(BaseComponent):
             xyz_fault.extend(xyz_segment)
 
         segment.blocks = np.array(blocks_fault)
-        segment.blocks_xyz = np.array(xyz_fault)
+        segment.faces_verts = np.array(xyz_fault)
 
         self.set_state(has_blocks=True)
         return self

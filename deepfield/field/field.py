@@ -1119,7 +1119,7 @@ class Field:
         size = 0
         for segment in self.faults:
             blocks = segment.blocks
-            xyz = segment.blocks_xyz
+            xyz = segment.faces_verts
             if use_only_active:
                 active = self.grid.actnum[*blocks.T]
                 xyz = xyz[active]
