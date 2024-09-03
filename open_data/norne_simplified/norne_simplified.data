@@ -41,6 +41,12 @@ INCLUDE
 'INCLUDE/actnum.inc' /
 
 INCLUDE
+ './INCLUDE/faults.inc' /
+
+INCLUDE
+ './INCLUDE/multflt.inc' /
+
+INCLUDE
 'INCLUDE/aquifers.inc '/
 /
 
