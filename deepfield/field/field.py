@@ -850,6 +850,13 @@ class Field:
                 fill_values[attr_name.lower()] = inc
         template = Template(template.safe_substitute(rock_grid=tmp))
 
+        if 'faults' in self.components:
+            attrs = ['faults', 'multflt']
+            for attr in attrs:
+                inc = os.path.join('INCLUDE', attr + '.inc')
+                self.faults.dump(os.path.join(dir_path, inc), attr=attr)
+                fill_values[attr] = inc
+
         tmp = ''
         if 'aquifers' in self.components:
             tmp += "INCLUDE\n'${} '/\n/\n\n".format('aquifers_file')
@@ -1112,7 +1119,7 @@ class Field:
         size = 0
         for segment in self.faults:
             blocks = segment.blocks
-            xyz = segment.blocks_xyz
+            xyz = segment.faces_verts
             if use_only_active:
                 active = self.grid.actnum[*blocks.T]
                 xyz = xyz[active]
