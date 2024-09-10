@@ -924,8 +924,8 @@ def specify_grid(grid):
         specified grid.
     """
     if not isinstance(grid, (CornerPointGrid, OrthogonalUniformGrid)):
-        if ('ZCORN' in grid) and ('COORD' in grid):
-            grid = CornerPointGrid(**dict(grid.items()), field=grid.field)
-        else:
+        if ('DX' in grid) and ('DY' in grid) and ('DZ' in grid):
             grid = OrthogonalUniformGrid(**dict(grid.items()), field=grid.field)
+        else:
+            grid = CornerPointGrid(**dict(grid.items()), field=grid.field)
     return grid

@@ -171,6 +171,13 @@ class Tables(BaseComponent):
             return self
         return pvdg
 
+    def pvt_oil(self, pressure, rs=None):
+        """Caclulate FVF and Viscosity for oil."""
+        if 'PVCDO' in self.attributes:
+            return self.pvcdo(pressure)
+        if 'PVDO' in self.attributes:
+            return self.pvdo(pressure)
+        return self.pvto(np.vstack((rs, pressure)).T)
 
 class _Table(pd.DataFrame):  # pylint: disable=abstract-method
     """Table component."""
