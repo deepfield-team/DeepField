@@ -1121,7 +1121,7 @@ class Field:
             blocks = segment.blocks
             xyz = segment.faces_verts
             if use_only_active:
-                active = self.grid.actnum[*blocks.T]
+                active = self.grid.actnum[blocks[:, 0], blocks[:, 1], blocks[:, 2]]
                 xyz = xyz[active]
             if len(xyz) == 0:
                 continue
