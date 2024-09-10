@@ -59,6 +59,11 @@ class BaseComponent:
         """Array of attributes."""
         return tuple(self._data.keys())
 
+    @property
+    def empty(self):
+        """True if component is empty else False."""
+        return False if self._data else True
+
     def keys(self):
         """Array of attributes."""
         return self._data.keys()

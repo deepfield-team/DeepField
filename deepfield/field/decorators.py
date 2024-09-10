@@ -117,6 +117,8 @@ def apply_to_each_segment(method, node_types=('well', 'fault')):
         for segment in PreOrderIter(self.root):
             if segment.ntype in node_types:
                 res.append(method(self, segment, *args, **kwargs))
+        if not res:
+            return self
         if isinstance(res[0], self.__class__):
             return self
         return np.array(res)

@@ -1133,8 +1133,9 @@ class Field:
             faces.extend([faces1, faces2])
             labeled_points[segment.name] = xyz[0, 0]
 
-        mesh = pv.PolyData(np.vstack(vertices), np.vstack(faces))
-        plotter.add_mesh(mesh, name='faults', color=color)
+        if faces:
+            mesh = pv.PolyData(np.vstack(vertices), np.vstack(faces))
+            plotter.add_mesh(mesh, name='faults', color=color)
 
         return labeled_points
 
@@ -1286,7 +1287,7 @@ class Field:
         if timestamp_widget:
             def ch_timestamp(x):
                 return _create_mesh_wrapper(
-                    timestamp=int(x), **{k: v for k, v in widget_values.items() if k != 'timestamp'}
+                    timestamp=int(np.rint(x)), **{k: v for k, v in widget_values.items() if k != 'timestamp'}
                 )
             slider_pos = slider_positions.pop(0)
             slider_range = [0, self.states.n_timesteps - 1]
@@ -1326,12 +1327,13 @@ class Field:
         def show_wells(value=True):
             if value and ('wells' in self.components):
                 labeled_points = self._add_welltracks(plotter)
-                (labels, points) = zip(*labeled_points.items())
-                points = np.array(points)*scaling
-                plotter.add_point_labels(points, labels,
-                    font_size=20,
-                    show_points=False,
-                    name='well_names')
+                if labeled_points:
+                    (labels, points) = zip(*labeled_points.items())
+                    points = np.array(points)*scaling
+                    plotter.add_point_labels(points, labels,
+                        font_size=20,
+                        show_points=False,
+                        name='well_names')
             else:
                 plotter.remove_actor('well_names')
                 plotter.remove_actor('wells')
@@ -1346,12 +1348,13 @@ class Field:
                 labeled_points = self._add_faults(plotter,
                                                   use_only_active=use_only_active,
                                                   color=faults_color)
-                (labels, points) = zip(*labeled_points.items())
-                points = np.array(points)*scaling
-                plotter.add_point_labels(points, labels,
-                    font_size=20,
-                    show_points=False,
-                    name='fault_names')
+                if labeled_points:
+                    (labels, points) = zip(*labeled_points.items())
+                    points = np.array(points)*scaling
+                    plotter.add_point_labels(points, labels,
+                        font_size=20,
+                        show_points=False,
+                        name='fault_names')
             else:
                 plotter.remove_actor('fault_names')
                 plotter.remove_actor('faults')
