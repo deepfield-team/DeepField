@@ -56,10 +56,10 @@ class Rock(SpatialComponent):
         -------
         output : component if inplace else padded attribute.
         """
-        actnum = self.field.grid.actnum
         data = getattr(self, attr)
-        if np.prod(data.shape) == actnum.size:
+        if np.prod(data.shape) == np.prod(self.field.grid.dimens):
             return self if inplace else data
+        actnum = self.field.grid.actnum
         if data.ndim > 1:
             raise ValueError('Data should be raveled before padding.')
         padded_data = np.full(shape=(actnum.size,), fill_value=fill_na, dtype=float)

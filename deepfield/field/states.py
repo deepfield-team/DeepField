@@ -81,10 +81,11 @@ class States(SpatialComponent):
         -------
         output : component if inplace else padded attribute.
         """
-        actnum = self.field.grid.actnum
         data = getattr(self, attr)
-        if np.prod(data.shape[1:]) == actnum.size:
+        if np.prod(data.shape[1:]) == np.prod(self.field.grid.dimens):
             return self if inplace else data
+        actnum = self.field.grid.actnum
+
         if data.ndim > 2:
             raise ValueError('Data should be raveled before padding.')
         n_ts = data.shape[0]
