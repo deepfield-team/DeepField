@@ -916,7 +916,7 @@ class Field:
         return self
 
     def _dump_binary_results(self, dir_path, mode, title):
-        """Dump model's binary result files in tNav project.
+        """Dump model's binary result files.
 
         Parameters
         ----------
@@ -970,6 +970,7 @@ class Field:
         restart.save_restart(is_unified,
                              dir_name,
                              self.states.strip_na(inplace=False),
+                             self.states.attributes,
                              self.result_dates,
                              grid_dim,
                              time_size,

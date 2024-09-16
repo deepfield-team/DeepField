@@ -60,11 +60,7 @@ def get_filepath_wo_ext(file_spec):
 
 
 class SpecElement:
-    """SpecElement struct.
-
-        Parameters
-        ----------
-    """
+    """SpecElement struct."""
     def __init__(self, name=None, el_type=None, number=None, el_struct=None):
         if el_struct:
             self.name = el_struct['name']
