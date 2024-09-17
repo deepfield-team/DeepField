@@ -56,7 +56,7 @@ def execute_tnav_models(models, license_url,
         Process timeout. Kill process that exceeds the timeout and go to the next model.
     dump_rsm: bool
         Dump *.RSM file, by default True.
-    dump_rsm: bool
+    dump_egrid: bool
         Dump *.EGRID file, by default False.
     dump_unsmry: bool
         Dump *.SMSPEC and *.UNSMRY files, by default False.

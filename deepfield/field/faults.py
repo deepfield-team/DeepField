@@ -337,8 +337,6 @@ class Faults(BaseComponent):
 
         def update_faults(grp, parent=None):
             """Build tree recursively following HDF5 node hierarchy."""
-            if not grp.items():
-                print('None')
             if parent is None:
                 fault = self.root
             else:
