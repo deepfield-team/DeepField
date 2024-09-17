@@ -62,7 +62,7 @@ def get_restart_file(is_unified, name, time, unified_file, mode):
 
 class PointerStruct:
     """Pointer struct."""
-    def __init__(self, pointer_offset, size_inte, size_logi, size_doub, size_igrp, 
+    def __init__(self, pointer_offset, size_inte, size_logi, size_doub, size_igrp,
                  size_iwel, size_zwel, size_icon, size_smes, size_emes,
                  **size_states):
         ptr_dict = {}
@@ -92,7 +92,6 @@ class Pointers:
         self.pointer_a = np.array(list(map(lambda splited_pointer: splited_pointer[0], splited_pointers)))
         self.pointer_b = np.array(list(map(lambda splited_pointer: splited_pointer[1], splited_pointers)))
 
-
 def save_restart(is_unified, name, data, attrs, dates, grid_dim, time_size, mode, logger=None):
     """
     Function for saving target RESTART and RSSPEC data files
@@ -111,9 +110,9 @@ def save_restart(is_unified, name, data, attrs, dates, grid_dim, time_size, mode
     index_sections_data.update(INDEX_SECTIONS_DATA_START)
     index_sections_data.update({k.upper(): SpecElement(k.upper(), REAL) for k in attrs})
     index_sections_data.update(INDEX_SECTIONS_DATA_END)
-    
+
     data_block_spec = {k.upper(): SpecElement(k.upper(), REAL) for k in attrs}
-    
+
     start_idx = 1
     start_t = 0
     if (mode == 'w' or\
@@ -151,7 +150,6 @@ def save_restart(is_unified, name, data, attrs, dates, grid_dim, time_size, mode
 
     return pointer_offset
 
-
 def get_itime_section_data(date, time):
     """
     Get data for ITIME section
@@ -166,10 +164,6 @@ def get_itime_section_data(date, time):
     out : np.array
         Array of items
 
-    See Also
-    --------
-    np.array
-
     Examples
     --------
     >>> l = get_itime_section_data(5)
@@ -178,7 +172,6 @@ def get_itime_section_data(date, time):
 
     """
     return np.array([time, date.day, date.month, date.year, -2345, 1, 0, -2345, -2345, -2345, 0, 0, 0])
-
 
 def get_type_section_data(index_sections_data, key_list):
     """
@@ -194,10 +187,6 @@ def get_type_section_data(index_sections_data, key_list):
     out : np.array
         Type list for given keys
 
-    See Also
-    --------
-    np.array
-
     Examples
     --------
     >>> l = get_type_section_data(['INTEHEAD', 'LOGIHEAD'])
@@ -206,7 +195,6 @@ def get_type_section_data(index_sections_data, key_list):
 
     """
     return np.array(list(map(lambda key: format_keyword(index_sections_data[key].type), key_list)))
-
 
 def get_number_section_data(index_sections_data, key_list):
     """
@@ -222,10 +210,6 @@ def get_number_section_data(index_sections_data, key_list):
     out : np.array
         Number list of items in target sections
 
-    See Also
-    --------
-    np.array
-
     Examples
     --------
     >>> l = get_number_section_data(['INTEHEAD', 'LOGIHEAD'])
@@ -234,7 +218,6 @@ def get_number_section_data(index_sections_data, key_list):
 
     """
     return np.array(list(map(lambda key: index_sections_data[key].number, key_list)))
-
 
 def get_pointer_section_data(key_list, pointers):
     """
@@ -261,7 +244,6 @@ def get_pointer_section_data(key_list, pointers):
     """
     return Pointers(pointers, key_list)
 
-
 def get_arraymax_section_data(data_block_spec, key_list, max_size=1300000000):
     """
     List of array max parameter of target sections in INIT file
@@ -278,10 +260,6 @@ def get_arraymax_section_data(data_block_spec, key_list, max_size=1300000000):
     out : np.array
         List of array max parameter of target sections
 
-    See Also
-    --------
-    np.array
-
     Examples
     --------
     >>> l = get_arraymax_section_data(['INTEHEAD', 'LOGIHEAD'])
@@ -297,7 +275,6 @@ def get_arraymax_section_data(data_block_spec, key_list, max_size=1300000000):
         else:
             result_list.append(0)
     return np.array(result_list)
-
 
 def save_index_section_bytime(f, index_sections_data, data_block_spec, pointers, date, time):
     """

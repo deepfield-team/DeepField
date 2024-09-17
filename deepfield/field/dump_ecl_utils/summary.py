@@ -123,45 +123,12 @@ def get_summary_file(is_unified, name, time, unified_file, mode):
         return unified_file, unified_file
     return open(name + SUMMARY_EXT.format(time=time), f'{mode}+b'), unified_file#pylint: disable=consider-using-with
 
-
 def get_startdat_section_data(date):
-    """
-    Get data for STARTDAT section
-
-    Returns
-    -------
-    out : np.array
-        Array of items
-
-    See Also
-    --------
-    np.array
-
-    Examples
-    --------
-    >>> l = get_startdat_section_data()
-
-    """
+    """Get data for STARTDAT section."""
     return np.array([date.day, date.month, date.year, 0, 0, 0])
 
-
 def get_keywords_section_data(rates):
-    """
-    Get data for STARTDAT section
-
-    Parameters
-    ----------
-
-    Returns
-    -------
-    out : np.array
-        Array of items
-
-    See Also
-    --------
-    np.array
-
-    """
+    """Get data for STARTDAT section."""
     keywords_list = [format_keyword(TIME), format_keyword(YEARS), format_keyword(DAY), format_keyword(MONTH),
                      format_keyword(YEAR)]
     nums_list = [0, 0, 0, 0, 0]
@@ -180,24 +147,8 @@ def get_keywords_section_data(rates):
     nlist = len(keywords_list)
     return np.array(keywords_list), np.array(nums_list), nlist
 
-
 def get_wgnames_section_data(rates):
-    """
-    Get data for WGNAMES section
-
-    Parameters
-    ----------
-
-    Returns
-    -------
-    out : np.array
-        Array of items
-
-    See Also
-    --------
-    np.array
-
-    """
+    """Get data for WGNAMES section."""
     wgname_list = [NONE, NONE, NONE, NONE, NONE]
     wgname_keys = list(rates.keys())
     for key in wgname_keys:
@@ -205,47 +156,13 @@ def get_wgnames_section_data(rates):
         wgname_list.extend([key] * len(names))
     return np.array(wgname_list)
 
-
 def get_units_section_data(rates):
-    """
-    Get data for UNITS section
-
-    Parameters
-    ----------
-
-    Returns
-    -------
-    out : np.array
-        Array of items
-
-    See Also
-    --------
-    np.array
-
-    """
+    """Get data for UNITS section."""
     keywords_list, _, nlist = get_keywords_section_data(rates)
     return np.array(list(map(lambda key: format_keyword(UNITS_DATA[key.strip()]), keywords_list))), nlist
 
-
 def get_params_section_data(rates, date, time_idx, time):
-    """
-    Get data for PARAMS section
-
-    Parameters
-    ----------
-    time : int
-        Time interval
-
-    Returns
-    -------
-    out : np.array
-        Array of items
-
-    See Also
-    --------
-    np.array
-
-    """
+    """Get data for PARAMS section."""
     result_data = [float(time), float(time) / 365., date.day, date.month, date.year]
     wgname_keys = list(rates.keys())
 
@@ -255,42 +172,14 @@ def get_params_section_data(rates, date, time_idx, time):
 
     return np.array(result_data)
 
-
 def get_time_size(rates):
-    """
-    Get number of time intervals
-
-    Parameters
-    ----------
-
-    Returns
-    -------
-    out : int
-        Number of time intervals
-
-    See Also
-    --------
-    DataStruct
-
-    """
+    """Get number of time intervals."""
     wgname_keys = list(rates.keys())
     mnemo_keys = list(rates[wgname_keys[0]].keys())
     return len(rates[wgname_keys[0]][mnemo_keys[0]])
 
-
 def save_index_summary(name, rates, dates, grid_dim):
-    """
-    Save index file
-
-    Parameters
-    ----------
-
-
-    See Also
-    --------
-    DataStruct
-
-    """
+    """Save index file."""
     with open(name + INDEX_SUMMARY_EXT, "w+b") as file_index:
         nlist = 0
         keywords_data, nums_data, nlist = get_keywords_section_data(rates)  # need to calc NLIST filed for DIMENS
@@ -316,20 +205,7 @@ def save_index_summary(name, rates, dates, grid_dim):
     return nlist
 
 def save_summary_bytime(f, rates, date, time_idx, time):
-    """
-    Save summary section by time segment
-
-    Parameters
-    ----------
-    f : file object
-    time : int
-        Time interval
-
-    See Also
-    --------
-    DataStruct
-
-    """
+    """Save summary section by time segment."""
     write_unrst_data_section(f=f, name=SEQHDR, stype=DATA_BLOCK_SPEC[SEQHDR].type,
                              data_array=np.array([0]))
     write_unrst_data_section(f=f, name=MINISTEP, stype=DATA_BLOCK_SPEC[MINISTEP].type,
@@ -338,21 +214,8 @@ def save_summary_bytime(f, rates, date, time_idx, time):
     write_unrst_data_section(f=f, name=PARAMS, stype=DATA_BLOCK_SPEC[PARAMS].type,
                              data_array=params_data)
 
-
 def save_summary_file(is_unified, rates, dates, name, mode, start_idx, start_t):
-    """
-    Save summary file
-
-    Parameters
-    ----------
-    is_unifie
-
-    See Also
-    --------
-    DataStruct
-
-    """
-
+    """Save summary file."""
     file_summary = None
     time_size = get_time_size(rates)
 
@@ -366,19 +229,7 @@ def save_summary_file(is_unified, rates, dates, name, mode, start_idx, start_t):
         file_summary.close()
 
 def save_summary(is_unified, name, rates, dates, grid_dim, mode, logger=None):
-    """
-    Save summary and index file
-
-    Parameters
-    ----------
-    is_unified
-
-    See Also
-    --------
-    DataStruct
-
-    """
-
+    """Save summary and index file."""
     def logger_print(msg, level='warning'):
         if logger is not None:
             getattr(logger, level)(msg)
