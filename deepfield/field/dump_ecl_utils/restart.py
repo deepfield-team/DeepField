@@ -1,30 +1,17 @@
 """RESTART dump assisting functions."""
-
 import os
 import numpy as np
 
-from .share import ARRAYMAX, format_keyword, ARRAYMIN, DOUBHEAD, ENDSOL, ICON, IGRP, INTEHEAD, \
-                   ITIME, IWEL, LOGIHEAD, META_BLOCK_SPEC, NAME, NUMBER, POINTER, POINTERB, REAL, SPEC_DATA_BLOC_SPEC, \
-                   STARTSOL, SpecElement, TIME, TYPE, ZWEL, write_unrst_data_section, write_unrst_data_section_f, \
-                   write_unrst_section, split_pointer
+from .share import (ARRAYMAX, format_keyword, ARRAYMIN, DOUBHEAD, ENDSOL, ICON, IGRP, INTEHEAD,
+                    ITIME, IWEL, LOGIHEAD, META_BLOCK_SPEC, NAME, NUMBER, POINTER, POINTERB, REAL,
+                    SPEC_DATA_BLOC_SPEC, STARTSOL, SpecElement, TIME, TYPE, ZWEL,
+                    write_unrst_data_section, write_unrst_data_section_f,
+                    write_unrst_section, split_pointer)
 
 from ..parse_utils.ecl_binary import _read_sections
 
-PRESSURE = 'PRESSURE'
-SGAS = 'SGAS'
-SOIL = 'SOIL'
-SWAT = 'SWAT'
-RS = 'RS'
-
-PRESSURE_IDX = 0
-SGAS_IDX = 1
-SOIL_IDX = 2
-SWAT_IDX = 3
-RS_IDX = 4
-
-
 # Header's block formats
-INDEX_SECTIONS_DATA = {
+INDEX_SECTIONS_DATA_START = {
     INTEHEAD: SpecElement(el_struct=META_BLOCK_SPEC[INTEHEAD]),
     LOGIHEAD: SpecElement(el_struct=META_BLOCK_SPEC[LOGIHEAD]),
     DOUBHEAD: SpecElement(el_struct=META_BLOCK_SPEC[DOUBHEAD]),
@@ -32,21 +19,10 @@ INDEX_SECTIONS_DATA = {
     IWEL: SpecElement(el_struct=META_BLOCK_SPEC[IWEL]),
     ZWEL: SpecElement(el_struct=META_BLOCK_SPEC[ZWEL]),
     ICON: SpecElement(el_struct=META_BLOCK_SPEC[ICON]),
-    STARTSOL: SpecElement(el_struct=META_BLOCK_SPEC[STARTSOL]),
-    PRESSURE: SpecElement(PRESSURE, REAL),
-    SGAS: SpecElement(SGAS, REAL),
-    SOIL: SpecElement(SOIL, REAL),
-    SWAT: SpecElement(SWAT, REAL),
-    RS: SpecElement(RS, REAL),
-    ENDSOL: SpecElement(el_struct=META_BLOCK_SPEC[ENDSOL])
+    STARTSOL: SpecElement(el_struct=META_BLOCK_SPEC[STARTSOL])
 }
-
-DATA_BLOCK_SPEC = {
-    PRESSURE: SpecElement(PRESSURE, REAL),
-    SGAS: SpecElement(SGAS, REAL),
-    SOIL: SpecElement(SOIL, REAL),
-    SWAT: SpecElement(SWAT, REAL),
-    RS: SpecElement(RS, REAL)
+INDEX_SECTIONS_DATA_END = {
+    ENDSOL: SpecElement(el_struct=META_BLOCK_SPEC[ENDSOL])
 }
 
 RESTART_EXT = '.X{time:0>4}'
@@ -56,7 +32,7 @@ INDEX_RESTART_EXT = '.RSSPEC'
 
 def get_restart_file(is_unified, name, time, unified_file, mode):
     """
-    Get file object for restart file
+    Get file object for restart file.
 
     Parameters
     ----------
@@ -85,14 +61,10 @@ def get_restart_file(is_unified, name, time, unified_file, mode):
 
 
 class PointerStruct:
-    """
-    Pointer struct.
-
-    Parameters
-    ----------
-    """
-    def __init__(self, size_inte, size_logi, size_doub, size_igrp, size_iwel, size_zwel, size_icon, size_smes,
-                 size_pres, size_sgas, size_soil, size_swat, size_rs, size_emes, pointer_offset):
+    """Pointer struct."""
+    def __init__(self, pointer_offset, size_inte, size_logi, size_doub, size_igrp,
+                 size_iwel, size_zwel, size_icon, size_smes, size_emes,
+                 **size_states):
         ptr_dict = {}
         ptr_dict[INTEHEAD] = pointer_offset
         ptr_dict[LOGIHEAD] = ptr_dict[INTEHEAD] + size_inte
@@ -102,32 +74,25 @@ class PointerStruct:
         ptr_dict[ZWEL] = ptr_dict[IWEL] + size_iwel
         ptr_dict[ICON] = ptr_dict[ZWEL] + size_zwel
         ptr_dict[STARTSOL] = ptr_dict[ICON] + size_icon
-        ptr_dict[PRESSURE] = ptr_dict[STARTSOL] + size_smes
-        ptr_dict[SGAS] = ptr_dict[PRESSURE] + size_pres
-        ptr_dict[SOIL] = ptr_dict[SGAS] + size_sgas
-        ptr_dict[SWAT] = ptr_dict[SOIL] + size_soil
-        ptr_dict[RS] = ptr_dict[SWAT] + size_swat
-        ptr_dict[ENDSOL] = ptr_dict[RS] + size_rs
+        pos = ptr_dict[STARTSOL] + size_smes
+        for state, size in size_states.items():
+            ptr_dict[state.upper()] = pos
+            pos = ptr_dict[state.upper()] + size
+        ptr_dict[ENDSOL] = pos
 
         self.ptrs = ptr_dict
-        self.size = size_inte + size_logi + size_doub + size_igrp + size_iwel + size_zwel + size_icon + size_smes + \
-                    size_pres + size_sgas + size_soil + size_swat + size_rs + size_emes
+        self.size = (size_inte + size_logi + size_doub + size_igrp + size_iwel + size_zwel +
+                     size_icon + size_smes + sum(size_states.values()) + size_emes)
 
 
 class Pointers:
-    """
-    Pointers.
-
-    Parameters
-    ----------
-    """
+    """Pointers."""
     def __init__(self, pointers, key_list):
         splited_pointers = list(map(lambda key: split_pointer(pointers.ptrs[key]), key_list))
         self.pointer_a = np.array(list(map(lambda splited_pointer: splited_pointer[0], splited_pointers)))
         self.pointer_b = np.array(list(map(lambda splited_pointer: splited_pointer[1], splited_pointers)))
 
-
-def save_restart(is_unified, name, data, dates, grid_dim, time_size, mode, logger=None):
+def save_restart(is_unified, name, data, attrs, dates, grid_dim, time_size, mode, logger=None):
     """
     Function for saving target RESTART and RSSPEC data files
 
@@ -140,6 +105,13 @@ def save_restart(is_unified, name, data, dates, grid_dim, time_size, mode, logge
     def logger_print(msg, level='warning'):
         if logger is not None:
             getattr(logger, level)(msg)
+
+    index_sections_data = {}
+    index_sections_data.update(INDEX_SECTIONS_DATA_START)
+    index_sections_data.update({k.upper(): SpecElement(k.upper(), REAL) for k in attrs})
+    index_sections_data.update(INDEX_SECTIONS_DATA_END)
+
+    data_block_spec = {k.upper(): SpecElement(k.upper(), REAL) for k in attrs}
 
     start_idx = 1
     start_t = 0
@@ -162,9 +134,11 @@ def save_restart(is_unified, name, data, dates, grid_dim, time_size, mode, logge
 
         for time in range(start_idx, time_size):
             file_restart, unified_file = get_restart_file(is_unified, name, start_t + time, unified_file, mode)
-            pointers = save_restart_bytime(file_restart, grid_dim, data, time, pointer_offset)
+            pointers = save_restart_bytime(file_restart, index_sections_data, data_block_spec,
+                                           grid_dim, data, attrs, time, pointer_offset)
 
-            save_index_section_bytime(file_index, pointers, dates[time].date(), start_t + time)
+            save_index_section_bytime(file_index, index_sections_data, data_block_spec,
+                                      pointers, dates[time].date(), start_t + time)
 
             if is_unified:
                 pointer_offset += pointers.size
@@ -175,7 +149,6 @@ def save_restart(is_unified, name, data, dates, grid_dim, time_size, mode, logge
         unified_file.close()
 
     return pointer_offset
-
 
 def get_itime_section_data(date, time):
     """
@@ -191,10 +164,6 @@ def get_itime_section_data(date, time):
     out : np.array
         Array of items
 
-    See Also
-    --------
-    np.array
-
     Examples
     --------
     >>> l = get_itime_section_data(5)
@@ -204,8 +173,7 @@ def get_itime_section_data(date, time):
     """
     return np.array([time, date.day, date.month, date.year, -2345, 1, 0, -2345, -2345, -2345, 0, 0, 0])
 
-
-def get_type_section_data(key_list):
+def get_type_section_data(index_sections_data, key_list):
     """
     Get type list for TYPE section in INSPEC target file
 
@@ -219,10 +187,6 @@ def get_type_section_data(key_list):
     out : np.array
         Type list for given keys
 
-    See Also
-    --------
-    np.array
-
     Examples
     --------
     >>> l = get_type_section_data(['INTEHEAD', 'LOGIHEAD'])
@@ -230,10 +194,9 @@ def get_type_section_data(key_list):
     array(['INTE    ', 'LOGI    '], dtype='<U8')
 
     """
-    return np.array(list(map(lambda key: format_keyword(INDEX_SECTIONS_DATA[key].type), key_list)))
+    return np.array(list(map(lambda key: format_keyword(index_sections_data[key].type), key_list)))
 
-
-def get_number_section_data(key_list):
+def get_number_section_data(index_sections_data, key_list):
     """
     Get number list of items for target sections
 
@@ -247,10 +210,6 @@ def get_number_section_data(key_list):
     out : np.array
         Number list of items in target sections
 
-    See Also
-    --------
-    np.array
-
     Examples
     --------
     >>> l = get_number_section_data(['INTEHEAD', 'LOGIHEAD'])
@@ -258,8 +217,7 @@ def get_number_section_data(key_list):
     array([296, 100])
 
     """
-    return np.array(list(map(lambda key: INDEX_SECTIONS_DATA[key].number, key_list)))
-
+    return np.array(list(map(lambda key: index_sections_data[key].number, key_list)))
 
 def get_pointer_section_data(key_list, pointers):
     """
@@ -277,10 +235,6 @@ def get_pointer_section_data(key_list, pointers):
     out : np.array
         List of offsets of offsets of target sections
 
-    See Also
-    --------
-    np.array
-
     Examples
     --------
     >>> l = get_pointer_section_data(['INTEHEAD', 'LOGIHEAD'], pointers)
@@ -290,8 +244,7 @@ def get_pointer_section_data(key_list, pointers):
     """
     return Pointers(pointers, key_list)
 
-
-def get_arraymax_section_data(key_list, max_size=1300000000):
+def get_arraymax_section_data(data_block_spec, key_list, max_size=1300000000):
     """
     List of array max parameter of target sections in INIT file
 
@@ -307,10 +260,6 @@ def get_arraymax_section_data(key_list, max_size=1300000000):
     out : np.array
         List of array max parameter of target sections
 
-    See Also
-    --------
-    np.array
-
     Examples
     --------
     >>> l = get_arraymax_section_data(['INTEHEAD', 'LOGIHEAD'])
@@ -319,7 +268,7 @@ def get_arraymax_section_data(key_list, max_size=1300000000):
 
     """
     result_list = []
-    data_key_list = DATA_BLOCK_SPEC.keys()
+    data_key_list = data_block_spec.keys()
     for key in key_list:
         if key in data_key_list:
             result_list.append(max_size)
@@ -327,8 +276,7 @@ def get_arraymax_section_data(key_list, max_size=1300000000):
             result_list.append(0)
     return np.array(result_list)
 
-
-def save_index_section_bytime(f, pointers, date, time):
+def save_index_section_bytime(f, index_sections_data, data_block_spec, pointers, date, time):
     """
     Save index section by time segment
 
@@ -344,7 +292,7 @@ def save_index_section_bytime(f, pointers, date, time):
     PointerStruct
 
     """
-    key_list = list(INDEX_SECTIONS_DATA.keys())
+    key_list = list(index_sections_data.keys())
     write_unrst_data_section(f=f, name=TIME, stype=SPEC_DATA_BLOC_SPEC[TIME],
                              data_array=np.array([time]))
     write_unrst_data_section(f=f, name=ITIME, stype=SPEC_DATA_BLOC_SPEC[ITIME],
@@ -352,21 +300,21 @@ def save_index_section_bytime(f, pointers, date, time):
     write_unrst_data_section(f=f, name=NAME, stype=SPEC_DATA_BLOC_SPEC[NAME],
                              data_array=np.array(list(map(format_keyword, key_list))))
     write_unrst_data_section(f=f, name=TYPE, stype=SPEC_DATA_BLOC_SPEC[TYPE],
-                             data_array=get_type_section_data(key_list))
+                             data_array=get_type_section_data(index_sections_data, key_list))
     write_unrst_data_section(f=f, name=NUMBER, stype=SPEC_DATA_BLOC_SPEC[NUMBER],
-                             data_array=get_number_section_data(key_list))
+                             data_array=get_number_section_data(index_sections_data, key_list))
     pointers = get_pointer_section_data(key_list, pointers)
     write_unrst_data_section(f=f, name=POINTER, stype=SPEC_DATA_BLOC_SPEC[POINTER],
                              data_array=pointers.pointer_a)
     write_unrst_data_section(f=f, name=POINTERB, stype=SPEC_DATA_BLOC_SPEC[POINTERB],
                              data_array=pointers.pointer_b)
     write_unrst_data_section(f=f, name=ARRAYMAX, stype=SPEC_DATA_BLOC_SPEC[ARRAYMAX],
-                             data_array=get_arraymax_section_data(key_list))
+                             data_array=get_arraymax_section_data(data_block_spec, key_list))
     write_unrst_data_section(f=f, name=ARRAYMIN, stype=SPEC_DATA_BLOC_SPEC[ARRAYMIN],
                              data_array=np.array([0] * len(key_list)))
 
-
-def save_restart_bytime(f, grid_dim, states, time, pointer_offset):
+def save_restart_bytime(f, index_sections_data, data_block_spec,
+                        grid_dim, states, attrs, time, pointer_offset):
     """
     Save restart section by time segment
 
@@ -377,11 +325,7 @@ def save_restart_bytime(f, grid_dim, states, time, pointer_offset):
         Time interval
 
     """
-    data = [states[0][time].ravel(order='F'),
-            states[1][time].ravel(order='F'),
-            states[2][time].ravel(order='F'),
-            states[3][time].ravel(order='F'),
-            states[4][time].ravel(order='F')]
+    data = [s[time].ravel(order='F') for s in states]
 
     size_inte = write_unrst_section(f, INTEHEAD, META_BLOCK_SPEC[INTEHEAD], grid_dim)
     size_logi = write_unrst_section(f, LOGIHEAD, META_BLOCK_SPEC[LOGIHEAD])
@@ -392,31 +336,18 @@ def save_restart_bytime(f, grid_dim, states, time, pointer_offset):
     size_icon = write_unrst_section(f, ICON, META_BLOCK_SPEC[ICON])
     size_smes = write_unrst_section(f, STARTSOL, META_BLOCK_SPEC[STARTSOL])
 
-    pressure_items = int(np.prod(data[PRESSURE_IDX].shape))
-    INDEX_SECTIONS_DATA[PRESSURE].number = pressure_items
-    size_pres = write_unrst_data_section_f(f=f, name=PRESSURE, stype=DATA_BLOCK_SPEC[PRESSURE].type,
-                                           data_array=data[PRESSURE_IDX])
-
-    sgas_items = int(np.prod(data[SGAS_IDX].shape))
-    INDEX_SECTIONS_DATA[SGAS].number = sgas_items
-    size_sgas = write_unrst_data_section_f(f=f, name=SGAS, stype=DATA_BLOCK_SPEC[SGAS].type,
-                                           data_array=data[SGAS_IDX])
-
-    soil_items = int(np.prod(data[SOIL_IDX].shape))
-    INDEX_SECTIONS_DATA[SOIL].number = soil_items
-    size_soil = write_unrst_data_section_f(f=f, name=SOIL, stype=DATA_BLOCK_SPEC[SOIL].type,
-                                           data_array=data[SOIL_IDX])
-
-    swat_items = int(np.prod(data[SWAT_IDX].shape))
-    INDEX_SECTIONS_DATA[SWAT].number = swat_items
-    size_swat = write_unrst_data_section_f(f=f, name=SWAT, stype=DATA_BLOCK_SPEC[SWAT].type,
-                                           data_array=data[SWAT_IDX])
-
-    rs_items = int(np.prod(data[RS_IDX].shape))
-    INDEX_SECTIONS_DATA[RS].number = rs_items
-    size_rs = write_unrst_data_section_f(f=f, name=RS, stype=DATA_BLOCK_SPEC[RS].type,
-                                         data_array=data[RS_IDX])
+    sizes = {}
+    for i, attr in enumerate(attrs):
+        attr = attr.upper()
+        items = int(np.prod(data[i].shape))
+        index_sections_data[attr].number = items
+        size = write_unrst_data_section_f(f=f,
+                                          name=attr,
+                                          stype=data_block_spec[attr].type,
+                                          data_array=data[i])
+        sizes[attr] = size
 
     size_emes = write_unrst_section(f, ENDSOL, META_BLOCK_SPEC[ENDSOL])
-    return PointerStruct(size_inte, size_logi, size_doub, size_igrp, size_iwel, size_zwel, size_icon, size_smes,
-                         size_pres, size_sgas, size_soil, size_swat, size_rs, size_emes, pointer_offset)
+    return PointerStruct(pointer_offset, size_inte, size_logi, size_doub, size_igrp,
+                         size_iwel, size_zwel, size_icon, size_smes, size_emes,
+                         **sizes)
