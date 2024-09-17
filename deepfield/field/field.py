@@ -916,7 +916,7 @@ class Field:
         return self
 
     def _dump_binary_results(self, dir_path, mode, title):
-        """Dump model's binary result files in tNav project.
+        """Dump model's binary result files.
 
         Parameters
         ----------
@@ -970,6 +970,7 @@ class Field:
         restart.save_restart(is_unified,
                              dir_name,
                              self.states.strip_na(inplace=False),
+                             self.states.attributes,
                              self.result_dates,
                              grid_dim,
                              time_size,
@@ -979,10 +980,12 @@ class Field:
         rates = {}
         for well in self.wells.main_branches:
             curr_rates = self.wells[well].total_rates
-            rates[well] = {}
+            well_data = {}
             for k in ['WWPR', 'WOPR', 'WGPR']:
                 if k in curr_rates:
-                    rates[well][k.lower()] = curr_rates[k].values.astype('float64')
+                    well_data[k.lower()] = curr_rates[k].values.astype('float64')
+            if well_data:
+                rates[well] = well_data
 
         summary.save_summary(is_unified, dir_name, rates, self.result_dates,
                              grid_dim, mode, self._logger)
