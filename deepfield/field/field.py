@@ -415,7 +415,7 @@ class Field:
                 for attr in ['COMPDAT', 'WCONPROD', 'WCONINJE', 'COMPDATL', 'WEFAC', 'WFRAC', 'WFRACP', 'COMPDATMD']:
                     if attr in node:
                         df = getattr(node, attr)
-                        df['DATE'] = df['DATE'].fillna(self.start)
+                        df['DATE'] = pd.to_datetime(df['DATE'].fillna(self.start))
                         df.sort_values(by='DATE', inplace=True)
                         df.reset_index(drop=True, inplace=True)
             if 'GRID' in loaded:
