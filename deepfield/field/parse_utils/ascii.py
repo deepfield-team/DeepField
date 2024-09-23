@@ -673,13 +673,12 @@ def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, date=Non
         df = pd.concat([df, pd.DataFrame(dict(zip(columns, full)), index=[0])], ignore_index=True)
 
     if 'text' in column_types:
-        df[column_types['text']] = df[column_types['text']].applymap(
+        df[column_types['text']] = df[column_types['text']].map(
             lambda x: x.strip('\'\"') if x is not None else x)
     if 'float' in column_types:
         df[column_types['float']] = df[column_types['float']].astype(float, errors='ignore')
     if 'int' in column_types:
-        df[column_types['int']] = df[column_types['int']].fillna(INT_NAN)
-        df[column_types['int']] = df[column_types['int']].astype(int)
+        df[column_types['int']] = df[column_types['int']].fillna(INT_NAN).astype(int)
     if defaults:
         for k, v in defaults.items():
             if k in df:

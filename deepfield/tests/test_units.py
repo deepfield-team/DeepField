@@ -25,6 +25,13 @@ def hdf5_model():
     hdf5_path = os.path.join(test_path, 'data', 'hdf5_test_model', 'test_model.hdf5')
     return Field(hdf5_path, loglevel='ERROR').load()
 
+@pytest.fixture(scope='module')
+def arithmetics_model():
+    """Load model with arithmetics"""
+    test_path = os.path.dirname(os.path.realpath(__file__))
+    model_path = os.path.join(test_path, 'data', 'arithmetics_test_model', 'test_model.data')
+    return Field(model_path, loglevel='ERROR').load()
+
 @pytest.fixture(params=['tnav_model', 'hdf5_model'])
 def model(request):
     """Returns model."""
@@ -207,3 +214,14 @@ class TestWellblocks():
                     test_well['blocks'][i], block), f"Error in defining blocks: {test_well['blocks'], xyz_block}"
                 assert np.allclose(
                     test_well['inters'][i], inters[i]), f"Error in defining intersections {test_well['inters'], inters}"
+
+class TestArithmetics():
+    """Test loading model with arithmetics keywords."""
+    def test_arithmetics(self, arithmetics_model):
+        """Test loading model with arithmetics keywords."""
+        assert arithmetics_model.rock.permx is not None
+        assert arithmetics_model.rock.permy is not None
+        assert arithmetics_model.rock.permy is not None
+        assert np.allclose(arithmetics_model.rock.permx, arithmetics_model.rock.poro * 500)
+        assert np.allclose(arithmetics_model.rock.permz, arithmetics_model.rock.permx * 0.1)
+        assert np.allclose(arithmetics_model.rock.permy[3:6, 3:6, 1:1], arithmetics_model.rock.permx[3:6, 3:6, 1:1] + 5)
