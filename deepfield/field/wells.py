@@ -416,8 +416,8 @@ class Wells(BaseComponent):
         for _ in range(len(df)):
             dist = np.linalg.norm(df[['I', 'J', 'K1']] - root, axis=1)
             row = df.iloc[[dist.argmin()]]
-            track.append(centroids[int(row['I'][0])-1, int(row['J'][0])-1, int(row['K1'][0])-1])
-            track.append(centroids[int(row['I'][0])-1, int(row['J'][0])-1, int(row['K2'][0])-1])
+            track.append(centroids[int(row.iloc[0]['I'])-1, int(row.iloc[0]['J'])-1, int(row.iloc[0]['K1'])-1])
+            track.append(centroids[int(row.iloc[0]['I'])-1, int(row.iloc[0]['J'])-1, int(row.iloc[0]['K2'])-1])
             root = row[['I', 'J', 'K2']].values.astype(float).ravel()
             df = df.drop(row.index)
         track = pd.DataFrame(track).drop_duplicates().values
