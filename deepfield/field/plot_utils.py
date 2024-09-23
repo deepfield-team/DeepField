@@ -44,13 +44,31 @@ def show_slice_static(data, x=None, y=None, z=None, t=None, figsize=None, aspect
     else:
         raise ValueError('Data should have 3 or 4 dimensions, found {}.'.format(data.ndim))
 
+    dims = 4
     if data.ndim == 3:
+        dims = 3
         data = np.expand_dims(data, 0)
         t = 0
     slices = tuple(slice(i) if i is None else i for i in [t, x, y, z])
 
     plt.figure(figsize=figsize)
-    plt.imshow(data[slices].T, aspect=aspect, **kwargs)
+    if dims == 3:
+        if x is not None:
+            plt.imshow(data[slices].T, aspect=aspect, **kwargs)
+            plt.xlabel('y')
+            plt.ylabel('z')
+        elif y is not None:
+            plt.imshow(data[slices].T, aspect=aspect, **kwargs)
+            plt.xlabel('x')
+            plt.ylabel('z')
+        elif z is not None:
+            plt.imshow(data[slices], aspect=aspect, **kwargs)
+            plt.xlabel('y')
+            plt.ylabel('x')
+    else:
+        plt.imshow(data[slices].T, aspect=aspect, **kwargs)
+        plt.xlabel('t')
+        plt.ylabel('x' if x is not None else 'y' if y is not None else 'z')
     plt.show()
 
 
@@ -72,25 +90,33 @@ def show_slice_interactive(data, figsize=None, aspect='auto', **kwargs):
     -------
     Plot of 3 cube slices with interactive sliders.
     """
+    if 'origin' in kwargs:
+        kwargs = kwargs.copy()
+        del kwargs['origin']
     def update(t=None, x=0, y=0, z=0):
         data3d = data if t is None else data[t]
-
         _, axes = plt.subplots(1, 3, figsize=figsize)
         axes[0].imshow(data3d[x].T, aspect=aspect, **kwargs)
         axes[0].axvline(y, c='r')
         axes[0].axhline(z, c='r')
+        axes[0].set_xlabel('y')
+        axes[0].set_ylabel('z')
 
         axes[1].imshow(data3d[:, y, :].T, aspect=aspect, **kwargs)
         axes[1].axvline(x, c='r')
         axes[1].axhline(z, c='r')
+        axes[1].set_xlabel('x')
+        axes[1].set_ylabel('z')
 
         axes[2].imshow(data3d[:, :, z], aspect=aspect, **kwargs)
         axes[2].axvline(y, c='r')
         axes[2].axhline(x, c='r')
+        axes[2].set_xlabel('y')
+        axes[2].set_ylabel('x')
 
-        axes[0].set_title('X')
-        axes[1].set_title('Y')
-        axes[2].set_title('Z')
+        axes[0].set_title('X slice')
+        axes[1].set_title('Y slice')
+        axes[2].set_title('Z slice')
 
     shape = data.shape
 
