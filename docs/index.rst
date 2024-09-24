@@ -118,6 +118,11 @@ Wells
 * WFRAC
 * WFRACP
 
+Faults
+
+* FAULTS
+* MULTFLT
+
 Arithmetics (operations with array-like data)
 
 * EQUALS
