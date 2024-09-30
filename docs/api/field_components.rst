@@ -8,6 +8,7 @@ Field components
    base_classes
    aquifer
    grids
+   faults
    rock
    states
    tables
