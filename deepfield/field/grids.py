@@ -311,8 +311,8 @@ class OrthogonalUniformGrid(Grid):
         return centroids
 
     @cached_property(
-        lambda self, x: x.reshape(tuple(self.dimens) + (3,), order='F') if self.state.spatial
-        else x.reshape(-1, 3, order='F'), modify_cache=True
+        lambda self, x: x.reshape(self.dimens, order='F') if self.state.spatial
+        else x.reshape(-1, order='F'), modify_cache=True
     )
     def cell_volumes(self):
         """Volumes of cells."""

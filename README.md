@@ -5,11 +5,11 @@
 
 Python framework for reservoir engineering.
 
-![img](static/3d_basic.PNG)
+![img](static/main.jpg)
 
 ## Features
 
-* reservoir representation with Grid, Rock, States, Wells, Aquifer and PVT-tables components
+* reservoir representation with Grid, Rock, States, Wells, Faults, Aquifer, and PVT-tables
 * interactive 3D visualization
 * reservoir preprocessing tools
 * detailed [documentation](https://deepfield-team.github.io/DeepField/)
@@ -34,7 +34,7 @@ Note: the project is in developement. We welcome contributions and collaboration
 
 ## Quick start
 
-Load a reservoir model from `.DATA` file:
+Load a reservoir model from `.DATA` file (some models are given in the [open_source](./open_source) directory):
 
 ```python
 
@@ -51,7 +51,7 @@ and the [documentation](https://deepfield-team.github.io/DeepField/) for more de
 
 Initial reservoir model can be given in a mixture of ECLIPSE, MORE, PETREL, tNavigator formats.
 However, there is no guarantee that any mixture will be understood.
-Main file should be in .DATA file. Dependencies can be text and binary files including common formats:
+Main file should be in `.DATA` file. Dependencies can be text and binary files including common formats:
 
 * .GRDECL
 * .INC
@@ -63,8 +63,10 @@ Main file should be in .DATA file. Dependencies can be text and binary files inc
 * .EGRID
 * .INIT
 
+See the full list of supported keywords in the [documentation](https://deepfield-team.github.io/DeepField/#supported-keywords).
+
 Within the `DeepField` framework it is recommended to use the HDF5 format
-to speed up data load and dump in Python-friendly data formats. In this
-case all data are contained in a single .HDF5 file. At any point the model
-can be exported back into .DATA text and binary files to ensure a compatibility
+to speed up data load and dump. In this
+case all data are contained in a single `.HDF5` file. At any point the model
+can be exported back into `.DATA` text and binary files compatibile
 with conventional software.
