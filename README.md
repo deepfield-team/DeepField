@@ -34,7 +34,7 @@ Note: the project is in developement. We welcome contributions and collaboration
 
 ## Quick start
 
-Load a reservoir model from `.DATA` file (some models are given in the [open_source](./open_source) directory):
+Load a reservoir model from `.DATA` file (some models are given in the [open_data](./open_data) directory):
 
 ```python
 
