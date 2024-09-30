@@ -533,7 +533,7 @@ class Field:
         loaders['ADD'] = partial(load_add, self, logger=self._logger)
         for comp, conf in config.items():
             if conf['attrs'] is not None:
-                attrs = list(set(conf['attrs']) - set(getattr(self, comp).attributes))
+                attrs = list(set(conf['attrs']) - set(getattr(self, comp).state.binary_attributes))
             else:
                 attrs = None
             kwargs = conf['kwargs']
