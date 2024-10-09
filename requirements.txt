@@ -1,6 +1,6 @@
 numpy < 2.0
 chardet
-pandas
+pandas >= 2.1.0
 scikit-learn
 scikit-image
 h5py
