@@ -136,6 +136,8 @@ class States(SpatialComponent):
         return stripped_data
 
     def __getitem__(self, keys):
+        if isinstance(keys, str):
+            return super().__getitem__(keys)
         out = self.__class__()
         for attr, data in self.items():
             data = data[keys].reshape((-1,) + data.shape[1:])
