@@ -282,12 +282,6 @@ class Grid(SpatialComponent):
         distances[invalid_cells] = fill_value
         return distances
 
-    def _load_hdf5_group(self, grp, attrs, raise_errors, logger, subset):
-        super()._load_hdf5_group(grp, attrs, raise_errors, logger, subset)
-        if 'TOPS' in self.attributes:
-            if isinstance(self.tops, np.ndarray): # pylint: disable=access-member-before-definition
-                self.tops = self.tops[0] # pylint: disable=attribute-defined-outside-init
-        return self
 
 class OrthogonalUniformGrid(Grid):
     """Orthogonal uniform grid."""
