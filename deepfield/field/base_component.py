@@ -344,7 +344,7 @@ class BaseComponent:
                 val = BaseComponent(class_name=att)
                 val._load_hdf5_group(grp, attrs, raise_errors, logger, subset)  # pylint: disable=protected-access
             else:
-                val = val[subset]
+                val = val[subset][()]
             setattr(self, att, val)
 
     def _read_buffer(self, buffer, attr, logger=None, **kwargs):
