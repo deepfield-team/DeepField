@@ -13,8 +13,8 @@ import numpy as np
 import pandas as pd
 import pyvista as pv
 from anytree import PreOrderIter
-from vtk import vtkXMLUnstructuredGridWriter
-from vtk.util.numpy_support import numpy_to_vtk
+from vtk import vtkXMLUnstructuredGridWriter # pylint: disable=no-name-in-module
+from vtk.util.numpy_support import numpy_to_vtk # pylint: disable=no-name-in-module, import-error
 
 from .arithmetics import load_add, load_copy, load_equals, load_multiply
 from .faults import Faults
