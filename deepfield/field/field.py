@@ -1058,24 +1058,34 @@ class Field:
             vtk dataset with states and rock data.
 
         """
-        if not isinstance(self.grid, CornerPointGrid):
+        if isinstance(self.grid, OrthogonalUniformGrid):
+            grid = self.grid.to_corner_point()
+        else:
+            grid = self.grid
+        if not isinstance(grid, CornerPointGrid):
             raise ValueError('Creating vtk datasests is supported only for corner point grid.')
-        vtk_grid_old = self.grid._vtk_grid
-        self.grid.create_vtk_grid() # recreate vtk grid for the case of unproper `_vtk_grid` attribute
-        dataset = self.grid._vtk_grid
+        vtk_grid_old = grid._vtk_grid
+        grid.create_vtk_grid() # recreate vtk grid for the case of unproper `_vtk_grid` attribute
+        dataset = grid._vtk_grid
         for comp_name in ('rock', 'states'):
             comp = getattr(self, comp_name)
             for attr in comp.attributes:
                 val = getattr(comp, attr)
                 if val.ndim ==3:
-                    array = numpy_to_vtk(val[self.grid.actnum])
+                    array = numpy_to_vtk(val[grid.actnum])
                 elif val.ndim == 4:
-                    array = numpy_to_vtk(val[:, self.grid.actnum].T)
+                    array = numpy_to_vtk(val[:, grid.actnum].T)
                 else:
-                    raise ValueError('Attribute {attr} in component {comp_name}.')
+                    raise ValueError('Attribute {attr} in component {comp_name}' +
+                                     'should be 3 or 4 dimensional array to be dumped.')
                 array.SetName('_'.join((comp_name.upper(), attr)))
                 dataset.GetCellData().AddArray(array)
-        self.grid._vtk_grid = vtk_grid_old
+        ind_i, ind_j, ind_k = np.indices(grid.dimens)
+        for name, val in zip(('I', 'J', 'K'), (ind_i, ind_j, ind_k)):
+            array = numpy_to_vtk(val[grid.actnum])
+            array.SetName(name)
+            dataset.GetCellData().AddArray(array)
+        grid._vtk_grid = vtk_grid_old
         return dataset
 
     # pylint: disable=protected-access
