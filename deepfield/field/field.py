@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 import pyvista as pv
 from anytree import PreOrderIter
+from vtk import vtkXMLUnstructuredGridWriter # pylint: disable=no-name-in-module
+from vtk.util.numpy_support import numpy_to_vtk # pylint: disable=no-name-in-module, import-error
 
 from .arithmetics import load_add, load_copy, load_equals, load_multiply
 from .faults import Faults
@@ -690,18 +692,18 @@ class Field:
         path : str
             Common path for output files. If None path will be inherited from model path.
         mode : str
-            Mode to open file.
+            Mode to open file. Affects only HDF5 dump.
             'w': write, a new file is created (an existing file with
             the same name would be deleted).
             'a': append, an existing file is opened for reading and writing,
             and if the file does not exist it is created.
             Default to 'a'.
         data : bool
-            Dump initial model data. No effect for HDF5 output. Default True.
+            Dump initial model data. No effect for HDF5 or VTU output. Default True.
         results : bool
-            Dump calculated results. No effect for HDF5 output. Default True.
+            Dump calculated results. No effect for HDF5 or VTU output. Default True.
         title : str
-            Model name. No effect for HDF5 output.
+            Model name. No effect for HDF5 or VTU output.
         kwargs : misc
             Any additional named arguments to ``dump``.
 
@@ -719,6 +721,13 @@ class Field:
         fmt = os.path.splitext(name)[1].strip('.')
         if fmt.upper() == 'HDF5':
             return self._dump_hdf5(path, mode=mode, **kwargs)
+        if fmt.upper() == 'VTU':
+            dataset = self.get_vtk_dataset()
+            writer = vtkXMLUnstructuredGridWriter()
+            writer.SetFileName(path)
+            writer.SetInputData(dataset)
+            writer.Write()
+            return self
         if fmt == '':
             dir_path = os.path.join(path, title)
             if not os.path.exists(dir_path):
@@ -1038,6 +1047,46 @@ class Field:
                 node.results = new_results.drop_duplicates(subset='DATE')
                 node.results = node.results.reset_index(drop=True)
         return self
+
+    # pylint: disable=protected-access
+    def get_vtk_dataset(self):
+        """_summary_
+
+        Returns
+        -------
+        vtk.vtkUnstructuredGrid
+            vtk dataset with states and rock data.
+
+        """
+        if isinstance(self.grid, OrthogonalUniformGrid):
+            grid = self.grid.to_corner_point()
+        else:
+            grid = self.grid
+        if not isinstance(grid, CornerPointGrid):
+            raise ValueError('Creating vtk datasests is supported only for corner point grid.')
+        vtk_grid_old = grid._vtk_grid
+        grid.create_vtk_grid() # recreate vtk grid for the case of unproper `_vtk_grid` attribute
+        dataset = grid._vtk_grid
+        for comp_name in ('rock', 'states'):
+            comp = getattr(self, comp_name)
+            for attr in comp.attributes:
+                val = getattr(comp, attr)
+                if val.ndim ==3:
+                    array = numpy_to_vtk(val[grid.actnum])
+                elif val.ndim == 4:
+                    array = numpy_to_vtk(val[:, grid.actnum].T)
+                else:
+                    raise ValueError('Attribute {attr} in component {comp_name}' +
+                                     'should be 3 or 4 dimensional array to be dumped.')
+                array.SetName('_'.join((comp_name.upper(), attr)))
+                dataset.GetCellData().AddArray(array)
+        ind_i, ind_j, ind_k = np.indices(grid.dimens)
+        for name, val in zip(('I', 'J', 'K'), (ind_i, ind_j, ind_k)):
+            array = numpy_to_vtk(val[grid.actnum])
+            array.SetName(name)
+            dataset.GetCellData().AddArray(array)
+        grid._vtk_grid = vtk_grid_old
+        return dataset
 
     # pylint: disable=protected-access
     def _create_pyvista_grid(self):
