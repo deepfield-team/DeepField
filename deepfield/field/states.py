@@ -147,7 +147,7 @@ class States(SpatialComponent):
 
     @state_check(lambda state: state.spatial)
     @ndim_check(4)
-    def show_slice(self, attr, t=None, x=None, y=None, z=None, figsize=None, **kwargs):
+    def show_slice(self, attr, t=None, i=None, j=None, k=None, figsize=None, **kwargs):
         """Visualize slices of 4D states arrays. If no slice is specified, spatial slices
         will be shown with interactive slider widgets.
 
@@ -157,27 +157,21 @@ class States(SpatialComponent):
             Attribute to show.
         t : int or None, optional
             Timestamp to show.
-        x : int or None, optional
+        i : int or None, optional
             Slice along x-axis to show.
-        y : int or None, optional
+        j : int or None, optional
             Slice along y-axis to show.
-        z : int or None, optional
+        k : int or None, optional
             Slice along z-axis to show.
         figsize : array-like, optional
             Output plot size.
         kwargs : dict, optional
             Additional keyword arguments for plot.
         """
-        data = getattr(self, attr)
-        try:
-            actnum = self.field.grid.actnum
-            data = data * actnum
-        except AttributeError:
-            pass
-        if np.all([t is None, x is None, y is None, z is None]):
-            show_slice_interactive(data, figsize=figsize, **kwargs)
+        if np.all([t is None, i is None, j is None, k is None]):
+            show_slice_interactive(self, attr, figsize=figsize, **kwargs)
         else:
-            show_slice_static(data, t=t, x=x, y=y, z=z, figsize=figsize, **kwargs)
+            show_slice_static(self, attr, t=t, i=i, j=j, k=k, figsize=figsize, **kwargs)
         return self
 
     def _read_buffer(self, path_or_buffer, attr, **kwargs):
