@@ -1,4 +1,5 @@
 """Plot utils."""
+from itertools import chain
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d # pylint: disable=unused-import
@@ -117,12 +118,35 @@ def show_slice_interactive(component, att, figsize=None, **kwargs):
     if 'origin' in kwargs:
         kwargs = kwargs.copy()
         del kwargs['origin']
+
     data = getattr(component, att)
+    xyz = component.field.grid.xyz
+    actnum = component.field.grid.actnum
+
     def update(t=None, i=0, j=0, k=0):
-        _, axes = plt.subplots(1, 3, figsize=figsize)
-        show_slice_static(component, att, i=i, t=t, ax=axes[0])
-        show_slice_static(component, att, j=j, t=t, ax=axes[1])
-        show_slice_static(component, att, k=k, t=t, ax=axes[2])
+        axes = []
+        fig = plt.figure(figsize=figsize)
+        axes.append(fig.add_subplot(2, 2, 3))
+        axes.append(fig.add_subplot(2, 2, 4))
+        axes.append(fig.add_subplot(2, 1, 1))
+        show_slice_static(component, att, i=i, t=t, ax=axes[0], **kwargs)
+        show_slice_static(component, att, j=j, t=t, ax=axes[1], **kwargs)
+        show_slice_static(component, att, k=k, t=t, ax=axes[2], **kwargs)
+
+        for xy, ax in zip(
+            (
+                xyz[i, j, :,][..., (0, 4), 1:][actnum[i, j, :]],
+                xyz[i,:, k][..., (0, 2), 1:][actnum[i, :, k]],
+                xyz[i, j, :,][..., (0, 4), ::2][actnum[i, j, :]],
+                xyz[:, j, k][..., (0, 1), ::2][actnum[:, j, k]],
+                xyz[i, :, k, :4:2, :2][actnum[i, :, k]],
+                xyz[:, j, k, :2, :2][actnum[:, j, k]]
+            ),
+            chain(*zip(axes, axes))
+        ):
+            x, y = xy[:, :, 0].ravel(), xy[:, :, 1].ravel()
+            ax.plot(x, y, color='red')
+
 
     shape = data.shape
 
