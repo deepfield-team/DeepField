@@ -127,7 +127,7 @@ def show_slice_interactive(component, att, figsize=None, **kwargs):
         axes = []
         fig = plt.figure(figsize=figsize)
         axes.append(fig.add_subplot(2, 2, 3))
-        axes.append(fig.add_subplot(2, 2, 4))
+        axes.append(fig.add_subplot(2, 2, 4, sharey=axes[0]))
         axes.append(fig.add_subplot(2, 1, 1))
         show_slice_static(component, att, i=i, t=t, ax=axes[0], **kwargs)
         show_slice_static(component, att, j=j, t=t, ax=axes[1], **kwargs)
