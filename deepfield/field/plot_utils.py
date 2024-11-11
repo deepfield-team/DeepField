@@ -1,4 +1,5 @@
 """Plot utils."""
+from itertools import chain
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d # pylint: disable=unused-import
@@ -8,25 +9,27 @@ from ipywidgets import interact, widgets
 COLORS = ['r', 'b', 'm', 'g']
 
 
-def show_slice_static(data, x=None, y=None, z=None, t=None, figsize=None, aspect='auto', **kwargs):
+def show_slice_static(component, att, i=None, j=None, k=None, t=None, figsize=None, ax=None, **kwargs):
     """Plot slice of the 3d/4d data array.
 
     Parameters
     ----------
-    data : ndarray
-        A 3D or 4D array to get slices from.
-    x : int or None
+    component : BaseComponent
+        Component containing attribute to show.
+    att : str
+        Attribute to show.
+    i : int or None
         Slice along x-axis to show.
-    y : int or None
+    j : int or None
         Slice along y-axis to show.
-    z : int or None
+    k : int or None
         Slice along z-axis to show.
     t : int or None
         Slice along t-axis to show.
     figsize : array-like, optional
-        Output plot size.
-    aspect : str
-        Aspect ratio. Default is 'auto'.
+        Output plot size. Ignored if `ax` is provided.
+    ax : matplotlib.axes.Axes, optional
+        Axes to plot slice. Default is 'auto'.
     kwargs : dict
         Additional keyword arguments for plot.
 
@@ -34,55 +37,77 @@ def show_slice_static(data, x=None, y=None, z=None, t=None, figsize=None, aspect
     -------
     Plot of a cube slice.
     """
-    count = np.sum([i is not None for i in [x, y, z, t]])
+    count = np.sum([i is not None for i in [i, j, k, t]])
+    grid = component.field.grid
+    data = getattr(component, att)
     if data.ndim == 4:
         if count != 2:
             raise ValueError('Two slices are expected for spatio-temporal data, found {}.'.format(count))
+        if t is None:
+            raise ValueError('`t` should be provided for spatio-temporal data.')
     elif data.ndim == 3:
         if count != 1:
             raise ValueError('Single slice is expected for spatial data, found {}.'.format(count))
+        if t is not None:
+            raise ValueError('`t` should not be provided for spatial only data.')
     else:
         raise ValueError('Data should have 3 or 4 dimensions, found {}.'.format(data.ndim))
 
     dims = 4
     if data.ndim == 3:
         dims = 3
-        data = np.expand_dims(data, 0)
-        t = 0
-    slices = tuple(slice(i) if i is None else i for i in [t, x, y, z])
-
-    plt.figure(figsize=figsize)
-    if dims == 3:
-        if x is not None:
-            plt.imshow(data[slices].T, aspect=aspect, **kwargs)
-            plt.xlabel('y')
-            plt.ylabel('z')
-        elif y is not None:
-            plt.imshow(data[slices].T, aspect=aspect, **kwargs)
-            plt.xlabel('x')
-            plt.ylabel('z')
-        elif z is not None:
-            plt.imshow(data[slices], aspect=aspect, **kwargs)
-            plt.xlabel('y')
-            plt.ylabel('x')
+    if ax is None:
+        _, ax = plt.subplots(figsize=figsize)
+    if dims == 4:
+        data = data[t]
+    if i is not None:
+        points = grid.xyz[i, :, :, ::2, 1:][grid.actnum[i, :, :]]
+        n_blocks = grid.actnum[i, :, :].sum()
+        colors = np.tile(data[i, :, :][grid.actnum[i, :, :]].reshape(-1,1), (1, 2)).ravel()
+        xlabel = 'y'
+        ylabel = 'z'
+        invert_y = True
+    elif j is not None:
+        points = grid.xyz[:, j, :,][...,(0, 1, 4, 5), :][..., (0,2)][grid.actnum[:, j, :]]
+        n_blocks = grid.actnum[:, j, :].sum()
+        colors = np.tile(data[:, j, :][grid.actnum[:, j, :]].reshape(-1,1), (1, 2)).ravel()
+        xlabel = 'x'
+        ylabel = 'z'
+        invert_y = True
+    elif k is not None:
+        points = grid.xyz[:, :, k, :4, :2][grid.actnum[:, :, k]]
+        n_blocks = grid.actnum[:, :, k].sum()
+        colors = np.tile(data[:, :, k][grid.actnum[:, :, k]].reshape(-1,1), (1, 2)).ravel()
+        xlabel = 'x'
+        ylabel = 'y'
+        invert_y = False
     else:
-        plt.imshow(data[slices].T, aspect=aspect, **kwargs)
-        plt.xlabel('t')
-        plt.ylabel('x' if x is not None else 'y' if y is not None else 'z')
-    plt.show()
+        raise ValueError('One of i, j, or k slices should be defined.')
+
+    if n_blocks > 0:
+        x, y = points[:, :, 0].ravel(), points[:, :, 1].ravel()
+        triangles = np.tile(np.hstack((np.arange(3), np.array([1,2,3]))), (n_blocks, 1))
+        triangles = triangles + np.arange(0, n_blocks*4,4).reshape(-1,1)
+        triangles = triangles.reshape(-1, 3)
+        ax.tripcolor(x, y, colors, triangles=triangles, **kwargs)
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    if invert_y:
+        ax.invert_yaxis()
 
 
-def show_slice_interactive(data, figsize=None, aspect='auto', **kwargs):
+def show_slice_interactive(component, att, figsize=None, **kwargs):
     """Plot cube slices with interactive sliders.
 
     Parameters
     ----------
-    data : ndarray
-        A 3D array to show.
+    component : BaseComponent
+        Component containing attribute to show.
+    att : str
+        Attribute to show.
     figsize : array-like, optional
         Output plot size.
-    aspect : str
-        Aspect ratio. Default is 'auto'.
     kwargs : dict
         Additional keyword arguments for plot.
 
@@ -93,44 +118,49 @@ def show_slice_interactive(data, figsize=None, aspect='auto', **kwargs):
     if 'origin' in kwargs:
         kwargs = kwargs.copy()
         del kwargs['origin']
-    def update(t=None, x=0, y=0, z=0):
-        data3d = data if t is None else data[t]
-        _, axes = plt.subplots(1, 3, figsize=figsize)
-        axes[0].imshow(data3d[x].T, aspect=aspect, **kwargs)
-        axes[0].axvline(y, c='r')
-        axes[0].axhline(z, c='r')
-        axes[0].set_xlabel('y')
-        axes[0].set_ylabel('z')
 
-        axes[1].imshow(data3d[:, y, :].T, aspect=aspect, **kwargs)
-        axes[1].axvline(x, c='r')
-        axes[1].axhline(z, c='r')
-        axes[1].set_xlabel('x')
-        axes[1].set_ylabel('z')
+    data = getattr(component, att)
+    xyz = component.field.grid.xyz
+    actnum = component.field.grid.actnum
 
-        axes[2].imshow(data3d[:, :, z], aspect=aspect, **kwargs)
-        axes[2].axvline(y, c='r')
-        axes[2].axhline(x, c='r')
-        axes[2].set_xlabel('y')
-        axes[2].set_ylabel('x')
+    def update(t=None, i=0, j=0, k=0):
+        axes = []
+        fig = plt.figure(figsize=figsize)
+        axes.append(fig.add_subplot(2, 2, 3))
+        axes.append(fig.add_subplot(2, 2, 4, sharey=axes[0]))
+        axes.append(fig.add_subplot(2, 1, 1))
+        show_slice_static(component, att, i=i, t=t, ax=axes[0], **kwargs)
+        show_slice_static(component, att, j=j, t=t, ax=axes[1], **kwargs)
+        show_slice_static(component, att, k=k, t=t, ax=axes[2], **kwargs)
 
-        axes[0].set_title('X slice')
-        axes[1].set_title('Y slice')
-        axes[2].set_title('Z slice')
+        for xy, ax in zip(
+            (
+                xyz[i, j, :,][..., (0, 4), 1:][actnum[i, j, :]],
+                xyz[i,:, k][..., (0, 2), 1:][actnum[i, :, k]],
+                xyz[i, j, :,][..., (0, 4), ::2][actnum[i, j, :]],
+                xyz[:, j, k][..., (0, 1), ::2][actnum[:, j, k]],
+                xyz[i, :, k, :4:2, :2][actnum[i, :, k]],
+                xyz[:, j, k, :2, :2][actnum[:, j, k]]
+            ),
+            chain(*zip(axes, axes))
+        ):
+            x, y = xy[:, :, 0].ravel(), xy[:, :, 1].ravel()
+            ax.plot(x, y, color='red')
+
 
     shape = data.shape
 
     if data.ndim == 3:
-        interact(lambda x, y, z: update(None, x, y, z),
-                 x=widgets.IntSlider(value=shape[0] / 2, min=0, max=shape[0] - 1, step=1),
-                 y=widgets.IntSlider(value=shape[1] / 2, min=0, max=shape[1] - 1, step=1),
-                 z=widgets.IntSlider(value=shape[2] / 2, min=0, max=shape[2] - 1, step=1))
+        interact(lambda i, j, k: update(None, i, j, k),
+                 i=widgets.IntSlider(value=shape[0] / 2, min=0, max=shape[0] - 1, step=1),
+                 j=widgets.IntSlider(value=shape[1] / 2, min=0, max=shape[1] - 1, step=1),
+                 k=widgets.IntSlider(value=shape[2] / 2, min=0, max=shape[2] - 1, step=1))
     elif data.ndim == 4:
         interact(update,
                  t=widgets.IntSlider(value=shape[0] / 2, min=0, max=shape[0] - 1, step=1),
-                 x=widgets.IntSlider(value=shape[1] / 2, min=0, max=shape[1] - 1, step=1),
-                 y=widgets.IntSlider(value=shape[2] / 2, min=0, max=shape[2] - 1, step=1),
-                 z=widgets.IntSlider(value=shape[3] / 2, min=0, max=shape[3] - 1, step=1))
+                 i=widgets.IntSlider(value=shape[1] / 2, min=0, max=shape[1] - 1, step=1),
+                 j=widgets.IntSlider(value=shape[2] / 2, min=0, max=shape[2] - 1, step=1),
+                 k=widgets.IntSlider(value=shape[3] / 2, min=0, max=shape[3] - 1, step=1))
     else:
         raise ValueError('Invalid data shape. Expected 3 or 4, got {}.'.format(data.ndim))
     plt.show()

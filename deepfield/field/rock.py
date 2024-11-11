@@ -122,7 +122,7 @@ class Rock(SpatialComponent):
 
     @state_check(lambda state: state.spatial)
     @ndim_check(3)
-    def show_slice(self, attr, x=None, y=None, z=None, figsize=None, **kwargs):
+    def show_slice(self, attr, i=None, j=None, k=None, figsize=None, **kwargs):
         """Visualize slices of 3D array. If no slice is specified, all 3 slices
         will be shown with interactive slider widgets.
 
@@ -130,11 +130,11 @@ class Rock(SpatialComponent):
         ----------
         attr : str
             Attribute to show.
-        x : int or None, optional
+        i : int or None, optional
             Slice along x-axis to show.
-        y : int or None, optional
+        j : int or None, optional
             Slice along y-axis to show.
-        z : int or None, optional
+        k : int or None, optional
             Slice along z-axis to show.
         figsize : array-like, optional
             Output plot size.
@@ -147,10 +147,10 @@ class Rock(SpatialComponent):
             data = data * actnum
         except AttributeError:
             pass
-        if np.all([x is None, y is None, z is None]):
-            show_slice_interactive(data, figsize=figsize, **kwargs)
+        if np.all([i is None, j is None, k is None]):
+            show_slice_interactive(self, attr, figsize=figsize, **kwargs)
         else:
-            show_slice_static(data, x=x, y=y, z=z, figsize=figsize, **kwargs)
+            show_slice_static(self, attr, i=i, j=j, k=k, figsize=figsize, **kwargs)
         return self
 
     @state_check(lambda state: state.spatial)
