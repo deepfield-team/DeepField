@@ -1050,7 +1050,8 @@ class Field:
 
     # pylint: disable=protected-access
     def get_vtk_dataset(self):
-        """_summary_
+        """Create vtk dataset with data from `rock` and `states` components.
+        Grid is represented in unstructured form.
 
         Returns
         -------
