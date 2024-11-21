@@ -1,5 +1,0 @@
-ROCK
--- PRESSURE	COMPR
-277.0	4.8e-05	/
-/
-
