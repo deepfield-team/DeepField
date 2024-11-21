@@ -15,6 +15,7 @@ Contents
    :maxdepth: 4
    :titlesonly:
 
+   quick_start/quick_start
    api/deepfield
 
 
