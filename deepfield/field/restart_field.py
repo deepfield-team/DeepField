@@ -78,11 +78,11 @@ class RestartField(Field):
         self.parent = Field(str(parent_path),
                             config=self._parent_model_config).load()
         self.wells = self.parent.wells.copy()
-        if include_binary:
-            self._load_binary(raise_errors=raise_errors)
         loaders = self._get_loaders(self._restart_config)
         tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
                           raise_errors=raise_errors)
+        if include_binary:
+            self._load_binary(components=('states', 'wells'), raise_errors=raise_errors)
         self._load_results(self._config, raise_errors, include_binary)
         self._check_vapoil(self._config)
         return self
