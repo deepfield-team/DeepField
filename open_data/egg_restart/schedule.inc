@@ -1,0 +1,36 @@
+RPTRST
+RPTSCHED
+    FIP WELSPECS WELLS /
+/
+RPTRST
+   BASIC=2/
+/
+WCONPROD
+    'PROD1' 'OPEN' 'BHP' 5*  385/
+    'PROD3' 'OPEN' 'BHP' 5*  385/
+    'PROD2' 'OPEN' 'BHP' 5*  385/
+    'PROD4' 'OPEN' 'BHP' 5*  385/
+/
+
+TSTEP
+   30 /
+TSTEP
+   30 /
+TSTEP
+   30 /
+TSTEP
+   30 /
+TSTEP
+   30 /
+TSTEP
+   30 /
+TSTEP
+   30 /
+TSTEP
+   30 /
+TSTEP
+   30 /
+TSTEP
+   30 /
+
+END
