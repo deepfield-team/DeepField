@@ -1,5 +1,4 @@
 """Plot utils."""
-from itertools import chain
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d # pylint: disable=unused-import
@@ -9,7 +8,9 @@ from ipywidgets import interact, widgets
 COLORS = ['r', 'b', 'm', 'g']
 
 
-def show_slice_static(component, att, i=None, j=None, k=None, t=None, figsize=None, ax=None, **kwargs):
+def show_slice_static(component, att, i=None, j=None, k=None, t=None,
+                      i_line=None, j_line=None, k_line=None,
+                      figsize=None, ax=None, **kwargs):
     """Plot slice of the 3d/4d data array.
 
     Parameters
@@ -26,6 +27,12 @@ def show_slice_static(component, att, i=None, j=None, k=None, t=None, figsize=No
         Slice along z-axis to show.
     t : int or None
         Slice along t-axis to show.
+    i_line: int, optional
+        Plot line corresponding to specific i index.
+    j_line: int, optional
+        Plot line corresponding to specific j index.
+    k_line: int, optional
+        Plot line corresponding to specific j index.
     figsize : array-like, optional
         Output plot size. Ignored if `ax` is provided.
     ax : matplotlib.axes.Axes, optional
@@ -39,6 +46,8 @@ def show_slice_static(component, att, i=None, j=None, k=None, t=None, figsize=No
     """
     count = np.sum([i is not None for i in [i, j, k, t]])
     grid = component.field.grid
+    xyz = grid.xyz
+    actnum = grid.actnum
     data = getattr(component, att)
     if data.ndim == 4:
         if count != 2:
@@ -53,6 +62,7 @@ def show_slice_static(component, att, i=None, j=None, k=None, t=None, figsize=No
     else:
         raise ValueError('Data should have 3 or 4 dimensions, found {}.'.format(data.ndim))
 
+    lines = []
     dims = 4
     if data.ndim == 3:
         dims = 3
@@ -61,26 +71,44 @@ def show_slice_static(component, att, i=None, j=None, k=None, t=None, figsize=No
     if dims == 4:
         data = data[t]
     if i is not None:
-        points = grid.xyz[i, :, :, ::2, 1:][grid.actnum[i, :, :]]
-        n_blocks = grid.actnum[i, :, :].sum()
-        colors = np.tile(data[i, :, :][grid.actnum[i, :, :]].reshape(-1,1), (1, 2)).ravel()
+        points = xyz[i, :, :, ::2, 1:][actnum[i, :, :]]
+        n_blocks = actnum[i, :, :].sum()
+        colors = np.tile(data[i, :, :][actnum[i, :, :]].reshape(-1,1), (1, 2)).ravel()
         xlabel = 'y'
         ylabel = 'z'
         invert_y = True
+        if j_line is not None:
+            lines.append(xyz[i, j_line, :,][..., (0, 4), 1:][actnum[i, j_line, :]].reshape(-1, 2))
+        if k_line is not None:
+            lines.append(xyz[i,:, k_line][..., (0, 2), 1:][actnum[i, :, k_line]].reshape(-1, 2))
+        if i_line is not None:
+            raise ValueError('`i_line` should be None for i-slice')
     elif j is not None:
-        points = grid.xyz[:, j, :,][...,(0, 1, 4, 5), :][..., (0,2)][grid.actnum[:, j, :]]
-        n_blocks = grid.actnum[:, j, :].sum()
-        colors = np.tile(data[:, j, :][grid.actnum[:, j, :]].reshape(-1,1), (1, 2)).ravel()
+        points = xyz[:, j, :,][...,(0, 1, 4, 5), :][..., (0,2)][actnum[:, j, :]]
+        n_blocks = actnum[:, j, :].sum()
+        colors = np.tile(data[:, j, :][actnum[:, j, :]].reshape(-1,1), (1, 2)).ravel()
         xlabel = 'x'
         ylabel = 'z'
         invert_y = True
+        if i_line is not None:
+            lines.append(xyz[i_line, j, :,][..., (0, 4), ::2][actnum[i_line, j, :]].reshape(-1, 2))
+        if k_line is not None:
+            lines.append(xyz[:, j, k_line][..., (0, 1), ::2][actnum[:, j, k_line]].reshape(-1, 2))
+        if j_line is not None:
+            raise ValueError('`j_line` should be None for j-slice')
     elif k is not None:
-        points = grid.xyz[:, :, k, :4, :2][grid.actnum[:, :, k]]
-        n_blocks = grid.actnum[:, :, k].sum()
-        colors = np.tile(data[:, :, k][grid.actnum[:, :, k]].reshape(-1,1), (1, 2)).ravel()
+        points = xyz[:, :, k, :4, :2][actnum[:, :, k]]
+        n_blocks = actnum[:, :, k].sum()
+        colors = np.tile(data[:, :, k][actnum[:, :, k]].reshape(-1,1), (1, 2)).ravel()
         xlabel = 'x'
         ylabel = 'y'
         invert_y = False
+        if i_line is not None:
+            lines.append(xyz[i_line, :, k, :4:2, :2][actnum[i_line, :, k]].reshape(-1, 2))
+        if j_line is not None:
+            lines.append(xyz[:, j_line, k, :2, :2][actnum[:, j_line, k]].reshape(-1, 2))
+        if k_line is not None:
+            raise ValueError('`k_line` should be None for i-slice')
     else:
         raise ValueError('One of i, j, or k slices should be defined.')
 
@@ -90,6 +118,9 @@ def show_slice_static(component, att, i=None, j=None, k=None, t=None, figsize=No
         triangles = triangles + np.arange(0, n_blocks*4,4).reshape(-1,1)
         triangles = triangles.reshape(-1, 3)
         ax.tripcolor(x, y, colors, triangles=triangles, **kwargs)
+        for line in lines:
+            x, y = line[:, 0], line[:, 1]
+            ax.plot(x, y, color='red')
 
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -120,8 +151,6 @@ def show_slice_interactive(component, att, figsize=None, **kwargs):
         del kwargs['origin']
 
     data = getattr(component, att)
-    xyz = component.field.grid.xyz
-    actnum = component.field.grid.actnum
 
     def update(t=None, i=0, j=0, k=0):
         axes = []
@@ -129,24 +158,9 @@ def show_slice_interactive(component, att, figsize=None, **kwargs):
         axes.append(fig.add_subplot(2, 2, 3))
         axes.append(fig.add_subplot(2, 2, 4, sharey=axes[0]))
         axes.append(fig.add_subplot(2, 1, 1))
-        show_slice_static(component, att, i=i, t=t, ax=axes[0], **kwargs)
-        show_slice_static(component, att, j=j, t=t, ax=axes[1], **kwargs)
-        show_slice_static(component, att, k=k, t=t, ax=axes[2], **kwargs)
-
-        for xy, ax in zip(
-            (
-                xyz[i, j, :,][..., (0, 4), 1:][actnum[i, j, :]],
-                xyz[i,:, k][..., (0, 2), 1:][actnum[i, :, k]],
-                xyz[i, j, :,][..., (0, 4), ::2][actnum[i, j, :]],
-                xyz[:, j, k][..., (0, 1), ::2][actnum[:, j, k]],
-                xyz[i, :, k, :4:2, :2][actnum[i, :, k]],
-                xyz[:, j, k, :2, :2][actnum[:, j, k]]
-            ),
-            chain(*zip(axes, axes))
-        ):
-            x, y = xy[:, :, 0].ravel(), xy[:, :, 1].ravel()
-            ax.plot(x, y, color='red')
-
+        show_slice_static(component, att, i=i, t=t, ax=axes[0], j_line=j, k_line=k, **kwargs)
+        show_slice_static(component, att, j=j, t=t, ax=axes[1], i_line=i, k_line=k, **kwargs)
+        show_slice_static(component, att, k=k, t=t, ax=axes[2], i_line=i, j_line=j, **kwargs)
 
     shape = data.shape
 
