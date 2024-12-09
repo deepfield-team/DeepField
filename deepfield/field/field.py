@@ -153,19 +153,6 @@ class Field:
             setattr(self, COMPONENTS_DICT[k][0], COMPONENTS_DICT[k][1](field=self))
         self._config = {COMPONENTS_DICT[k][0]: v for k, v in config.items()}
 
-    @property
-    def num_wells(self):
-        """Number of wells if field"""
-        return len(self.wells.names) if 'wells' in self.components else 0
-
-    def get_components_attributes(self):
-        """Returns a list of attributes for each component."""
-        attributes = {}
-        for name, component in self._components.items():
-            if hasattr(component, 'attributes'):
-                attributes[name] = component.attributes
-        return attributes
-
     @staticmethod
     def _config_parser(value):
         """Separate config into attrs and kwargs."""
