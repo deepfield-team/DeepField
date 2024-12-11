@@ -26,8 +26,10 @@ def get_slice_trisurf(component, att, i=None, j=None, k=None, t=None):
         Slice along t-axis to show.
     Returns
     -------
-    np.ndarray or None, np.ndarray or None, np.ndarray or None, np.ndarray or None
-        x-coordinates of vertices, y-coordinate of vertices, triangle, data
+    np.ndarray or None, np.ndarray or None, np.ndarray or None, np.ndarray or None,
+    np.ndarray or None
+        x-coordinates of vertices, y-coordinate of vertices, triangles, data,
+        cell indices corresponding to triangles
     """
     count = np.sum([i is not None for i in [i, j, k, t]])
     grid = component.field.grid
@@ -57,14 +59,17 @@ def get_slice_trisurf(component, att, i=None, j=None, k=None, t=None):
         points = xyz[i, :, :, ::2, 1:][actnum[i, :, :]]
         n_blocks = actnum[i, :, :].sum()
         data = np.tile(data[i, :, :][actnum[i, :, :]].reshape(-1,1), (1, 2)).ravel()
+        indices = np.indices(grid.dimens)[:, i, :, :][...,actnum[i, :, :]]
     elif j is not None:
         points = xyz[:, j, :,][...,(0, 1, 4, 5), :][..., (0,2)][actnum[:, j, :]]
         n_blocks = actnum[:, j, :].sum()
         data = np.tile(data[:, j, :][actnum[:, j, :]].reshape(-1,1), (1, 2)).ravel()
+        indices = np.indices(grid.dimens)[:, :, j, :][..., actnum[:, j, :]]
     elif k is not None:
         points = xyz[:, :, k, :4, :2][actnum[:, :, k]]
         n_blocks = actnum[:, :, k].sum()
         data = np.tile(data[:, :, k][actnum[:, :, k]].reshape(-1,1), (1, 2)).ravel()
+        indices = np.indices(grid.dimens)[:, :, :, k][..., actnum[:, :, k]]
     else:
         raise ValueError('One of i, j, or k slices should be defined.')
 
@@ -73,8 +78,9 @@ def get_slice_trisurf(component, att, i=None, j=None, k=None, t=None):
         triangles = np.tile(np.hstack((np.arange(3), np.array([1,2,3]))), (n_blocks, 1))
         triangles = triangles + np.arange(0, n_blocks*4,4).reshape(-1,1)
         triangles = triangles.reshape(-1, 3)
-        return x, y, triangles, data
-    return None, None, None, None
+        indices = np.tile(indices[..., np.newaxis], (1, 1, 2)).reshape(3, -1).T
+        return x, y, triangles, data, indices
+    return None, None, None, None, None
 
 def show_slice_static(component, att, i=None, j=None, k=None, t=None,
                       i_line=None, j_line=None, k_line=None,
@@ -153,7 +159,7 @@ def show_slice_static(component, att, i=None, j=None, k=None, t=None,
     else:
         raise ValueError('One of i, j, or k slices should be defined.')
 
-    x, y, triangles, colors = get_slice_trisurf(component, att, i, j, k, t)
+    x, y, triangles, colors, _ = get_slice_trisurf(component, att, i, j, k, t)
     if triangles is not None:
         ax.tripcolor(x, y, colors, triangles=triangles, **kwargs)
         for line in lines:
