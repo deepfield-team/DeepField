@@ -268,22 +268,26 @@ class Wells(BaseComponent):
                 continue
         return self
 
-    def drop_incomplete(self, logger=None):
+    def drop_incomplete(self, logger=None, required=None):
         """Drop nodes with missing 'WELLTRACK' and 'PERF'.
 
         Parameters
         ----------
         logger : logger, optional
             Logger for messages.
+        required: list
+            Required attributes for wells. Default ['WELLTRACK', 'PERF'].
 
         Returns
         -------
         wells : Wells
             Wells without incomplete nodes.
         """
+        if required is None:
+            required = ['WELLTRACK', 'PERF']
         for node in self:
             if not (('COMPDAT' in node.attributes) or ('COMPDATL' in node.attributes)):
-                if not set(['WELLTRACK', 'PERF']).issubset(node.attributes):
+                if not set(required).issubset(node.attributes):
                     self.drop(node.name)
                     if logger is not None:
                         logger.info('Node %s is incomplete and is removed.' % node.name)

@@ -627,6 +627,7 @@ def parse_vals(columns, shift, full, vals):
         if i + shift >= len(columns):
             break
         if '*' in v:
+            v = v.strip('\'\"')
             if v == '*':
                 continue
             shift += int(v.strip('*')) - 1
