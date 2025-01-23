@@ -284,7 +284,7 @@ class Wells(BaseComponent):
             Wells without incomplete nodes.
         """
         if required is None:
-             required = ['WELLTRACK', 'PERF']
+            required = ['WELLTRACK', 'PERF']
         for node in self:
             if not (('COMPDAT' in node.attributes) or ('COMPDATL' in node.attributes)):
                 if not set(required).issubset(node.attributes):
