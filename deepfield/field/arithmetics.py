@@ -87,13 +87,15 @@ def load_equals(field, buffer, logger=None):
         box = _get_box(getattr(row, c) for c in columns[2:])
         component_found = False
         for name, comp in field.items():
-            if isinstance(comp, SpatialComponent) and row.ATTR in  comp.attributes:
+            if isinstance(comp, SpatialComponent) and row.ATTR in comp.attributes:
                 component_found = True
                 break
         if not component_found:
             for name, attributes in ATTRIBUTES_DICT.items():
+                if name not in field.components:
+                    continue
+                comp = getattr(field, name)
                 if row.ATTR in attributes:
-                    comp = getattr(field, name)
                     default_value, dtype = DEFAULTS_DICT[row.ATTR]
                     comp.equals_attribute(row.ATTR, default_value, box=None, dtype=dtype, create=True)
                     if logger:
@@ -107,6 +109,8 @@ def load_equals(field, buffer, logger=None):
             comp.equals_attribute(row.ATTR, row.VAL, box)
             if logger:
                 logger.info(f'Set {name}:{row.ATTR} to {row.VAL} in box {box}')
+            if name == 'grid':
+                comp.check_uniform()
         else:
             if logger:
                 logger.warning(f'Could not find or create attribute {row.ATTR}')

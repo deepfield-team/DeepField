@@ -98,14 +98,18 @@ class Grid(SpatialComponent):
             super()._read_buffer(buffer, attr, dtype=lambda x: bool(int(x)), logger=logger, compressed=True)
         else:
             super()._read_buffer(buffer, attr, logger=logger, **kwargs)
-        if attr in ['DX', 'DY', 'DZ']:
-            if np.unique(getattr(self, attr)).size != 1:
-                raise ValueError("Grid is not uniform ('{}').".format(attr))
-            setattr(self, attr, getattr(self, attr)[0])
-        elif attr == 'TOPS':
-            if np.unique(np.diff(self.TOPS)).size > 2:
-                raise ValueError("Grid is not uniform ('{}').".format(attr))
-            setattr(self, attr, self.TOPS[0])
+        self.check_uniform()
+
+    def check_uniform(self):
+        for attr in self.attributes:
+            if attr in ['DX', 'DY', 'DZ', 'TOPS']:
+                vals = np.array(getattr(self, attr))
+                if vals.size == 1:
+                    continue
+                unique_vals = np.unique(vals)
+                if unique_vals.size > 1:
+                    raise ValueError("Grid is not uniform ('{}').".format(attr))
+                setattr(self, attr, unique_vals[0])
 
     def _apply_minpv(self):
         minpv_value = self.minpv[0]
