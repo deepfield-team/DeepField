@@ -20,8 +20,9 @@ from .utils import full_ind_to_active_ind, active_ind_to_full_ind
 from .getting_wellblocks import defining_wellblocks_vtk, find_first_entering_point, defining_wellblocks_compdat
 from .wells_dump_utils import write_perf, write_events, write_schedule, write_welspecs
 from .wells_load_utils import (load_rsm, load_ecl_binary, load_group, load_grouptree,
-                               load_welspecs, load_compdat, load_compdatl, load_comdatmd, load_wconprod, load_wconinje,
-                               load_welltracks, load_events, load_history, load_wefac, load_wfrac, load_wfracp,
+                               load_welspecs, load_welspecl, load_compdat, load_compdatl,
+                               load_comdatmd, load_wconprod, load_wconinje, load_welltracks,
+                               load_events, load_history, load_wefac, load_wfrac, load_wfracp,
                                DEFAULTS, VALUE_CONTROL)
 from .decorators import apply_to_each_segment, state_check
 
@@ -1001,6 +1002,8 @@ class Wells(BaseComponent):
         """
         if attr == 'WELSPECS':
             return load_welspecs(self, buffer, **kwargs)
+        if attr == 'WELSPECL':
+            return load_welspecl(self, buffer, **kwargs)
         if attr == 'COMPDAT':
             return load_compdat(self, buffer, **kwargs)
         if attr == 'COMPDATL':
