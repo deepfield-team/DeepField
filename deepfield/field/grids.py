@@ -101,6 +101,7 @@ class Grid(SpatialComponent):
         self.check_uniform()
 
     def check_uniform(self):
+        """Check keywords 'DX', 'DY', 'DZ', 'TOPS' for uniqueness."""
         for attr in self.attributes:
             if attr in ['DX', 'DY', 'DZ', 'TOPS']:
                 vals = np.array(getattr(self, attr))
@@ -113,7 +114,8 @@ class Grid(SpatialComponent):
                     raise ValueError("Grid is not uniform ('{}').".format(attr))
                 setattr(self, attr, unique_vals[0])
 
-    def _apply_minpv(self):
+    def apply_minpv(self):
+        """Apply MINPV threshold to ACTNUM."""
         minpv_value = self.minpv[0]
         volumes  = self.cell_volumes
         poro = self.field.rock.poro

@@ -608,8 +608,8 @@ class Field:
         if 'MINPV' in self.grid.attributes:
             if 'ACTNUM' in self.grid.state.binary_attributes:
                 self._logger.info('ACTNUM is loaded from binary file: MINPV was not applied.')
-            else:              
-                self.grid._apply_minpv()
+            else:
+                self.grid.apply_minpv()
                 self._logger.info('MINPV {} is applied.'.format(self.grid.minpv[0]))
         if include_binary:
             self._load_binary(components=('states', 'wells'), raise_errors=raise_errors)
