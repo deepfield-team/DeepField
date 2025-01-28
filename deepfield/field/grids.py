@@ -94,11 +94,6 @@ class Grid(SpatialComponent):
             super()._read_buffer(buffer, attr, dtype=float, compressed=False)
         elif attr == 'MINPV':
             super()._read_buffer(buffer, attr, dtype=float, compressed=False)
-            if 'ACTNUM' not in self.state.binary_attributes:
-                self._apply_minpv()
-            else:
-                if logger:
-                    logger.info('ACTNUM is loaded from binary file: MINPV was not applied.')
         elif attr in 'ACTNUM':
             super()._read_buffer(buffer, attr, dtype=lambda x: bool(int(x)), logger=logger, compressed=True)
         else:
@@ -113,7 +108,6 @@ class Grid(SpatialComponent):
             setattr(self, attr, self.TOPS[0])
 
     def _apply_minpv(self):
-        assert hasattr(self, 'actnum')
         minpv_value = self.minpv[0]
         volumes  = self.cell_volumes
         poro = self.field.rock.poro

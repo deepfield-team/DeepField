@@ -605,6 +605,12 @@ class Field:
         loaders = self._get_loaders(self._config)
         tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
                           raise_errors=raise_errors)
+        if 'MINPV' in self.grid.attributes:
+            if 'ACTNUM' in self.grid.state.binary_attributes:
+                self._logger.info('ACTNUM is loaded from binary file: MINPV was not applied.')
+            else:              
+                self.grid._apply_minpv()
+                self._logger.info('MINPV {} is applied.'.format(self.grid.minpv[0]))
         if include_binary:
             self._load_binary(components=('states', 'wells'), raise_errors=raise_errors)
         self._load_results(self._config, raise_errors, include_binary)
