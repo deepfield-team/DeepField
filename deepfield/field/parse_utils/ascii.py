@@ -17,7 +17,7 @@ _COLUMN_LENGTH = 13
 
 IGNORE_SECTIONS = ['ARITHMETIC',
                    'RPTISOL', 'RPTPROPS', 'RPTREGS',
-                   'RPTRUNSP', 'RPTSCHED', 'RPTSMRY', 'RPTSOL', 'RPTRST']
+                   'RPTRUNSP', 'RPTSCHED', 'RPTSMRY', 'RPTSOL']
 
 DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
 
