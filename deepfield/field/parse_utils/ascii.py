@@ -2,6 +2,7 @@
 import copy
 import os
 import re
+import shlex
 from io import StringIO
 from itertools import zip_longest
 from pathlib import Path
@@ -663,7 +664,7 @@ def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, date=Non
         line = line.split('/')[0].strip()
         if not line:
             break
-        vals = line.split()[:len(columns)]
+        vals = shlex.split(line)[:len(columns)]
         full = [None] * len(columns)
         if date is not None:
             full[0] = date
