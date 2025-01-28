@@ -20,8 +20,8 @@ def load_copy(field, buffer, logger=None):
         'int': columns[2:]
     }
     df = parse_eclipse_keyword(buffer, columns, column_types)
-    for row in df.itertuples():
-        box = _get_box(getattr(row, c) for c in columns[2:])
+    for _, row in df.iterrows():
+        box = _get_box(row[columns[2:]].values, field.grid.dimens)
         copy_successfull = False
         for name, comp in field.items():
             if isinstance(comp, SpatialComponent) and row.ATTR1 in  comp.attributes:
@@ -55,8 +55,8 @@ def load_multiply(field, buffer, logger=None):
         'float': columns[1:2]
     }
     df = parse_eclipse_keyword(buffer, columns, column_types)
-    for row in df.itertuples():
-        box = _get_box(getattr(row, c) for c in columns[2:])
+    for _, row in df.iterrows():
+        box = _get_box(row[columns[2:]].values, field.grid.dimens)
         multiply_successfull = False
         for name, comp in field.items():
             if isinstance(comp, SpatialComponent) and row.ATTR in  comp.attributes:
@@ -83,8 +83,8 @@ def load_equals(field, buffer, logger=None):
         'float': columns[1:2]
     }
     df = parse_eclipse_keyword(buffer, columns, column_types)
-    for row in df.itertuples():
-        box = _get_box(getattr(row, c) for c in columns[2:])
+    for _, row in df.iterrows():
+        box = _get_box(row[columns[2:]].values, field.grid.dimens)
         component_found = False
         for name, comp in field.items():
             if isinstance(comp, SpatialComponent) and row.ATTR in comp.attributes:
@@ -125,8 +125,8 @@ def load_add(field, buffer, logger=None):
         'float': columns[1:2]
     }
     df = parse_eclipse_keyword(buffer, columns, column_types)
-    for row in df.itertuples():
-        box = _get_box(getattr(row, c) for c in columns[2:])
+    for _, row in df.iterrows():
+        box = _get_box(row[columns[2:]].values, field.grid.dimens)
         addition_successfull = False
         for name, comp in field.items():
             if isinstance(comp, SpatialComponent) and row.ATTR in comp.attributes:
@@ -144,10 +144,10 @@ def load_add(field, buffer, logger=None):
             logger.warning(f'Could not find attribute {row.ATTR}')
     return field
 
-def _get_box(vals):
-    vals = list(vals)
-    if (np.array(vals) == INT_NAN).all():
-        return None
-    if (np.array(vals) == INT_NAN).any() or len(vals) != 6:
-        raise ValueError('Box is not properly specified')
-    return [val-1 if i%2==0 else val for i, val in enumerate(vals)]
+def _get_box(vals, dimens):
+    full_box = np.array([1, dimens[0], 1, dimens[1], 1, dimens[2]])
+    mask = vals == INT_NAN
+    if mask.any():
+        vals[mask] = full_box[mask]
+    vals[[0, 2, 4]] -= 1
+    return vals

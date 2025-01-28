@@ -159,6 +159,19 @@ def load_welspecs(wells, buffer, meta, **kwargs):
     return _load_control_table(wells, attribute, columns, column_types, has_date,
                                buffer, meta, **kwargs)
 
+def load_welspecl(wells, buffer, meta, **kwargs):
+    """Partial load WELSPECL table."""
+    columns = ['WELL', 'GROUP', 'LGR', 'I', 'J', 'DREF', 'PHASE', 'DRAINAGE_RADIUS']
+    column_types = {
+        'text': columns[1:3] + columns[6:7],
+        'int': columns[3:5],
+        'float': columns[5:6] + columns[7:]
+    }
+    attribute = 'WELSPECS' #ignore LGR and create WELSPECS attribute
+    has_date = False
+    return _load_control_table(wells, attribute, columns, column_types, has_date,
+                               buffer, meta, **kwargs)
+
 def load_wconprod(wells, buffer, meta, **kwargs):
     """Partial load WCONPROD table."""
     columns = ['DATE', 'WELL', 'MODE', 'CONTROL',

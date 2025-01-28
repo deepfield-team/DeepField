@@ -106,6 +106,8 @@ class Grid(SpatialComponent):
                 vals = np.array(getattr(self, attr))
                 if vals.size == 1:
                     continue
+                if attr == 'TOPS':
+                    vals = self.to_spatial(attr, inplace=False)[..., 0]
                 unique_vals = np.unique(vals)
                 if unique_vals.size > 1:
                     raise ValueError("Grid is not uniform ('{}').".format(attr))

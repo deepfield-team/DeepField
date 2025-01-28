@@ -14,7 +14,8 @@ base_config = {
     'States': {'attrs': ['PRESSURE', 'SOIL', 'SWAT', 'SGAS', 'RS']},
     'Tables': {'attrs': list(TABLE_INFO.keys())},
     'Wells': {'attrs': ['EVENTS', 'HISTORY', 'RESULTS', 'PERF', 'WELLTRACK',
-                        'COMPDAT', 'WELSPECS', 'WCONPROD', 'WCONINJE', 'COMPDATL', 'COMPDATMD', 'WEFAC', 'WFRAC', 'WFRACP']},
+                        'COMPDAT', 'WELSPECS', 'WELSPECL', 'WCONPROD', 'WCONINJE',
+                        'COMPDATL', 'COMPDATMD', 'WEFAC', 'WFRAC', 'WFRACP']},
     'Faults': {'attrs': ['FAULTS', 'MULTFLT']},
     'Aquifers': {'attrs': None}
 }
