@@ -310,12 +310,20 @@ def _read_numerical_table_data(buffer, depth, dtype):
         data = list(data)
     ind = [0] * depth
     group_end = True
+    expr = re.compile(r'(\d*)\*')
+
+    def _repl(match):
+        num = match.groups()[0]
+        num = int(num) if num else 1
+        return ' '.join(['nan']*num)
+
     for line in buffer:
         line = line.strip()
         split = line.split("/")
         line = split[0]
         if len(line) > 0:
             cur_item = data
+            line = expr.sub(_repl, line)
             for i in reversed(ind):
                 if len(cur_item) == i:
                     cur_item.append([])
@@ -323,7 +331,6 @@ def _read_numerical_table_data(buffer, depth, dtype):
             if not line[0].isdigit():
                 buffer.prev()
                 break
-            # TODO account for default numbers as (*)
             numbers = np.fromstring(line, dtype=dtype, sep=' ')
             cur_item.append(numbers)
             group_end = False
