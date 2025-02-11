@@ -328,7 +328,7 @@ def _read_numerical_table_data(buffer, depth, dtype):
                 if len(cur_item) == i:
                     cur_item.append([])
                 cur_item = cur_item[i]
-            if not line[0].isdigit():
+            if not (line[0].isdigit() or line[:3]=='nan'):
                 buffer.prev()
                 break
             numbers = np.fromstring(line, dtype=dtype, sep=' ')
