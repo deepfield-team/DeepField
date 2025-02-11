@@ -159,9 +159,7 @@ def tnav_ascii_parser(path, loaders_map, logger, data_dir=None, encoding=None, r
     with StringIteratorIO(path, encoding=encoding) as lines:
         for line in lines:
             firstword = line.split(maxsplit=1)[0].upper()
-            if firstword in IGNORE_SECTIONS:
-                lines.skip_to('/')
-            elif firstword in ['EFOR', 'EFORM', 'HFOR', 'HFORM']:
+            if firstword in ['EFOR', 'EFORM', 'HFOR', 'HFORM']:
                 column_names = line.split()[1:]
             elif firstword == 'ETAB':
                 if 'ETAB' in loaders_map:
@@ -399,6 +397,12 @@ def read_table(buffer, table_info, dtype=None):
         else:
             data_tmp = region_table_data.reshape(-1, n_attrs)
             table = pd.DataFrame(data_tmp, columns=table_info['attrs'])
+
+
+        if table_info['defaults']:
+            for col, default in zip(table_info['attrs'], table_info['defaults']):
+                if default:
+                    table[col] = table[col].fillna(default)
 
         if table_info['domain'] is not None:
             domain_attrs = np.array(table_info['attrs'])[table_info['domain']]
