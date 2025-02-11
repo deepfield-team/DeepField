@@ -91,7 +91,7 @@ class Grid(SpatialComponent):
         elif attr == 'ZCORN':
             super()._read_buffer(buffer, attr, dtype=float, compressed=True)
         elif attr == 'COORD':
-            super()._read_buffer(buffer, attr, dtype=float, compressed=False)
+            super()._read_buffer(buffer, attr, dtype=float, compressed=True)
         elif attr == 'MINPV':
             super()._read_buffer(buffer, attr, dtype=float, compressed=False)
         elif attr in 'ACTNUM':
