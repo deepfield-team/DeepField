@@ -395,6 +395,10 @@ def read_table(buffer, table_info, dtype=None):
                 table_parts.append(data_tmp)
             table = pd.DataFrame(np.vstack(table_parts), columns=table_info['attrs'])
         else:
+            if region_table_data.size < n_attrs:
+                tmp = np.empty(n_attrs - region_table_data.size)
+                tmp[:] = np.nan
+                region_table_data = np.concatenate((region_table_data, tmp))
             data_tmp = region_table_data.reshape(-1, n_attrs)
             table = pd.DataFrame(data_tmp, columns=table_info['attrs'])
 
