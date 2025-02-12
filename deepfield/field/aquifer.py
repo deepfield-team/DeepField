@@ -4,6 +4,7 @@ import numpy as np
 import h5py
 
 from .base_component import BaseComponent
+from .parse_utils.ascii import parse_eclipse_keyword
 
 class Aquifers(BaseComponent):
     """
@@ -117,32 +118,29 @@ class Aquifers(BaseComponent):
     def _load_aquct(self, buffer, logger=None, **kwargs):
         """load AQUCT keyword"""
         _ = kwargs
-        while True:
-            line = next(buffer)
-            if line.strip()[0] == '/':
-                break
-            if len(line.strip()) == 0:
-                continue
-            params = (line.replace('/', '').split())
-            if params[0] not in self._aquifers:
-                self[params[0]] = Aquifer(name=params[0])
-
+        columns = ['NAME', 'DEPTH', 'INITIAL_PRESSURE', 'PERMEABILITY', 'POROSITY',
+                   'COMPRESSIBILITY', 'RADIUS', 'THICKNESS', 'ANGLE', 'PVTW_NUM']
+        column_types = [int, float, float, float, float, float, float, float, float, int]
+        df = parse_eclipse_keyword(buffer=buffer, columns=columns, column_types=column_types)
+        for _, row in df.iterrows():
+            if row['NAME'] not in self._aquifers:
+                self[row['NAME']] = Aquifer(name=row['NAME'])
             properties = {
-                'depth' : float(params[1]),
-                'initial_pressure': float(params[2]),
-                'perm' : float(params[3]),
-                'poro' : float(params[4]),
-                'compressibility': float(params[5]),
-                'r': float(params[6]),
-                'height': float(params[7]),
-                'angle': float(params[8]),
+                'depth': row['DEPTH'],
+                'initial_pressure': row['INITIAL_PRESSURE'],
+                'perm': row['PERMEABILITY'],
+                'poro': row['POROSITY'],
+                'compressibility': row['COMPRESSIBILITY'],
+                'r': row['RADIUS'],
+                'height': row['THICKNESS']
             }
+
             for key, value in properties.items():
-                if key in self[params[0]].attributes and logger is not None:
+                if key in self[row['NAME']].attributes and logger is not None:
                     logger.warning('Aquifer {} has attribute {}. Will be replaced.'.format(
-                        params[0], key
+                        row['NAME'], key
                     ))
-                setattr(self[params[0]], key, value)
+                setattr(self[row['NAME']], key, value)
         return self
 
     def _load_aqct(self, buffer, logger=None, **kwargs):
