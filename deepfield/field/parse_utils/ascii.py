@@ -323,7 +323,7 @@ def _read_numerical_table_data(buffer, depth, dtype):
                 if len(cur_item) == i:
                     cur_item.append([])
                 cur_item = cur_item[i]
-            if not (line[0].isdigit() or line[:3]=='nan'):
+            if not (line[0].isdigit() or line[0]=='.' or line[:3]=='nan'): # line can start from `.`, e.g `.123`
                 buffer.prev()
                 break
             numbers = np.fromstring(line, dtype=dtype, sep=' ')
