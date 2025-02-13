@@ -357,7 +357,7 @@ def _read_numerical_table_data(buffer, depth, dtype):
             d[i] = np.hstack(dd)
     return data
 
-def read_table(buffer, table_info, dtype=None):
+def read_table(buffer, table_info, dtype=None, units='METRIC'):
     """Read numerical table data from a string buffer before first occurrence of non-digit line.
 
     Parameters
@@ -406,7 +406,11 @@ def read_table(buffer, table_info, dtype=None):
         if table_info['defaults']:
             for col, default in zip(table_info['attrs'], table_info['defaults']):
                 if default:
-                    table[col] = table[col].fillna(default)
+                    if hasattr(default, '__iter__'):
+                        val = default[0] if units=='METRIC' else default[1]
+                    else:
+                        val = default
+                    table[col] = table[col].fillna(val)
 
         if table_info['domain'] is not None:
             domain_attrs = np.array(table_info['attrs'])[table_info['domain']]
