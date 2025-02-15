@@ -307,10 +307,10 @@ class OrthogonalGrid(Grid):
         xyz = np.zeros(tuple(self.dimens) + (8, 3))
         px = np.cumsum(self.dx, axis=0)
         py = np.cumsum(self.dy, axis=1)
-        xyz[1:, :, :, [0, 1, 4, 5], 0] = px[:-1, :, :, None]
-        xyz[:, :, :, [2, 3, 6, 7], 0] = px[..., None]
-        xyz[:, 1:, :, [0, 3, 4, 7], 1] = py[:, :-1, :, None]
-        xyz[:, :, :, [1, 2, 5, 6], 1] = py[..., None]
+        xyz[1:, :, :, [0, 2, 4, 6], 0] = px[:-1, :, :, None]
+        xyz[:, :, :, [1, 3, 5, 7], 0] = px[..., None]
+        xyz[:, 1:, :, [0, 1, 4, 5], 1] = py[:, :-1, :, None]
+        xyz[:, :, :, [2, 3, 6, 7], 1] = py[..., None]
         xyz[:, :, :, :4, 2] = self.tops[..., None]
         xyz[:, :, :, 4:, 2] = (self.tops + self.dz)[..., None]
         return xyz
@@ -450,7 +450,7 @@ class OrthogonalGrid(Grid):
             raise ValueError('Can not convert irregular DZ to corner point.')
         pz = np.cumsum(np.hstack(([0], dz.ravel())))
 
-        x_y = np.flip(np.array(np.meshgrid(py, px)).reshape(2, -1).T, axis=1)
+        x_y = np.vstack([np.tile(px, len(py)), np.repeat(py, len(px))]).T
 
         x_y[:, 0] += x0
         x_y[:, 1] += y0
