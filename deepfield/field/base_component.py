@@ -25,6 +25,7 @@ class State:
     def __repr__(self):
         return repr(self.__dict__)
 
+
 class BaseComponent:
     """Base class for components of geological model."""
     def __init__(self, *args, **kwargs):

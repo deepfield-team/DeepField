@@ -1,7 +1,7 @@
 """Methods to update information about grid blocks for a well segment."""
 import warnings
 import numpy as np
-from ..grids import OrthogonalUniformGrid
+from ..grids import OrthogonalGrid
 
 def calculate_cf(rock, grid, segment, beta=1, units='METRIC', cf_aggregation='sum'):
     """Calculate connection factor values for each grid block of a segment."""
@@ -17,7 +17,7 @@ def calculate_cf(rock, grid, segment, beta=1, units='METRIC', cf_aggregation='su
         conversion_const = 0.00852702
     else:
         conversion_const = 0.00112712
-    if isinstance(grid, OrthogonalUniformGrid):
+    if isinstance(grid, OrthogonalGrid):
         d_block = np.array([grid.cell_size]*blocks_size).T
     else:
         d_block = grid.cell_sizes((x_blocks, y_blocks, z_blocks)).T

@@ -23,7 +23,7 @@ from .base_spatial import SpatialComponent
 from .configs import default_config
 from .decorators import cached_property, state_check
 from .dump_ecl_utils import egrid, init, restart, summary
-from .grids import CornerPointGrid, Grid, OrthogonalUniformGrid, specify_grid
+from .grids import CornerPointGrid, Grid, OrthogonalGrid, specify_grid
 from .parse_utils import (dates_to_str, preprocess_path,
                           read_dates_from_buffer, tnav_ascii_parser)
 from .rates import calc_rates, calc_rates_multiprocess
@@ -39,7 +39,7 @@ from .wells import Wells
 ACTOR = None
 
 COMPONENTS_DICT = {'cornerpointgrid': ['grid', CornerPointGrid],
-                   'orthogonaluniformgrid': ['grid', OrthogonalUniformGrid],
+                   'orthogonalgrid': ['grid', OrthogonalGrid],
                    'grid': ['grid', Grid],
                    'rock': ['rock', Rock],
                    'states': ['states', States],
@@ -143,8 +143,8 @@ class Field:
                 elif 'grid' in config:
                     if 'cornerpointgrid' in keys:
                         config['cornerpointgrid'] = config.pop('grid')
-                    elif 'orthogonaluniformgrid' in keys:
-                        config['orthogonaluniformgrid'] = config.pop('grid')
+                    elif 'orthogonalgrid' in keys:
+                        config['orthogonalgrid'] = config.pop('grid')
         elif config is None:
             self._logger.info('Using default config.')
             config = {k.lower(): self._config_parser(v) for k, v in default_config.items()}
@@ -832,7 +832,7 @@ class Field:
         fill_values['dimens'] = ' '.join(self.grid.dimens.astype(str))
         fill_values['size'] = np.prod(self.grid.dimens)
 
-        if isinstance(self.grid, OrthogonalUniformGrid):
+        if isinstance(self.grid, OrthogonalGrid):
             template = Template(template.safe_substitute(grid_specs=ORTHOGONAL_GRID))
             fill_values.update(dict(
                 mapaxes=' '.join(self.grid.mapaxes.astype(str)),
@@ -963,12 +963,12 @@ class Field:
 
         grid_type = {
             'CornerPointGrid': 0,
-            'OrthogonalUniformGrid': 3,
+            'OrthogonalGrid': 3,
         }[self.grid.class_name]
 
         grid_format = {
             'CornerPointGrid': 1,
-            'OrthogonalUniformGrid': 2,
+            'OrthogonalGrid': 2,
         }.get(self.grid.class_name, 0)# 0 - Unknown; 1 - Corner point; 2 - Block centered
 
         i_phase = 0
@@ -1065,7 +1065,7 @@ class Field:
             vtk dataset with states and rock data.
 
         """
-        if isinstance(self.grid, OrthogonalUniformGrid):
+        if isinstance(self.grid, OrthogonalGrid):
             grid = self.grid.to_corner_point()
         else:
             grid = self.grid
@@ -1099,7 +1099,7 @@ class Field:
     def _create_pyvista_grid(self):
         """Creates pyvista grid object with attributes."""
 
-        if isinstance(self.grid, OrthogonalUniformGrid):
+        if isinstance(self.grid, OrthogonalGrid):
             self._pyvista_grid = pv.ImageData(self.grid._vtk_grid)
         elif isinstance(self.grid, CornerPointGrid):
             self._pyvista_grid = pv.UnstructuredGrid(self.grid._vtk_grid)
@@ -1112,7 +1112,7 @@ class Field:
                 return data[active_cells].astype(float)
             new_data = data.copy()
             new_data[~active_cells] = np.nan
-            if isinstance(self.grid, OrthogonalUniformGrid):
+            if isinstance(self.grid, OrthogonalGrid):
                 return new_data.ravel(order='F').astype(float)
             return new_data.ravel().astype(float)
 
@@ -1134,12 +1134,12 @@ class Field:
         well_tracks = {node.name: self.wells[node.name].welltrack[:, :3].copy()
                        for node in self.wells if 'WELLTRACK' in node.attributes}
 
-        if isinstance(self.grid, OrthogonalUniformGrid):
+        if isinstance(self.grid, OrthogonalGrid):
             for _, value in well_tracks.items():
                 value -= self.grid.origin
 
         labeled_points = {}
-        if isinstance(self.grid, OrthogonalUniformGrid):
+        if isinstance(self.grid, OrthogonalGrid):
             dz = self._pyvista_grid.bounds[5] - self._pyvista_grid.bounds[4]
             z_min = self._pyvista_grid.bounds[4] - 0.1 * dz
         else:
@@ -1151,7 +1151,7 @@ class Field:
         for well_name, value in well_tracks.items():
             wtrack_idx, first_intersection = self.wells[well_name]._first_entering_point # pylint: disable=protected-access
             if first_intersection is not None:
-                if isinstance(self.grid, OrthogonalUniformGrid):
+                if isinstance(self.grid, OrthogonalGrid):
                     first_intersection -= self.grid.origin
                 value = np.concatenate([np.array([[first_intersection[0], first_intersection[1], z_min]]),
                                         np.asarray(first_intersection).reshape(1, -1),
@@ -1240,7 +1240,7 @@ class Field:
         """
         attribute = 'ACTNUM' if attr is None else attr.upper()
         grid_params = {'use_only_active': use_only_active, 'cell_size': cell_size, 'scaling': scaling}
-        if isinstance(self.grid, OrthogonalUniformGrid):
+        if isinstance(self.grid, OrthogonalGrid):
             grid_params['use_only_active'] = False
 
         plot_params = {'show_edges': show_edges, 'cmap': cmap}

@@ -2,11 +2,11 @@
 """Configs collection."""
 from .parse_utils.table_info import TABLE_INFO
 
-orth_grid_config = {'OrthogonalUniformGrid': {'attrs': ['ACTNUM', 'DIMENS', 'DX', 'DY', 'DZ',
-                                                        'MAPAXES', 'TOPS', 'MINPV']}}
+orth_grid_config = {'OrthogonalGrid': {'attrs': ['ACTNUM', 'DIMENS', 'DX', 'DY', 'DZ',
+                                                 'MAPAXES', 'TOPS', 'MINPV']}}
 corn_grid_config = {'CornerPointGrid': {'attrs': ['ACTNUM', 'COORD', 'DIMENS', 'MAPAXES', 'ZCORN', 'MINPV'],
                                         'apply_mapaxes': True}}
-any_grid_config = {'Grid': {'attrs': list(set(orth_grid_config['OrthogonalUniformGrid']['attrs'] +
+any_grid_config = {'Grid': {'attrs': list(set(orth_grid_config['OrthogonalGrid']['attrs'] +
                                               corn_grid_config['CornerPointGrid']['attrs']))}}
 
 base_config = {

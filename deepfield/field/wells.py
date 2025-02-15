@@ -14,7 +14,7 @@ from .parse_utils.ascii import INT_NAN
 
 from .well_segment import WellSegment
 from .rates import calculate_cf, show_rates, show_rates2, show_blocks_dynamics
-from .grids import OrthogonalUniformGrid
+from .grids import OrthogonalGrid
 from .base_component import BaseComponent
 from .utils import full_ind_to_active_ind, active_ind_to_full_ind
 from .getting_wellblocks import defining_wellblocks_vtk, find_first_entering_point, defining_wellblocks_compdat
@@ -447,7 +447,7 @@ class Wells(BaseComponent):
         if 'COMPDAT' in segment.attributes:
             segment.blocks = defining_wellblocks_compdat(segment.compdat)
             segment.blocks_info = pd.DataFrame(np.empty((segment.blocks.shape[0], 0)))
-            if isinstance(self.field.grid, OrthogonalUniformGrid):
+            if isinstance(self.field.grid, OrthogonalGrid):
                 h_well = np.stack([(0, 0, self.field.grid.dz) for _ in range(segment.blocks.shape[0])])
             else:
                 h_well = np.stack([(np.NaN, np.NaN, np.NaN) for _ in range(segment.blocks.shape[0])])
@@ -459,7 +459,7 @@ class Wells(BaseComponent):
             segment.blocks_info = pd.DataFrame(h_well, columns=['Hx', 'Hy', 'Hz'])
         else:
             grid = grid.as_corner_point
-            if isinstance(grid, OrthogonalUniformGrid):
+            if isinstance(grid, OrthogonalGrid):
                 grid = grid.to_spatial()
 
             if grid._vtk_locator is None or grid._cell_id_d is None: #pylint: disable=protected-access
