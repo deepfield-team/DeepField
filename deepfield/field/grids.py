@@ -340,22 +340,24 @@ class OrthogonalGrid(Grid):
 
         Returns
         -------
-        (grid, min_slices) : tuple
-            New grid and slices for active cube.
+        grid : OrthoghonalGrid
+            New grid.
         """
         min_slices = self.minimal_active_slices()
         actnum = self.actnum[min_slices]
-        shift = self.ex * self.dx * min_slices[0][0] + self.ey * self.dy * min_slices[0][1]
-        mapaxes = self.mapaxes + np.tile(shift, 3)
-        tops = self.tops + self.dz * min_slices[0][2]
-        grid = self.__class__(actnum=actnum, dx=self.dx, dy=self.dy, dz=self.dz,
-                              mapaxes=mapaxes, tops=tops, dimens=np.array(actnum.shape))
+        grid = self.__class__(
+            actnum=actnum,
+            dx=self.dx[min_slices],
+            dy=self.dy[min_slices],
+            dz=self.dz[min_slices],
+            tops=tops[min_slices],
+            dimens=actnum.shape)
         grid.set_state(spatial=True)
-        return grid, min_slices
+        return grid
 
     @state_check(lambda state: state.spatial)
     def upscale(self, factors=(2, 2, 2), actnum_upscale='vote'):
-        """Upscale grid according to factors given.
+        """Merge grid cells according to factors given.
 
         Parameters
         ----------
@@ -368,39 +370,40 @@ class OrthogonalGrid(Grid):
 
         Returns
         -------
-        grid : OrthogonalUniformGrid
-            Upscaled grid.
+        grid : OrthogonalGrid
+            Merged grid.
         """
         factors = np.atleast_1d(factors)
         if factors.size == 1:
             factors = np.repeat(factors, 3)
-        dimens = self.dimens // factors
-        dx = self.dx * factors[0]
-        dy = self.dy * factors[1]
-        dz = self.dz * factors[2]
+
+        dx = np.sum(rolling_window(self.dx, factors), axis=(-3, -2, -1)) / (factors[1] + factors[2])
+        dy = np.sum(rolling_window(self.dy, factors), axis=(-3, -2, -1)) / (factors[0] + factors[2])
+        dz = np.sum(rolling_window(self.dz, factors), axis=(-3, -2, -1)) / (factors[0] + factors[1])
+        tops = rolling_window(self.tops, factors)[..., 0].mean(axis=(-2, -1))
+        
+        dimens = dx.shape
 
         if 'ACTNUM' not in self:
-            grid = self.__class__(dimens=dimens, dx=dx, dy=dy, dz=dz,
-                                  tops=self.tops, mapaxes=self.mapaxes)
-            grid.set_state(spatial=True)
-            return grid
-
-        out = rolling_window(self.actnum, factors)
-        if actnum_upscale == 'vote':
-            actnum = np.mean(out, axis=(-3, -2, -1)) > 0.5
-        elif actnum_upscale == 'any':
-            actnum = np.sum(out, axis=(-3, -2, -1)) > 0
+            actnum = np.full(dimens, True)
         else:
-            raise ValueError('Unknown mode of actnum upscaling: {}.'.format(actnum_upscale))
+            out = rolling_window(self.actnum, factors)
+            if actnum_upscale == 'vote':
+                actnum = np.mean(out, axis=(-3, -2, -1)) > 0.5
+            elif actnum_upscale == 'any':
+                actnum = np.sum(out, axis=(-3, -2, -1)) > 0
+            else:
+                raise ValueError('Unknown mode of actnum upscaling: {}.'
+                                 .format(actnum_upscale))
 
         grid = self.__class__(dimens=dimens, dx=dx, dy=dy, dz=dz,
-                              actnum=actnum, tops=self.tops, mapaxes=self.mapaxes)
+                              actnum=actnum, tops=tops, mapaxes=self.mapaxes)
         grid.set_state(spatial=True)
         return grid
 
     @state_check(lambda state: state.spatial)
     def downscale(self, factors=(2, 2, 2)):
-        """Downscale grid according to factors given.
+        """Split grid cells according to factors given.
 
         Parameters
         ----------
@@ -409,19 +412,28 @@ class OrthogonalGrid(Grid):
 
         Returns
         -------
-        grid : OrthogonalUniformGrid
-            Downscaled grid.
+        grid : OrthogonalGrid
+            Refined grid.
         """
         factors = np.atleast_1d(factors)
         if factors.size == 1:
             factors = np.repeat(factors, 3)
         dimens = self.dimens * factors
-        dx = self.dx / factors[0]
-        dy = self.dy / factors[1]
-        dz = self.dz / factors[2]
 
+        dx = np.kron(self.dx/factors[0], np.ones(factors))
+        dy = np.kron(self.dy/factors[1], np.ones(factors))
+        dz = np.kron(self.dz/factors[2], np.ones(factors))
+        tops = np.kron(self.tops, np.ones(factors))
+        for i in range(1,factors[2]):
+            tops[:, :, i::factors[2]] += i*dz[:, :, :-i:factors[2]]
+
+        if 'ACTNUM' not in self:
+            actnum = np.full(dimens, True)
+        else:
+            actnum = np.kron(self.actnum, np.ones(factors))
+        
         grid = self.__class__(dimens=dimens, dx=dx, dy=dy, dz=dz,
-                              tops=self.tops, mapaxes=self.mapaxes)
+                              tops=tops, actnum=actnum, mapaxes=self.mapaxes)
         grid.set_state(spatial=True)
         return grid
 
