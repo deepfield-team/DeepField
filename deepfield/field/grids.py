@@ -286,7 +286,7 @@ class OrthogonalGrid(Grid):
         centroids = np.zeros(list(self.dimens) + [3])
         centroids[:, :, :, 0] = self.dx/2 + np.cumsum(self.dx, axis=0) + self.origin[0]
         centroids[:, :, :, 1] = self.dy/2 + np.cumsum(self.dy, axis=1) + self.origin[1]
-        centroids[:, :, :, 2] = self.dz/2 + np.cumsum(self.dz, axis=2) + self.origin[2]
+        centroids[:, :, :, 2] = self.dz/2 + self.tops
         return centroids
 
     @cached_property(
@@ -305,8 +305,8 @@ class OrthogonalGrid(Grid):
     def xyz(self):
         """Cells' vertices coordinates."""
         xyz = np.zeros(tuple(self.dimens) + (8, 3))
-        px = np.cumsum(self.dx, axis=0)
-        py = np.cumsum(self.dy, axis=1)
+        px = np.cumsum(self.dx, axis=0) + self.origin[0]
+        py = np.cumsum(self.dy, axis=1) + self.origin[1]
         xyz[1:, :, :, [0, 2, 4, 6], 0] = px[:-1, :, :, None]
         xyz[:, :, :, [1, 3, 5, 7], 0] = px[..., None]
         xyz[:, 1:, :, [0, 1, 4, 5], 1] = py[:, :-1, :, None]
@@ -437,6 +437,7 @@ class OrthogonalGrid(Grid):
         grid.set_state(spatial=True)
         return grid
 
+    @state_check(lambda state: state.spatial)
     def to_corner_point(self):
         """Convert to corner point grid.
 
@@ -474,15 +475,12 @@ class OrthogonalGrid(Grid):
         zcorn = np.hstack([np.repeat(self.tops.ravel(order='F'), 4).reshape(nz, -1),
                            np.repeat(self.tops.ravel(order='F') +
                                      self.dz.ravel(order='F'), 4).reshape(nz, -1)]).reshape(2*nz, -1)
-        zcorn = zcorn.ravel() + z0
+        zcorn = zcorn.ravel()
 
 
         grid = CornerPointGrid(dimens=self.dimens, mapaxes=self.mapaxes,
                                zcorn=zcorn.astype(float), coord=coord.astype(float))
-        grid.set_state(spatial=False)
-
-        if self.state.spatial:
-            grid.to_spatial()
+        grid.to_spatial()
 
         if 'ACTNUM' in self:
             setattr(grid, 'ACTNUM', self.actnum)
