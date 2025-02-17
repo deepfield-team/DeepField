@@ -18,6 +18,10 @@ _COLUMN_LENGTH = 13
 
 DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
 
+
+IGNORE_SECTIONS = [('ARITHMETIC'),
+                   ('RPTISOL', 'RPTPROPS', 'RPTREGS', 'RPTRST',
+                   'RPTRUNSP', 'RPTSCHED', 'RPTSMRY', 'RPTSOL')]
 class StringIteratorIO:
     """String iterator for text files."""
     def __init__(self, path, encoding=None):
@@ -155,6 +159,9 @@ def tnav_ascii_parser(path, loaders_map, logger, data_dir=None, encoding=None, r
     """Read tNav ASCII files and call loaders."""
     data_dir = path.parent if data_dir is None else data_dir
     filename = path.name
+    for sections_to_ignore, loader in zip(IGNORE_SECTIONS, (_dummy_loader, _dummy_loader2)):
+        for keyword in sections_to_ignore:
+            loaders_map[keyword] = loader
     logger.info("Start reading {}".format(filename))
     with StringIteratorIO(path, encoding=encoding) as lines:
         for line in lines:
@@ -750,3 +757,13 @@ def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, date=Non
             if k in df:
                 df[k] = df[k].fillna(v)
     return df
+
+def _dummy_loader(buffer):
+    """Dummy loader. Read until empty line with `/`. """
+    buffer.skip_to('/')
+
+def _dummy_loader2(buffer):
+    """Dummy loader. Read until first `/`. """
+    for line in buffer:
+        if '/' in line:
+            break
