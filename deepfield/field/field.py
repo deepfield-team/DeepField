@@ -1065,20 +1065,15 @@ class Field:
             vtk dataset with states and rock data.
 
         """
-        if isinstance(self.grid, OrthogonalGrid):
-            grid = self.grid.to_corner_point()
-        else:
-            grid = self.grid
-        if not isinstance(grid, CornerPointGrid):
-            raise ValueError('Creating vtk datasests is supported only for corner point grid.')
-        vtk_grid_old = grid._vtk_grid
-        grid.create_vtk_grid() # recreate vtk grid for the case of unproper `_vtk_grid` attribute
+        grid = self.grid.to_corner_point()
+        grid.create_vtk_grid()
         dataset = grid._vtk_grid
+
         for comp_name in ('rock', 'states'):
             comp = getattr(self, comp_name)
             for attr in comp.attributes:
                 val = getattr(comp, attr)
-                if val.ndim ==3:
+                if val.ndim == 3:
                     array = numpy_to_vtk(val[grid.actnum])
                 elif val.ndim == 4:
                     array = numpy_to_vtk(val[:, grid.actnum].T)
@@ -1098,11 +1093,7 @@ class Field:
     # pylint: disable=protected-access
     def _create_pyvista_grid(self):
         """Creates pyvista grid object with attributes."""
-
-        if isinstance(self.grid, OrthogonalGrid):
-            self._pyvista_grid = pv.ImageData(self.grid._vtk_grid)
-        elif isinstance(self.grid, CornerPointGrid):
-            self._pyvista_grid = pv.UnstructuredGrid(self.grid._vtk_grid)
+        self._pyvista_grid = pv.UnstructuredGrid(self.grid._vtk_grid)
 
         attributes = {}
         active_cells = self.grid.actnum if 'ACTNUM' in self.grid else np.full(self.grid.dimens, True)
@@ -1112,10 +1103,7 @@ class Field:
                 return data[active_cells].astype(float)
             new_data = data.copy()
             new_data[~active_cells] = np.nan
-            if isinstance(self.grid, OrthogonalGrid):
-                return new_data.ravel(order='F').astype(float)
             return new_data.ravel().astype(float)
-
 
         attributes.update({'ACTNUM': make_data(active_cells)})
 
@@ -1134,16 +1122,9 @@ class Field:
         well_tracks = {node.name: self.wells[node.name].welltrack[:, :3].copy()
                        for node in self.wells if 'WELLTRACK' in node.attributes}
 
-        if isinstance(self.grid, OrthogonalGrid):
-            for _, value in well_tracks.items():
-                value -= self.grid.origin
-
         labeled_points = {}
-        if isinstance(self.grid, OrthogonalGrid):
-            dz = self._pyvista_grid.bounds[5] - self._pyvista_grid.bounds[4]
-            z_min = self._pyvista_grid.bounds[4] - 0.1 * dz
-        else:
-            z_min = self._pyvista_grid.bounds[4]
+        dz = self._pyvista_grid.bounds[5] - self._pyvista_grid.bounds[4]
+        z_min = self._pyvista_grid.bounds[4] - 0.05 * dz
 
         vertices = []
         faces = []
@@ -1151,8 +1132,6 @@ class Field:
         for well_name, value in well_tracks.items():
             wtrack_idx, first_intersection = self.wells[well_name]._first_entering_point # pylint: disable=protected-access
             if first_intersection is not None:
-                if isinstance(self.grid, OrthogonalGrid):
-                    first_intersection -= self.grid.origin
                 value = np.concatenate([np.array([[first_intersection[0], first_intersection[1], z_min]]),
                                         np.asarray(first_intersection).reshape(1, -1),
                                         value[wtrack_idx + 1:]])
@@ -1200,8 +1179,8 @@ class Field:
 
     @state_check(lambda state: state.spatial)
     def show(self, attr=None, thresholding=False, slicing=False, timestamp=None,
-             use_only_active=True, cell_size=None, scaling=True, cmap=None,
-             notebook=False, theme='default', show_edges=True, faults_color='red', show_labels=True):
+             use_only_active=True, scaling=True, cmap=None, notebook=False, 
+             theme='default', show_edges=True, faults_color='red', show_labels=True):
         """Field visualization.
 
         Parameters
@@ -1218,8 +1197,6 @@ class Field:
             Has no effect given non-sequential attributes.
         use_only_active: bool
             Corner point grid creation using only active cells. Default to True.
-        cell_size: int
-            Cell size for orthogonal uniform grid.
         scaling: bool, list or tuple
             The ratio of the axes in case of iterable, if True then it's (1, 1, 1),
             if False then no scaling is applied. Default True.
@@ -1239,9 +1216,7 @@ class Field:
             Show x, y, z axis labels. Default True.
         """
         attribute = 'ACTNUM' if attr is None else attr.upper()
-        grid_params = {'use_only_active': use_only_active, 'cell_size': cell_size, 'scaling': scaling}
-        if isinstance(self.grid, OrthogonalGrid):
-            grid_params['use_only_active'] = False
+        grid_params = {'use_only_active': use_only_active, 'scaling': scaling}
 
         plot_params = {'show_edges': show_edges, 'cmap': cmap}
 

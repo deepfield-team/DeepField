@@ -53,6 +53,13 @@ class Grid(SpatialComponent):
         """Cell coordinates."""
         raise NotImplementedError()
 
+    @cached_property
+    def bounding_box(self):
+        """Pair of diagonal corner points for grid's bounding box."""
+        min_vals = self.xyz.min(axis=-2).min(axis=(0, 1, 2))
+        max_vals = self.xyz.max(axis=-2).max(axis=(0, 1, 2))
+        return np.array([min_vals, max_vals])
+
     @property
     def ex(self):
         """Unit vector along grid X axis."""
@@ -270,6 +277,52 @@ class Grid(SpatialComponent):
         return distances
 
 
+    @state_check(lambda state: state.spatial)
+    def create_vtk_grid(self, use_only_active=True, scaling=True, **kwargs):
+        """Creates pyvista unstructured grid object.
+
+        Returns
+        -------
+        grid : `pyvista.core.pointset.UnstructuredGrid` object
+        """
+        _ = kwargs
+        self._vtk_grid_params = {'use_only_active': use_only_active, 'cell_size': None, 'scaling': scaling}
+
+        cells = self.xyz
+        indexes = np.moveaxis(np.indices(self.dimens), 0, -1)
+
+        if 'ACTNUM' in self and use_only_active:
+            cells = cells[self.actnum]
+            indexes = indexes[self.actnum]
+        else:
+            cells = cells.reshape((-1,) + cells.shape[3:])
+            indexes = indexes.reshape((-1,) + indexes.shape[3:])
+
+        self._cell_id_d = dict(enumerate(indexes))
+
+        cells[:, [2, 3]] = cells[:, [3, 2]]
+        cells[:, [6, 7]] = cells[:, [7, 6]]
+
+        n_cells = cells.shape[0]
+        cells = cells.reshape(-1, cells.shape[-1], order='C')
+
+        cells = numpy_support.numpy_to_vtk(cells, deep=True)
+
+        points = vtk.vtkPoints()
+        points.SetNumberOfPoints(8*n_cells)
+        points.SetData(cells)
+
+        cell_array = vtk.vtkCellArray()
+        cell = vtk.vtkHexahedron()
+
+        connectivity = np.insert(range(8 * n_cells), range(0, 8 * n_cells, 8), 8).astype(np.int64)
+        cell_array.SetCells(n_cells, numpy_support.numpy_to_vtkIdTypeArray(connectivity, deep=True))
+
+        self._vtk_grid = vtk.vtkUnstructuredGrid()
+        self._vtk_grid.SetPoints(points)
+        self._vtk_grid.SetCells(cell.GetCellType(), cell_array)
+
+
 class OrthogonalGrid(Grid):
     """Orthogonal uniform grid."""
 
@@ -315,17 +368,11 @@ class OrthogonalGrid(Grid):
         xyz[:, :, :, 4:, 2] = (self.tops + self.dz)[..., None]
         return xyz
 
-    @property
     def cell_sizes(self, cell_indices):
         """Cell sizes."""
         return np.array([self.dx[cell_indices],
                          self.dy[cell_indices],
                          self.dz[cell_indices]])
-
-    @cached_property
-    def bounding_box(self):
-        """Pair of diagonal corner points for grid's bounding box."""
-        return np.array([np.zeros(3), self.dimens * self.cell_size])
 
     @cached_property(
         lambda self, x: x.to_spatial() if self.state.spatial
@@ -487,32 +534,6 @@ class OrthogonalGrid(Grid):
 
         return grid
 
-    def create_vtk_grid(self, cell_size=None, scaling=True, **kwargs):
-        """Creates pyvista UniformGrid grid object
-
-        Params
-        -------
-        cell_size : int or iterable, defines cells' size in the grid.
-                    If int, then the grid has the same cell size for each dimension.
-                    If iterable, then the length is 3, cell size for x, y, and z axis
-
-        Returns
-        -------
-        grid : `pyvista.core.pointset.UniformGrid` object
-
-        """
-        _ = kwargs
-        self._vtk_grid_params = {'use_only_active': False, 'cell_size': cell_size, 'scaling': scaling}
-
-        indexes = np.moveaxis(np.indices(self.dimens), 0, -1).reshape(-1, 3)
-        self._cell_id_d = dict(enumerate(indexes))
-
-        self._vtk_grid = vtk.vtkImageData()
-        self._vtk_grid.SetDimensions(*(self.dimens + 1))
-
-        self._vtk_grid.SetSpacing(*self.cell_size)
-        self._vtk_grid_scales = np.ones(3)
-
 
 class CornerPointGrid(Grid):
     """Corner point grid."""
@@ -545,18 +566,11 @@ class CornerPointGrid(Grid):
         out = self.xyz.mean(axis=-2)
         return out if self.state.spatial else out.reshape(-1, 3, order='F')
 
-
     @cached_property
     def cell_volumes(self):
         """Volumes of cells."""
         out = numba_get_volumes(self.xyz)
         return out if self.state.spatial else out.reshape(-1, order='F')
-
-    def bounding_box(self):
-        """Pair of diagonal corner points for grid's bounding box."""
-        min_vals = self.xyz.min(axis=-2).min(axis=(0, 1, 2))
-        max_vals = self.xyz.max(axis=-2).max(axis=(0, 1, 2))
-        return np.array([min_vals, max_vals])
 
     @state_check(lambda state: state.spatial)
     def minimal_active_bounds(self):
@@ -704,55 +718,14 @@ class CornerPointGrid(Grid):
         grid.set_state(spatial=True)
         return grid, grid_mask, z_top, z_bottom
 
+    def to_corner_point(self):
+        """Returns itself."""
+        return self
+
     @property
     def as_corner_point(self):
         """Returns itself."""
         return self
-
-    @state_check(lambda state: state.spatial)
-    def create_vtk_grid(self, use_only_active=True, scaling=True, **kwargs):
-        """Creates pyvista unstructured grid object.
-
-        Returns
-        -------
-        grid : `pyvista.core.pointset.UnstructuredGrid` object
-        """
-        _ = kwargs
-        self._vtk_grid_params = {'use_only_active': use_only_active, 'cell_size': None, 'scaling': scaling}
-
-        cells = self.xyz
-        indexes = np.moveaxis(np.indices(self.dimens), 0, -1)
-
-        if 'ACTNUM' in self and use_only_active:
-            cells = cells[self.actnum]
-            indexes = indexes[self.actnum]
-        else:
-            cells = cells.reshape((-1,) + cells.shape[3:])
-            indexes = indexes.reshape((-1,) + indexes.shape[3:])
-
-        self._cell_id_d = dict(enumerate(indexes))
-
-        cells[:, [2, 3]] = cells[:, [3, 2]]
-        cells[:, [6, 7]] = cells[:, [7, 6]]
-
-        n_cells = cells.shape[0]
-        cells = cells.reshape(-1, cells.shape[-1], order='C')
-
-        cells = numpy_support.numpy_to_vtk(cells, deep=True)
-
-        points = vtk.vtkPoints()
-        points.SetNumberOfPoints(8*n_cells)
-        points.SetData(cells)
-
-        cell_array = vtk.vtkCellArray()
-        cell = vtk.vtkHexahedron()
-
-        connectivity = np.insert(range(8 * n_cells), range(0, 8 * n_cells, 8), 8).astype(np.int64)
-        cell_array.SetCells(n_cells, numpy_support.numpy_to_vtkIdTypeArray(connectivity, deep=True))
-
-        self._vtk_grid = vtk.vtkUnstructuredGrid()
-        self._vtk_grid.SetPoints(points)
-        self._vtk_grid.SetCells(cell.GetCellType(), cell_array)
 
     @state_check(lambda state: state.spatial)
     def create_vtk_locator(self, use_only_active=True, scaling=False, **kwargs):
