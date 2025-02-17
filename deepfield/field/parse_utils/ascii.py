@@ -21,7 +21,9 @@ DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
 
 IGNORE_SECTIONS = [('ARITHMETIC'),
                    ('RPTISOL', 'RPTPROPS', 'RPTREGS', 'RPTRST',
-                   'RPTRUNSP', 'RPTSCHED', 'RPTSMRY', 'RPTSOL')]
+                   'RPTRUNSP', 'RPTSCHED', 'RPTSMRY', 'RPTSOL',
+                   'OUTSOL'),
+                   ('FRACTURE_ARITHMETIC',)]
 class StringIteratorIO:
     """String iterator for text files."""
     def __init__(self, path, encoding=None):
@@ -159,7 +161,8 @@ def tnav_ascii_parser(path, loaders_map, logger, data_dir=None, encoding=None, r
     """Read tNav ASCII files and call loaders."""
     data_dir = path.parent if data_dir is None else data_dir
     filename = path.name
-    for sections_to_ignore, loader in zip(IGNORE_SECTIONS, (_dummy_loader, _dummy_loader2)):
+    for sections_to_ignore, loader in zip(IGNORE_SECTIONS,
+                                          (_dummy_loader, _dummy_loader2, _dummy_loader3)):
         for keyword in sections_to_ignore:
             loaders_map[keyword] = loader
     logger.info("Start reading {}".format(filename))
@@ -767,3 +770,12 @@ def _dummy_loader2(buffer):
     for line in buffer:
         if '/' in line:
             break
+
+def _dummy_loader3(buffer):
+    """Dummy loader. Read until empty line with `/` after the line ended with `/`. """
+    end_line = False
+    for line in buffer:
+        if line.startswith('/'):
+            if end_line:
+                break
+        end_line = '/' in line
