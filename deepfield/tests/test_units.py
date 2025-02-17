@@ -1,6 +1,7 @@
 """Testsing module."""
 import os
 import pytest
+import pathlib
 import numpy as np
 import pandas as pd
 
@@ -225,3 +226,34 @@ class TestArithmetics():
         assert np.allclose(arithmetics_model.rock.permx, arithmetics_model.rock.poro * 500)
         assert np.allclose(arithmetics_model.rock.permz, arithmetics_model.rock.permx * 0.1)
         assert np.allclose(arithmetics_model.rock.permy[3:6, 3:6, 1:1], arithmetics_model.rock.permx[3:6, 3:6, 1:1] + 5)
+
+class TestTNavTutorials():
+    """Test loading models from tNavigator tutorials. 
+        To assight path to tNavigator tutorials use option --path_to_tnav_tutorials"""
+    def test_tutorials(self, path_to_tnav_tutorials):
+        """Test loading models from tNavigator tutorials."""
+
+        traverse = pathlib.Path(path_to_tnav_tutorials)
+        models_pathways_DATA = list(map(str, list(traverse.rglob("*.DATA"))))
+        models_pathways_data = list(map(str, list(traverse.rglob("*.data"))))
+        models_pathways = models_pathways_DATA + models_pathways_data
+        assert len(models_pathways) > 0
+
+        failed = []
+
+        for model in models_pathways:
+            try:
+                Field(model, loglevel='ERROR').load()
+            except Exception as err:
+                failed.append((model, str(err)))
+
+        errors_df = pd.DataFrame(failed, columns=['Path', 'Error'])
+        errors_grouped = []
+
+        for err, df in errors_df.groupby("Error"):
+            for record in df.values:
+                errors_grouped.append((err, record[0]))
+
+        errors_grouped_df = pd.DataFrame(errors_grouped, columns=['Error', 'Path'])
+        errors_grouped_df.to_csv('errors_grouped.csv', index=False)
+        assert len(failed) == 0
