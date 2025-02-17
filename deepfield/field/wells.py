@@ -448,7 +448,8 @@ class Wells(BaseComponent):
             segment.blocks = defining_wellblocks_compdat(segment.compdat)
             segment.blocks_info = pd.DataFrame(np.empty((segment.blocks.shape[0], 0)))
             if isinstance(self.field.grid, OrthogonalGrid):
-                h_well = np.stack([(0, 0, self.field.grid.dz) for _ in range(segment.blocks.shape[0])])
+                h_well = np.stack([(0, 0, self.field.grid.dz[i[0], i[1], i[2]])
+                                   for i in segment.blocks])
             else:
                 h_well = np.stack([(np.NaN, np.NaN, np.NaN) for _ in range(segment.blocks.shape[0])])
             segment.blocks_info = pd.DataFrame(h_well, columns=['Hx', 'Hy', 'Hz'])
@@ -459,8 +460,6 @@ class Wells(BaseComponent):
             segment.blocks_info = pd.DataFrame(h_well, columns=['Hx', 'Hy', 'Hz'])
         else:
             grid = grid.as_corner_point
-            if isinstance(grid, OrthogonalGrid):
-                grid = grid.to_spatial()
 
             if grid._vtk_locator is None or grid._cell_id_d is None: #pylint: disable=protected-access
                 grid.create_vtk_locator(use_only_active=True, scaling=False)

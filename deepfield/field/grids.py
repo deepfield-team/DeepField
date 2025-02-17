@@ -33,14 +33,14 @@ class Grid(SpatialComponent):
         return np.array([self.mapaxes[2], self.mapaxes[3], self.tops.ravel()[0]])
 
     @cached_property
-    def bounding_box(self):
-        """Pair of diagonal corner points for grid's bounding box."""
+    def xyz(self):
+        """Cell coordinates."""
         raise NotImplementedError()
 
-    @cached_property
+    @property
     def cell_centroids(self):
         """Centroids of cells."""
-        raise NotImplementedError()
+        return self.xyz.mean(axis=-2)
 
     @cached_property
     def cell_volumes(self):
@@ -48,9 +48,13 @@ class Grid(SpatialComponent):
         grid = specify_grid(self)
         return grid.cell_volumes
 
+    def to_corner_point(self):
+        """Corner-point representation of the grid."""
+        raise NotImplementedError()
+
     @cached_property
-    def xyz(self):
-        """Cell coordinates."""
+    def as_corner_point(self):
+        """Corner-point representation of the grid."""
         raise NotImplementedError()
 
     @cached_property
@@ -63,13 +67,15 @@ class Grid(SpatialComponent):
     @property
     def ex(self):
         """Unit vector along grid X axis."""
-        ex = np.array([self.mapaxes[-2] - self.mapaxes[2], self.mapaxes[-1] - self.mapaxes[3]])
+        ex = np.array([self.mapaxes[-2] - self.mapaxes[2],
+                       self.mapaxes[-1] - self.mapaxes[3]])
         return ex / np.linalg.norm(ex)
 
     @property
     def ey(self):
         """Unit vector along grid Y axis."""
-        ey = np.array([self.mapaxes[0] - self.mapaxes[2], self.mapaxes[1] - self.mapaxes[3]])
+        ey = np.array([self.mapaxes[0] - self.mapaxes[2],
+                       self.mapaxes[1] - self.mapaxes[3]])
         return ey / np.linalg.norm(ey)
 
     def _load_ecl_binary(self, path_to_results, attrs, basename, logger=None,
@@ -114,28 +120,6 @@ class Grid(SpatialComponent):
         ntg = self.field.rock.ntg
         mask = poro * volumes*ntg >= minpv_value
         self.actnum = self.actnum * mask
-
-    @apply_to_each_input
-    def pad_na(self, attr, fill_na=0., inplace=True):
-        """Add dummy cells into the state vector in the positions of non-active cells if necessary.
-
-        Parameters
-        ----------
-        attr: str, array-like
-            Attributes to be padded with non-active cells.
-        actnum: array-like of type bool
-            Vector representing a mask of active and non-active cells.
-        fill_na: float
-            Value to be used as filler.
-        inplace: bool
-            Modify сomponent inplace.
-
-        Returns
-        -------
-        output : component if inplace else padded attribute.
-        """
-        _, __ = fill_na, inplace
-        return getattr(self, attr)
 
     @apply_to_each_input
     def _to_spatial(self, attr, inplace=True, **kwargs):
@@ -276,7 +260,6 @@ class Grid(SpatialComponent):
         distances[invalid_cells] = fill_value
         return distances
 
-
     @state_check(lambda state: state.spatial)
     def create_vtk_grid(self, use_only_active=True, scaling=True, **kwargs):
         """Creates pyvista unstructured grid object.
@@ -329,18 +312,10 @@ class OrthogonalGrid(Grid):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.to_spatial()
-
-    @cached_property(
-        lambda self, x: x.reshape(tuple(self.dimens) + (3,), order='F') if self.state.spatial
-        else x.reshape(-1, 3, order='F'), modify_cache=True
-    )
-    def cell_centroids(self):
-        """Centroids of cells."""
-        centroids = np.zeros(list(self.dimens) + [3])
-        centroids[:, :, :, 0] = self.dx/2 + np.cumsum(self.dx, axis=0) + self.origin[0]
-        centroids[:, :, :, 1] = self.dy/2 + np.cumsum(self.dy, axis=1) + self.origin[1]
-        centroids[:, :, :, 2] = self.dz/2 + self.tops
-        return centroids
+        if 'TOPS' not in self and 'DZ' in self:
+            tops = np.zeros(self.dimens)
+            tops[..., 1:] = np.cumsum(self.dz, axis=-1)[..., :-1]
+            setattr(self, 'TOPS', tops)
 
     @cached_property(
         lambda self, x: x.reshape(self.dimens, order='F') if self.state.spatial
@@ -368,18 +343,12 @@ class OrthogonalGrid(Grid):
         xyz[:, :, :, 4:, 2] = (self.tops + self.dz)[..., None]
         return xyz
 
+    @state_check(lambda state: state.spatial)
     def cell_sizes(self, cell_indices):
         """Cell sizes."""
         return np.array([self.dx[cell_indices],
                          self.dy[cell_indices],
                          self.dz[cell_indices]])
-
-    @cached_property(
-        lambda self, x: x.to_spatial() if self.state.spatial
-        else x.ravel(), modify_cache=True)
-    def as_corner_point(self):
-        """Creates CornerPoint representation of the current grid."""
-        return self.to_corner_point()
 
     @state_check(lambda state: state.spatial)
     def crop_minimal_cube(self):
@@ -397,9 +366,8 @@ class OrthogonalGrid(Grid):
             dx=self.dx[min_slices],
             dy=self.dy[min_slices],
             dz=self.dz[min_slices],
-            tops=tops[min_slices],
+            tops=self.tops[min_slices],
             dimens=actnum.shape)
-        grid.set_state(spatial=True)
         return grid
 
     @state_check(lambda state: state.spatial)
@@ -428,12 +396,13 @@ class OrthogonalGrid(Grid):
         dy = np.sum(rolling_window(self.dy, factors), axis=(-3, -2, -1)) / (factors[0] + factors[2])
         dz = np.sum(rolling_window(self.dz, factors), axis=(-3, -2, -1)) / (factors[0] + factors[1])
         tops = rolling_window(self.tops, factors)[..., 0].mean(axis=(-2, -1))
-        
+
         dimens = dx.shape
 
-        if 'ACTNUM' not in self:
-            actnum = np.full(dimens, True)
-        else:
+        grid = self.__class__(dimens=dimens, dx=dx, dy=dy, dz=dz,
+                              tops=tops, mapaxes=self.mapaxes)
+
+        if 'ACTNUM' in self:
             out = rolling_window(self.actnum, factors)
             if actnum_upscale == 'vote':
                 actnum = np.mean(out, axis=(-3, -2, -1)) > 0.5
@@ -442,10 +411,8 @@ class OrthogonalGrid(Grid):
             else:
                 raise ValueError('Unknown mode of actnum upscaling: {}.'
                                  .format(actnum_upscale))
+            setattr(grid, 'ACTNUM', actnum)
 
-        grid = self.__class__(dimens=dimens, dx=dx, dy=dy, dz=dz,
-                              actnum=actnum, tops=tops, mapaxes=self.mapaxes)
-        grid.set_state(spatial=True)
         return grid
 
     @state_check(lambda state: state.spatial)
@@ -474,19 +441,18 @@ class OrthogonalGrid(Grid):
         for i in range(1,factors[2]):
             tops[:, :, i::factors[2]] += i*dz[:, :, :-i:factors[2]]
 
-        if 'ACTNUM' not in self:
-            actnum = np.full(dimens, True)
-        else:
-            actnum = np.kron(self.actnum, np.ones(factors))
-        
         grid = self.__class__(dimens=dimens, dx=dx, dy=dy, dz=dz,
-                              tops=tops, actnum=actnum, mapaxes=self.mapaxes)
-        grid.set_state(spatial=True)
+                              tops=tops, mapaxes=self.mapaxes)
+
+        if 'ACTNUM' in self:
+            actnum = np.kron(self.actnum, np.ones(factors))
+            setattr(grid, 'ACTNUM', actnum)
+
         return grid
 
     @state_check(lambda state: state.spatial)
     def to_corner_point(self):
-        """Convert to corner point grid.
+        """Create corner point representation of the current grid.
 
         Returns
         -------
@@ -504,11 +470,6 @@ class OrthogonalGrid(Grid):
         if (abs(self.dy - dy) > 0).any():
             raise ValueError('Can not convert irregular DY to corner point.')
         py = np.cumsum(np.hstack(([0], dy.ravel())))
-
-        dz = self.dz[:1, :1, :]
-        if (abs(self.dz - dz) > 0).any():
-            raise ValueError('Can not convert irregular DZ to corner point.')
-        pz = np.cumsum(np.hstack(([0], dz.ravel())))
 
         x_y = np.vstack([np.tile(px, len(py)), np.repeat(py, len(px))]).T
 
@@ -533,6 +494,13 @@ class OrthogonalGrid(Grid):
             setattr(grid, 'ACTNUM', self.actnum)
 
         return grid
+
+    @cached_property(
+        lambda self, x: x.to_spatial() if self.state.spatial
+        else x.ravel(), modify_cache=True)
+    def as_corner_point(self):
+        """Creates CornerPoint representation of the current grid."""
+        return self.to_corner_point()
 
 
 class CornerPointGrid(Grid):
@@ -561,16 +529,11 @@ class CornerPointGrid(Grid):
             return numba_get_xyz(self.dimens, zcorn, coord).reshape([-1, 8, 3], order='F')
         return numba_get_xyz(self.dimens, self.zcorn, self.coord)
 
-    def cell_centroids(self):
-        """Centroids of cells."""
-        out = self.xyz.mean(axis=-2)
-        return out if self.state.spatial else out.reshape(-1, 3, order='F')
-
     @cached_property
+    @state_check(lambda state: state.spatial)
     def cell_volumes(self):
         """Volumes of cells."""
-        out = numba_get_volumes(self.xyz)
-        return out if self.state.spatial else out.reshape(-1, order='F')
+        return numba_get_volumes(self.xyz)
 
     @state_check(lambda state: state.spatial)
     def minimal_active_bounds(self):
@@ -616,8 +579,8 @@ class CornerPointGrid(Grid):
         zcorn[:, :, :, 7] = self.zcorn[s0 - 1:d0:s0, s1 - 1:d1:s1, s2 - 1:d2:s2, 7]
 
         if 'ACTNUM' not in self:
-            grid = self.__class__(coord=coord, dimens=dimens, zcorn=zcorn, mapaxes=self.mapaxes)
-            grid.set_state(spatial=True)
+            grid = self.__class__(coord=coord, dimens=dimens,
+                                  zcorn=zcorn, mapaxes=self.mapaxes)
             return grid
 
         out = rolling_window(self.actnum, factors)
@@ -630,12 +593,24 @@ class CornerPointGrid(Grid):
 
         grid = self.__class__(coord=coord, dimens=dimens, zcorn=zcorn,
                               mapaxes=self.mapaxes, actnum=actnum)
-        grid.set_state(spatial=True)
         return grid
 
     @state_check(lambda state: state.spatial)
     def orthogonalize(self, dimens, only_active=False):
-        """Construct orthogonal uniform grid. Actnum tranfer should be made separately."""
+        """Construct orthogonal grid. Actnum tranfer should be made separately.
+
+        Parameters
+        ----------
+        dimens : tuple, int
+            Dimensions of the output orthogonal grid.
+        only_active : bool
+            Limits the new grid to active cells.
+
+        Returns
+        -------
+        grid : OrthogonalGrid
+            Orthogonal grid.
+        """
         nx, ny, nz = dimens
         xyz_corn = self.xyz[self.actnum] if only_active else self.xyz
         x_min = xyz_corn[..., 0].min()
@@ -644,13 +619,14 @@ class CornerPointGrid(Grid):
         y_max = xyz_corn[..., 1].max()
         z_min = xyz_corn[..., 2].min()
         z_max = xyz_corn[..., 2].max()
-        dx = (x_max - x_min) / nx
-        dy = (y_max - y_min) / ny
-        dz = (z_max - z_min) / nz
-        mapaxes = np.array([x_min, y_min + 100, x_min, y_min, x_min + 100, y_min])
-        grid = OrthogonalUniformGrid(dimens=dimens, dx=dx, dy=dy, dz=dz,
-                                     tops=z_min, mapaxes=mapaxes)
-        grid.set_state(spatial=True)
+        dx = np.full(dimens, (x_max - x_min) / nx)
+        dy = np.full(dimens, (y_max - y_min) / ny)
+        dz = np.full(dimens, (z_max - z_min) / nz)
+        tops = np.full(dimens, z_min)
+        tops[..., 1:] += np.cumsum(dz, axis=2)[..., :-1]
+        mapaxes = np.array([x_min, y_min + 1, x_min, y_min, x_min + 1, y_min])
+        grid = OrthogonalGrid(dimens=dimens, dx=dx, dy=dy, dz=dz,
+                              tops=tops, mapaxes=mapaxes)
         return grid
 
     @state_check(lambda state: state.spatial)
@@ -671,7 +647,6 @@ class CornerPointGrid(Grid):
         grid = self.__class__(actnum=actnum, coord=coord,
                               dimens=np.array(actnum.shape),
                               zcorn=zcorn, mapaxes=self.mapaxes)
-        grid.set_state(spatial=True)
         return grid, min_slices
 
     @state_check(lambda state: state.spatial)
@@ -715,7 +690,6 @@ class CornerPointGrid(Grid):
                           grid_points[1:, 1:, 1:]], axis=-1)
         grid = self.__class__(coord=self.coord, dimens=np.array(zcorn.shape[:3]),
                               zcorn=zcorn, mapaxes=self.mapaxes)
-        grid.set_state(spatial=True)
         return grid, grid_mask, z_top, z_bottom
 
     def to_corner_point(self):
@@ -746,7 +720,6 @@ class CornerPointGrid(Grid):
         polydata = geo_filter.GetOutput()
 
         locator = vtk.vtkModifiedBSPTree()
-        # locator.LazyEvaluationOff() #Deprecated since vtk==9.2.0
         locator.SetDataSet(polydata)
         locator.AutomaticOn()
         locator.BuildLocator()

@@ -1066,6 +1066,7 @@ class Field:
 
         """
         grid = self.grid.to_corner_point()
+        vtk_grid_old = grid._vtk_grid
         grid.create_vtk_grid()
         dataset = grid._vtk_grid
 
@@ -1179,7 +1180,7 @@ class Field:
 
     @state_check(lambda state: state.spatial)
     def show(self, attr=None, thresholding=False, slicing=False, timestamp=None,
-             use_only_active=True, scaling=True, cmap=None, notebook=False, 
+             use_only_active=True, scaling=True, cmap=None, notebook=False,
              theme='default', show_edges=True, faults_color='red', show_labels=True):
         """Field visualization.
 

@@ -108,7 +108,6 @@ class SpatialComponent(BaseComponent):
         """
         if attr is not None and inplace:
             raise ValueError('`attr` should be None for inplace operation.')
-        self.pad_na(attr=attr)
         res = self._to_spatial(attr=attr, inplace=inplace, **kwargs)
         if not inplace:
             return res

@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from ..field import Field, OrthogonalUniformGrid
+from ..field import Field, OrthogonalGrid
 from ..field.base_component import BaseComponent
 from ..field.base_spatial import SpatialComponent
 from ..field.getting_wellblocks import defining_wellblocks_vtk
@@ -139,10 +139,12 @@ class TestSpatialComponent():
 @pytest.fixture(scope="module")
 def orth_grid():
     """Provides orthogonal uniform grid."""
-    grid = OrthogonalUniformGrid(dimens=np.array([4, 6, 8]),
-                                 dx=0.5, dy=1, dz=1.5,
-                                 actnum=np.ones((4, 6, 8)))
-    grid.set_state(spatial=True)
+    grid = OrthogonalGrid(dimens=np.array([4, 6, 8]),
+                          dx=np.ones([4, 6, 8]),
+                          dy=np.ones([4, 6, 8]),
+                          dz=np.ones([4, 6, 8]),
+                          tops=np.zeros([4, 6, 8]) + np.arange(8),
+                          actnum=np.ones((4, 6, 8)))
     return grid
 
 class TestOrthogonalGrid():
@@ -150,20 +152,22 @@ class TestOrthogonalGrid():
 
     def test_setup(self, orth_grid): #pylint: disable=redefined-outer-name
         """Testing grid setup."""
+        assert orth_grid.state.spatial
         assert np.all(orth_grid.dimens == [4, 6, 8])
-        assert np.all(orth_grid.cell_size == [0.5, 1, 1.5])
+        assert np.all(orth_grid.cell_volumes == 1)
+        assert np.all(np.isclose(orth_grid.xyz, orth_grid.as_corner_point.xyz))
+        assert np.all(np.isclose(orth_grid.cell_centroids, orth_grid.as_corner_point.cell_centroids))
 
     def test_upscale(self, orth_grid): #pylint: disable=redefined-outer-name
         """Testing grid upscale and downscale methods."""
         upscaled = orth_grid.upscale(2)
-        assert np.all(upscaled.cell_size == 2 * orth_grid.cell_size)
         assert np.all(upscaled.dimens == orth_grid.dimens / 2)
-        assert np.all(upscaled.actnum == 1)
-        assert upscaled.state.spatial
-        downscaled = upscaled.downscale(2)
-        assert np.all(downscaled.cell_size == orth_grid.cell_size)
-        assert np.all(downscaled.dimens == orth_grid.dimens)
-        assert downscaled.state.spatial
+        assert np.all(upscaled.cell_volumes == 8)
+        assert np.all(upscaled.actnum)
+        downscaled = orth_grid.downscale(2)
+        assert np.all(downscaled.dimens == orth_grid.dimens * 2)
+        assert np.all(downscaled.cell_volumes == 1/8)
+        assert np.all(downscaled.actnum)
 
 
 class TestCornerPointGrid():
@@ -192,10 +196,11 @@ class TestWellblocks():
 
     def test_algorithm(self):
         """Creating test wells and check blocks and intersections for every block."""
-        grid = OrthogonalUniformGrid(dimens=np.array([2, 1, 6]),
-                                     dx=1, dy=1, dz=1,
-                                     actnum=np.ones((2, 1, 6)).astype(bool))
-        grid.set_state(spatial=True)
+        grid = OrthogonalGrid(dimens=np.array([2, 1, 6]),
+                              dx=np.ones([2, 1, 6]),
+                              dy=np.ones([2, 1, 6]),
+                              dz=np.ones([2, 1, 6]),
+                              actnum=np.ones([2, 1, 6]).astype(bool))
         grid = grid.to_corner_point()
 
         grid.actnum[0, 0, 1] = False
