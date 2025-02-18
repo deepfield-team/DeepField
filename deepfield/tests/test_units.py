@@ -1,7 +1,7 @@
-"""Testsing module."""
+"""Testing module."""
 import os
-import pytest
 import pathlib
+import pytest
 import numpy as np
 import pandas as pd
 
@@ -234,9 +234,9 @@ class TestTNavTutorials():
         """Test loading models from tNavigator tutorials."""
 
         traverse = pathlib.Path(path_to_tnav_tutorials)
-        models_pathways_DATA = list(map(str, list(traverse.rglob("*.DATA"))))
-        models_pathways_data = list(map(str, list(traverse.rglob("*.data"))))
-        models_pathways = models_pathways_DATA + models_pathways_data
+        models_pathways_data_uppercase = list(map(str, list(traverse.rglob("*.DATA"))))
+        models_pathways_data_lowercase = list(map(str, list(traverse.rglob("*.data"))))
+        models_pathways = models_pathways_data_uppercase + models_pathways_data_lowercase
         assert len(models_pathways) > 0
 
         failed = []
@@ -244,7 +244,7 @@ class TestTNavTutorials():
         for model in models_pathways:
             try:
                 Field(model, loglevel='ERROR').load()
-            except Exception as err:
+            except Exception as err: #pylint: disable=broad-exception-caught
                 failed.append((model, str(err)))
 
         errors_df = pd.DataFrame(failed, columns=['Path', 'Error'])
