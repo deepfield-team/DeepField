@@ -119,9 +119,10 @@ class Grid(SpatialComponent):
         minpv_value = self.minpv[0]
         volumes  = self.cell_volumes
         poro = self.field.rock.poro
-        ntg = self.field.rock.ntg
+        ntg = getattr(self.field.rock, 'ntg', 1)
         mask = poro * volumes*ntg >= minpv_value
-        self.actnum = self.actnum * mask
+        self.actnum = getattr(self, 'actnum',
+                              np.ones(self.dimens, dtype=bool)) * mask
 
     @apply_to_each_input
     def pad_na(self, attr, fill_na=0., inplace=True):
