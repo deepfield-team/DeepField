@@ -228,13 +228,13 @@ class TestArithmetics():
         assert np.allclose(arithmetics_model.rock.permz, arithmetics_model.rock.permx * 0.1)
         assert np.allclose(arithmetics_model.rock.permy[3:6, 3:6, 1:1], arithmetics_model.rock.permx[3:6, 3:6, 1:1] + 5)
 
-class TestTNavTutorials():
-    """Test loading models from tNavigator tutorials. 
-        To assighn a path to tNavigator tutorials use option --path_to_tnav_tutorials"""
-    def test_tutorials(self, path_to_tnav_tutorials):
-        """Test loading models from tNavigator tutorials."""
+class TestBenchmarksLoading():
+    """Test loading benchmarks. 
+        To assighn a path to benchmarks use option --path_to_benchmarks"""
+    def test_benchmarks(self, path_to_benchmarks):
+        """Test loading models from benchmarks."""
 
-        traverse = pathlib.Path(path_to_tnav_tutorials)
+        traverse = pathlib.Path(path_to_benchmarks)
         models_pathways_data_uppercase = list(map(str, list(traverse.rglob("*.DATA"))))
         models_pathways_data_lowercase = list(map(str, list(traverse.rglob("*.data"))))
         models_pathways = models_pathways_data_uppercase + models_pathways_data_lowercase
@@ -258,4 +258,4 @@ class TestTNavTutorials():
             errors_grouped_df.to_csv('errors_grouped.csv', index=False)
             assert len(failed) == 0
         else:
-            warnings.warn("tNavigator tutorials folder does not exist")
+            warnings.warn("Benchmarks folder does not exist")

@@ -2,12 +2,12 @@
 import pytest
 
 def pytest_addoption(parser):
-    """Commandline option for assigning tNavigator tutorials path."""
-    parser.addoption("--path_to_tnav_tutorials",
+    """Commandline option for assigning benchmarks path."""
+    parser.addoption("--path_to_benchmarks",
                         action="store",
-                        default="./tNav_tutorials")
+                        default="./benchmarks")
 
 @pytest.fixture(scope="module")
-def path_to_tnav_tutorials(request):
-    """Returns tNavigator tutorials path"""
-    return request.config.getoption("--path_to_tnav_tutorials")
+def path_to_benchmarks(request):
+    """Returns benchmarks path"""
+    return request.config.getoption("--path_to_benchmarks")
