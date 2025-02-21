@@ -832,7 +832,7 @@ class Field:
                 if count > 1:
                     out += '{}*{} '.format(count, val)
                 else:
-                    out += '{}'.format(val)
+                    out += '{} '.format(val)
             return out + '/'
 
         if isinstance(self.grid, OrthogonalGrid):
