@@ -374,7 +374,7 @@ class Field:
         copy._meta = deepcopy(self.meta) #pylint: disable=protected-access
         return copy
 
-    def load(self, raise_errors=False, include_binary=True, spatial=True, fill_na=0.):
+    def load(self, raise_errors=False, include_binary=True, fill_na=0.):
         """Load model components.
 
         Parameters
@@ -384,8 +384,6 @@ class Field:
             If False, errors will be printed but do not stop loading.
         include_binary : bool
             Read data from binary files in RESULTS folder. Default to True.
-        spatial : bool
-            Return Field components is spatial state.
         fill_na: float
             Value to fill at non-active cells. Default to 0.
 
@@ -404,11 +402,6 @@ class Field:
             raise NotImplementedError('Format {} is not supported.'.format(fmt))
         if 'grid' in self.components:
             self.grid = specify_grid(self.grid)
-            if 'ACTNUM' not in self.grid and 'DIMENS' in self.grid:
-                self.grid.actnum = np.full(self.grid.dimens.prod(), True) # ADD HERE (GRID SECTION) FAULTS CHECKING
-        for k in self._components.values():
-            if isinstance(k, SpatialComponent):
-                k.set_state(spatial=False)
 
         loaded = self._check_loaded_attrs()
         if 'WELLS' in loaded and ('COMPDAT' in loaded['WELLS'] or 'COMPDATL' in loaded['WELLS']):
@@ -425,14 +418,13 @@ class Field:
         else:
             self.meta['MODEL_TYPE'] = 'TN'
 
-        if spatial:
-            self.to_spatial(fill_na=fill_na)
-            if ('grid' in self.components and
-                self._config['grid']['kwargs'].get('apply_mapaxes', False)):
-                self.grid.map_grid()
-                self._logger.info(
-                    ''.join(('Grid pillars (`COORD`) are mapped to new axis ',
-                             'with respect to `MAPAXES`.')))
+        self.to_spatial(fill_na=fill_na)
+        if ('grid' in self.components and
+            self._config['grid']['kwargs'].get('apply_mapaxes', False)):
+            self.grid.map_grid()
+            self._logger.info(
+                ''.join(('Grid pillars (`COORD`) are mapped to new axis ',
+                         'with respect to `MAPAXES`.')))
 
         return self
 
@@ -452,12 +444,10 @@ class Field:
         if 'grid' in self.components:
             self.grid.to_spatial()
         if 'rock' in self.components:
-            if 'ACTNUM' in self.grid:
-                self.rock.pad_na(fill_na=float(fill_na))
+            self.rock.pad_na(fill_na=float(fill_na))
             self.rock.to_spatial()
         if 'states' in self.components:
-            if 'ACTNUM' in self.grid:
-                self.states.pad_na(fill_na=float(fill_na))
+            self.states.pad_na(fill_na=float(fill_na))
             self.states.to_spatial()
         if 'wells' in self.components and self.wells.state.has_blocks:
             self.wells.blocks_to_spatial()
@@ -832,14 +822,27 @@ class Field:
         fill_values['dimens'] = ' '.join(self.grid.dimens.astype(str))
         fill_values['size'] = np.prod(self.grid.dimens)
 
+        def compressed_str(arr):
+            "Compressed array string."
+            out = ''
+            d = np.hstack([[0], np.where(np.diff(arr) != 0)[0]+1, [len(arr)]])
+            for i in range(len(d)-1):
+                val = arr[d[i]]
+                count = d[i+1] - d[i]
+                if count > 1:
+                    out += '{}*{} '.format(count, val)
+                else:
+                    out += '{}'.format(val)
+            return out + '/'
+
         if isinstance(self.grid, OrthogonalGrid):
             template = Template(template.safe_substitute(grid_specs=ORTHOGONAL_GRID))
             fill_values.update(dict(
                 mapaxes=' '.join(self.grid.mapaxes.astype(str)),
-                dx=str(self.grid.dx),
-                dy=str(self.grid.dy),
-                dz=str(self.grid.dz),
-                tops=str(self.grid.dimens[0] * self.grid.dimens[1]) + '*' + str(self.grid.tops)
+                dx=compressed_str(self.grid.ravel('dx', inplace=False)),
+                dy=compressed_str(self.grid.ravel('dy', inplace=False)),
+                dz=compressed_str(self.grid.ravel('dz', inplace=False)),
+                tops=compressed_str(self.grid.ravel('tops', inplace=False))
             ))
         elif isinstance(self.grid, CornerPointGrid):
             template = Template(template.safe_substitute(grid_specs=CORNERPOINT_GRID))

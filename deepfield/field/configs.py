@@ -3,6 +3,7 @@
 from .parse_utils.table_info import TABLE_INFO
 
 orth_grid_config = {'OrthogonalGrid': {'attrs': ['ACTNUM', 'DIMENS', 'DX', 'DY', 'DZ',
+                                                 'DXV', 'DYV', 'DZV',
                                                  'MAPAXES', 'TOPS', 'MINPV']}}
 corn_grid_config = {'CornerPointGrid': {'attrs': ['ACTNUM', 'COORD', 'DIMENS', 'MAPAXES', 'ZCORN', 'MINPV'],
                                         'apply_mapaxes': True}}
