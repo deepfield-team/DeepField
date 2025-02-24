@@ -705,7 +705,10 @@ def parse_vals(columns, shift, full, vals):
             v = v.strip('\'\"')
             if v == '*':
                 continue
-            shift += int(v.strip('*')) - 1
+            try:
+                shift += int(v.strip('*')) - 1
+            except ValueError:
+                full[i+shift] = v
         else:
             full[i+shift] = v
     return full
