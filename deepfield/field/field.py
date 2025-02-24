@@ -526,7 +526,7 @@ class Field:
         loaders = {}
         for k in ['ARRA', 'ARRAY', 'DATES', 'TITLE', 'START', 'METRIC', 'FIELD',
                   'HUNI', 'HUNITS', 'OIL', 'GAS', 'WATER', 'DISGAS', 'VAPOIL', 'RES',
-                  'RESTARTDATE']:
+                  'RESTARTDATE', 'RESTART']:
             loaders[k] = partial(self._read_buffer, attr=k, logger=self._logger)
 
         loaders['COPY'] = partial(load_copy, self, logger=self._logger)
