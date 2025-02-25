@@ -224,7 +224,7 @@ class BaseComponent:
             return self
         return data
 
-    def ravel(self, attr=None, order='F', inplace=True):
+    def ravel(self, attr=None, order='F'):
         """Ravel attributes where applicable assuming by default Fortran order.
 
         Parameters
@@ -241,7 +241,7 @@ class BaseComponent:
         -------
         out : BaseComponent if inplace else raveled attribute itself.
         """
-        return self.reshape(attr=attr, newshape=(-1, ), order=order, inplace=inplace)
+        return self.reshape(attr=attr, newshape=(-1, ), order=order, inplace=False)
 
     def _get_fmt_loader(self, fmt):
         """Get loader for given file format."""

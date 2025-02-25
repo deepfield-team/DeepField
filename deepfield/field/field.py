@@ -931,7 +931,7 @@ class Field:
 
         restart.save_restart(is_unified,
                              dir_name,
-                             self.states.strip_na(inplace=False),
+                             self.states.strip_na(),
                              self.states.attributes,
                              self.result_dates,
                              grid_dim,

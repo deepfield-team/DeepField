@@ -132,10 +132,9 @@ class TestSpatialComponent():
         data = np.arange(10).reshape(2, 5)
         comp = SpatialComponent()
         comp.arr = data
-        comp.ravel()
-        assert not comp.state.spatial
-        assert comp.arr.shape == (10,)
-        assert np.all(comp.arr == data.ravel(order='F'))
+        data_ravel = comp.ravel('ARR')
+        assert data_ravel.shape == (10,)
+        assert np.all(data_ravel == data.ravel(order='F'))
 
 
 @pytest.fixture(scope="module")
