@@ -22,7 +22,7 @@ DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
 IGNORE_SECTIONS = [('ARITHMETIC',),
                    ('RPTISOL', 'RPTPROPS', 'RPTREGS', 'RPTRST',
                    'RPTRUNSP', 'RPTSCHED', 'RPTSMRY', 'RPTSOL',
-                   'OUTSOL'),
+                   'OUTSOL', 'ROCKOPTS'),
                    ('FRACTURE_ARITHMETIC',)]
 class StringIteratorIO:
     """String iterator for text files."""
