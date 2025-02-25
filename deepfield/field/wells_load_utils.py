@@ -141,7 +141,22 @@ def _load_control_table(wells, attribute, columns, column_types, has_date, buffe
         date = None
     df = parse_eclipse_keyword(buffer, columns, column_types, DEFAULTS, date)
     if not df.empty:
-        welldata = {k: {attribute : v.reset_index(drop=True)} for k, v in df.groupby('WELL')}
+        welldata = {}
+        for k, v in df.groupby('WELL'):
+            tmp = k.split('*')
+            if len(tmp) == 1:
+                welldata[k] = {
+                    attribute: v.reset_index(drop=True)
+                }
+            elif len(tmp) == 2 and not tmp[1]:
+                well_names = [name for name in
+                              wells.main_branches if name.startswith(tmp[0])]
+                for name in well_names:
+                    welldata[name] = {
+                        attribute: v.reset_index(drop=True).assign(WELL=name)
+                    }
+            else:
+                raise ValueError(f'Cound not parse well name "{k}"')
         wells.update(welldata, mode='a', ignore_index=True)
         wells.fill_na(attribute)
     return wells
