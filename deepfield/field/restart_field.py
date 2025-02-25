@@ -7,7 +7,7 @@ import numpy as np
 from .configs import default_config_restart
 from .field import Field
 from .parse_utils import read_restartdate_from_buffer, tnav_ascii_parser
-from .parse_utils.ascii import _get_path
+from .parse_utils.ascii import _get_path, read_restart_from_buffer
 from .states import States
 
 class RestartField(Field):
@@ -67,13 +67,22 @@ class RestartField(Field):
         assert self.parent is not None
         return self.parent.grid
 
+    @property
+    def restart_path(self):
+        """Name of parent model.
+        """
+        if 'RESTART' in self._meta:
+            return self._meta['RESTART'][0]
+        return self._meta['RESTARTDATE'][0]
+
+
     def _load_data(self, raise_errors=False, include_binary=True):
         loaders = self._get_loaders({})
         tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
                           raise_errors=raise_errors)
         assert self._path is not None
         data_dir = self._path.parent
-        restart_path = self._meta['RESTARTDATE'][0].strip('"\'')+'.data'
+        restart_path = self.restart_path.strip('"\'')+'.data'
         parent_path = _get_path(restart_path, data_dir, self._logger, raise_errors)
         self.parent = Field(str(parent_path),
                             config=self._parent_model_config).load()
@@ -88,9 +97,12 @@ class RestartField(Field):
         return self
 
     def _read_buffer(self, buffer, attr, logger):
-        if attr != 'RESTARTDATE':
+        if attr not in ('RESTARTDATE', 'RESTART'):
             return super()._read_buffer(buffer, attr, logger)
-        self.meta['RESTARTDATE'] = read_restartdate_from_buffer(buffer, attr, logger)
+        if attr == 'RESTARTDATE':
+            self.meta['RESTARTDATE'] = read_restartdate_from_buffer(buffer, attr, logger)
+        else:
+            self.meta['RESTART'] = read_restart_from_buffer(buffer, attr, logger)
         return self
 
     def full_model(self):
@@ -113,7 +125,7 @@ class RestartField(Field):
             setattr(states_tmp, attr,
                 np.concatenate(
                     (getattr(self.parent.states, attr)[result_dates_parent < result_dates_restart[0]],
-                    getattr(self.states, attr)))
+                     getattr(self.states, attr)))
             )
         tmp_model.states = states_tmp
         wells_tmp = self.parent.wells
