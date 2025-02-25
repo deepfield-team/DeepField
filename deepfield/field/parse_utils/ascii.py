@@ -363,8 +363,8 @@ def _read_numerical_table_data(buffer, depth, dtype):
     else:
         tmp_iter = data
     for d in (tmp_iter):
-        for i, dd in enumerate(d):
-            d[i] = np.hstack(dd)
+        for i, vals in enumerate(d):
+            d[i] = np.hstack(vals)
     return data
 
 def read_table(buffer, table_info, dtype=None, units='METRIC'):

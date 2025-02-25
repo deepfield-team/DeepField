@@ -6,13 +6,13 @@ $mapaxes
 /
 
 DX
-$size*$dx /
+$dx /
 
 DY
-$size*$dy /
+$dy /
 
 DZ
-$size*$dz /
+$dz /
 
 TOPS
 $tops /'''

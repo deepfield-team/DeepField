@@ -194,47 +194,6 @@ def get_well_mask(field):
                         well_mask[ind] = branch.name
     return well_mask
 
-def full_ind_to_active_ind(ind, grid):
-    """Transforms 1D indices with respect to all cells to the indices with respect to only active cells.
-
-    Parameters
-    ----------
-    ind: array-like
-        Indices to be transformed.
-    grid: Grid
-        Grid component of a model.
-
-    Returns
-    -------
-    ind: array-like
-        Transformed indices.
-    """
-    ind = ind.copy()
-    f2a = grid.ravel(attr='actnum', inplace=False).astype(int)
-    ind[f2a[ind] == 0] = -1
-    f2a[f2a == 1] = np.arange(f2a.sum())
-    f2a = np.concatenate([f2a, [-1]])
-    return f2a[ind]
-
-def active_ind_to_full_ind(ind, grid):
-    """Transforms 1D indices with respect to active to the indices with respect to all cells.
-
-    Parameters
-    ----------
-    ind: array-like
-        Indices to be transformed.
-    grid: Grid
-        Grid component of a model.
-
-    Returns
-    -------
-    ind: array-like
-        Transformed indices.
-    """
-    actnum = grid.ravel(attr='actnum', inplace=False).astype(int)
-    a2f = np.arange(len(actnum))[actnum == 1]
-    a2f = np.concatenate([a2f, [-1]])
-    return a2f[ind]
 
 def get_control_interval_mask(control_dates, time_interval):
     """Returns a mask for control dates that affect the given time interval."""

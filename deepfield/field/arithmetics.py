@@ -109,8 +109,6 @@ def load_equals(field, buffer, logger=None):
             comp.equals_attribute(row.ATTR, row.VAL, box)
             if logger:
                 logger.info(f'Set {name}:{row.ATTR} to {row.VAL} in box {box}')
-            if name == 'grid':
-                comp.check_uniform()
         else:
             if logger:
                 logger.warning(f'Could not find or create attribute {row.ATTR}')

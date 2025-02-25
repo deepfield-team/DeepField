@@ -1,5 +1,6 @@
 """Wells utils."""
 import re
+import shlex
 import numpy as np
 import pandas as pd
 
@@ -118,7 +119,7 @@ def load_grouptree(wells, buffer, **kwargs):
     for line in buffer:
         if line.strip() == '/':
             return wells
-        node, grp = re.sub("[\"\']", "", line).split('/')[0].strip().split()
+        node, grp = shlex.split(line.split('/')[0])[:2]#re.sub("[\"\']", "", line).split('/')[0].strip().split()
         if grp == '1*':
             grp = DEFAULTS['GROUP']
         try:

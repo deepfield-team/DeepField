@@ -2,7 +2,7 @@
 from .configs import * # pylint: disable=wildcard-import
 from .models import * # pylint: disable=wildcard-import
 from .rock import Rock
-from .grids import Grid, OrthogonalUniformGrid, CornerPointGrid
+from .grids import Grid, OrthogonalGrid, CornerPointGrid
 from .states import States
 from .wells import Wells
 from .field import Field
