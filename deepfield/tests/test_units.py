@@ -1,5 +1,7 @@
-"""Testsing module."""
+"""Testing module."""
 import os
+import pathlib
+import warnings
 import pytest
 import numpy as np
 import pandas as pd
@@ -225,3 +227,35 @@ class TestArithmetics():
         assert np.allclose(arithmetics_model.rock.permx, arithmetics_model.rock.poro * 500)
         assert np.allclose(arithmetics_model.rock.permz, arithmetics_model.rock.permx * 0.1)
         assert np.allclose(arithmetics_model.rock.permy[3:6, 3:6, 1:1], arithmetics_model.rock.permx[3:6, 3:6, 1:1] + 5)
+
+class TestBenchmarksLoading():
+    """Test loading benchmarks. 
+        To assighn a path to benchmarks use option --path_to_benchmarks"""
+    def test_benchmarks(self, path_to_benchmarks):
+        """Test loading models from benchmarks."""
+
+        traverse = pathlib.Path(path_to_benchmarks)
+        models_pathways_data_uppercase = list(map(str, list(traverse.rglob("*.DATA"))))
+        models_pathways_data_lowercase = list(map(str, list(traverse.rglob("*.data"))))
+        models_pathways = models_pathways_data_uppercase + models_pathways_data_lowercase
+        if len(models_pathways) > 0:
+            failed = []
+
+            for model in models_pathways:
+                try:
+                    Field(model, loglevel='ERROR').load()
+                except Exception as err: #pylint: disable=broad-exception-caught
+                    failed.append((model, str(err)))
+
+            errors_df = pd.DataFrame(failed, columns=['Path', 'Error'])
+            errors_grouped = []
+
+            for err, df in errors_df.groupby("Error"):
+                for record in df.values:
+                    errors_grouped.append((err, record[0]))
+
+            errors_grouped_df = pd.DataFrame(errors_grouped, columns=['Error', 'Path'])
+            errors_grouped_df.to_csv('errors_grouped.csv', index=False)
+            assert len(failed) == 0
+        else:
+            warnings.warn("Benchmarks folder does not exist")
