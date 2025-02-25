@@ -695,6 +695,20 @@ def read_restartdate_from_buffer(buffer, attr, logger):
         full = parse_vals(columns, shift, full, vals)
     return full
 
+def read_restart_from_buffer(buffer, attr, logger):
+    """Read RESTART keyword."""
+    _, __ = attr, logger
+    columns = ['NAME', 'STEP']
+    full = None
+    for line in buffer:
+        vals = line.split()[:len(columns)]
+        if not line.split('/')[0].strip():
+            break
+        full = [None] * len(columns)
+        shift = 0
+        full = parse_vals(columns, shift, full, vals)
+    return full
+
 def parse_vals(columns, shift, full, vals):
     """Parse values (unpack asterisk terms)."""
     full = copy.deepcopy(full)
