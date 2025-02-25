@@ -2,7 +2,7 @@
 import os
 import numpy as np
 
-from .decorators import apply_to_each_input, state_check, ndim_check
+from .decorators import apply_to_each_input
 from .base_spatial import SpatialComponent
 from .plot_utils import show_slice_static, show_slice_interactive
 from .parse_utils import read_ecl_bin
@@ -59,9 +59,9 @@ class States(SpatialComponent):
                             order='F', inplace=inplace)
 
     @apply_to_each_input
-    def _ravel(self, attr, inplace):
+    def _ravel(self, attr):
         """Ravel order 'F' transformations."""
-        return self.reshape(attr=attr, newshape=(self.n_timesteps, -1), order='F', inplace=inplace)
+        return self.reshape(attr=attr, newshape=(self.n_timesteps, -1), order='F')
 
     @apply_to_each_input
     def pad_na(self, attr, fill_na=0., inplace=True):
@@ -104,7 +104,7 @@ class States(SpatialComponent):
         return padded_data
 
     @apply_to_each_input
-    def strip_na(self, attr, inplace=True):
+    def strip_na(self, attr):
         """Remove non-active cells from the state vector.
 
         Parameters
@@ -113,8 +113,6 @@ class States(SpatialComponent):
             Attributes to be stripped
         actnum: array-like of type bool
             Vector representing mask of active and non-active cells.
-        inplace: bool
-            Modify сomponent inplace.
 
         Returns
         -------
@@ -124,16 +122,11 @@ class States(SpatialComponent):
         -----
         Outputs 1d array for each timestamp.
         """
-        if self.state.spatial and inplace:
-            raise ValueError('Inplace is not allowed in spatial state.')
-        data = self.ravel(attr, inplace=False)
+        data = self.ravel(attr)
         actnum = self.field.grid.actnum
         if data.shape[1] == np.sum(actnum):
-            return self if inplace else data
+            return data
         stripped_data = data[..., actnum.ravel(order='F')]
-        if inplace:
-            setattr(self, attr, stripped_data)
-            return self
         return stripped_data
 
     def __getitem__(self, keys):
@@ -146,8 +139,6 @@ class States(SpatialComponent):
         out.set_state(**self.state.as_dict())
         return out
 
-    @state_check(lambda state: state.spatial)
-    @ndim_check(4)
     def show_slice(self, attr, t=None, i=None, j=None, k=None, figsize=None, **kwargs):
         """Visualize slices of 4D states arrays. If no slice is specified, spatial slices
         will be shown with interactive slider widgets.
@@ -285,12 +276,12 @@ class States(SpatialComponent):
     def _make_data_dump(self, attr, fmt=None, actnum=None, float_dtype=None, **kwargs):
         """Prepare data for dump."""
         if fmt.upper() == 'ASCII':
-            data = self.ravel(attr=attr, inplace=False)
+            data = self.ravel(attr=attr)
             return data[0]
         if fmt.upper() == 'HDF5':
             if actnum is None:
-                data = self.ravel(attr=attr, inplace=False)
+                data = self.ravel(attr=attr)
             else:
-                data = self.strip_na(attr=attr, inplace=False)
+                data = self.strip_na(attr=attr)
             return data if float_dtype is None else data.astype(float_dtype)
         return super()._make_data_dump(attr, fmt=fmt, **kwargs)

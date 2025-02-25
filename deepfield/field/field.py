@@ -21,7 +21,6 @@ from .faults import Faults
 from .aquifer import Aquifers
 from .base_spatial import SpatialComponent
 from .configs import default_config
-from .decorators import cached_property, state_check
 from .dump_ecl_utils import egrid, init, restart, summary
 from .grids import CornerPointGrid, Grid, OrthogonalGrid, specify_grid
 from .parse_utils import (dates_to_str, preprocess_path,
@@ -76,8 +75,6 @@ class FieldState:
         """Common state of spatial components."""
         states = np.array([comp.state.spatial for comp in self.field._components.values()
                            if isinstance(comp, SpatialComponent)])
-        if 'wells' in self.field.components:
-            states = np.concatenate([states, [self.field.wells.state.spatial]])
         if np.all(states):
             return True
         if np.all(~states):
@@ -326,9 +323,7 @@ class Field:
             dates = pd.DatetimeIndex([self.start]).append(self.wells.event_dates)
         return pd.DatetimeIndex(dates.unique().date)
 
-    @cached_property(
-        lambda self, x: x.reshape(-1, order='F')[self.grid.actnum] if not self.state.spatial and x.ndim == 3 else x
-    )
+    @property
     def well_mask(self):
         """Get the model's well mask in a spatial form.
 
@@ -374,7 +369,7 @@ class Field:
         copy._meta = deepcopy(self.meta) #pylint: disable=protected-access
         return copy
 
-    def load(self, raise_errors=False, include_binary=True, fill_na=0.):
+    def load(self, raise_errors=False, include_binary=True):
         """Load model components.
 
         Parameters
@@ -384,8 +379,6 @@ class Field:
             If False, errors will be printed but do not stop loading.
         include_binary : bool
             Read data from binary files in RESULTS folder. Default to True.
-        fill_na: float
-            Value to fill at non-active cells. Default to 0.
 
         Returns
         -------
@@ -402,6 +395,10 @@ class Field:
             raise NotImplementedError('Format {} is not supported.'.format(fmt))
         if 'grid' in self.components:
             self.grid = specify_grid(self.grid)
+        if 'rock' in self.components:
+            self.rock.to_spatial()
+        if 'states' in self.components:
+            self.states.to_spatial()
 
         loaded = self._check_loaded_attrs()
         if 'WELLS' in loaded and ('COMPDAT' in loaded['WELLS'] or 'COMPDATL' in loaded['WELLS']):
@@ -418,7 +415,6 @@ class Field:
         else:
             self.meta['MODEL_TYPE'] = 'TN'
 
-        self.to_spatial(fill_na=fill_na)
         if ('grid' in self.components and
             self._config['grid']['kwargs'].get('apply_mapaxes', False)):
             self.grid.map_grid()
@@ -426,58 +422,6 @@ class Field:
                 ''.join(('Grid pillars (`COORD`) are mapped to new axis ',
                          'with respect to `MAPAXES`.')))
 
-        return self
-
-    def to_spatial(self, fill_na=0.):
-        """Bring data to spatial state.
-
-        Parameters
-        ----------
-        fill_na: float
-            Value to fill at non-active cells. Default to 0.
-
-        Returns
-        -------
-        out: Field
-            Field in spatial representation.
-        """
-        if 'grid' in self.components:
-            self.grid.to_spatial()
-        if 'rock' in self.components:
-            self.rock.pad_na(fill_na=float(fill_na))
-            self.rock.to_spatial()
-        if 'states' in self.components:
-            self.states.pad_na(fill_na=float(fill_na))
-            self.states.to_spatial()
-        if 'wells' in self.components and self.wells.state.has_blocks:
-            self.wells.blocks_to_spatial()
-        return self
-
-    def ravel(self, only_active=True):
-        """Ravel data in spatial components.
-
-        Parameters
-        ----------
-        only_active : bool
-            Strip non-active cells fron state vectors. Default is True.
-
-        Returns
-        -------
-        out: Field
-            Field with reshaped spatial components.
-        """
-        if 'grid' in self.components:
-            self.grid.ravel()
-        if 'rock' in self.components:
-            self.rock.ravel()
-            if only_active:
-                self.rock.strip_na()
-        if 'states' in self.components:
-            self.states.ravel()
-            if only_active:
-                self.states.strip_na()
-        if 'wells' in self.components and self.wells.state.has_blocks:
-            self.wells.blocks_ravel()
         return self
 
     def _load_hdf5(self, raise_errors):
@@ -1181,7 +1125,6 @@ class Field:
 
         return labeled_points
 
-    @state_check(lambda state: state.spatial)
     def show(self, attr=None, thresholding=False, slicing=False, timestamp=None,
              use_only_active=True, scaling=True, cmap=None, notebook=False,
              theme='default', show_edges=True, faults_color='red', show_labels=True):

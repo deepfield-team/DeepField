@@ -126,10 +126,9 @@ class Grid(SpatialComponent):
         minpv_value = self.minpv[0]
         volumes = self.cell_volumes
         poro = self.field.rock.poro
-        ntg = getattr(self.field.rock, 'ntg', 1)
+        ntg = self.field.rock.ntg
         mask = poro * volumes*ntg >= minpv_value
-        self.actnum = getattr(self, 'actnum',
-                              np.ones(self.dimens, dtype=bool)) * mask
+        self.actnum = self.actnum * mask
 
     @apply_to_each_input
     def _to_spatial(self, attr, inplace=True, **kwargs):
@@ -156,12 +155,10 @@ class Grid(SpatialComponent):
         return data
 
     @apply_to_each_input
-    def _ravel(self, attr, inplace=True, **kwargs):
+    def _ravel(self, attr, **kwargs):
         """Ravel order 'F' transformations."""
         _ = kwargs
         data = getattr(self, attr)
-        if not self.state.spatial:
-            return self if inplace else data
         if attr in ['ACTNUM', 'DX', 'DY', 'DZ', 'TOPS']:
             data = data.ravel(order='F')
         elif attr == 'COORD':
@@ -172,16 +169,13 @@ class Grid(SpatialComponent):
             data = np.moveaxis(data, (3, 0, 4, 1, 5, 2), range(6)).ravel(order='F')
         else:
             data = super()._ravel(attr=attr, order='F', inplace=False)
-        if inplace:
-            setattr(self, attr, data)
-            return self
         return data
 
     def _make_data_dump(self, attr, fmt=None, float_dtype=None, **kwargs):
         """Prepare data for dump."""
         if fmt.upper() != 'HDF5':
             return super()._make_data_dump(attr, fmt=fmt, **kwargs)
-        data = self.ravel(attr=attr, inplace=False)
+        data = self.ravel(attr=attr)
         if attr == 'ACTNUM':
             return data.astype(bool)
         if attr in ['ZCORN', 'COORD', 'DX', 'DY', 'DZ', 'TOPS', 'MAPAXES']:
@@ -217,7 +211,7 @@ class Grid(SpatialComponent):
         res : misc
             Matrix of active neighbors and matrix of distances if 'calculate_distances'.
         """
-        actnum = self.to_spatial(attr='ACTNUM', inplace=False)
+        actnum = self.actnum
         res, invalid_cells = get_connectivity_matrix(actnum, connectivity)
         if ravel_index:
             res = np.ravel_multi_index((res[..., 0], res[..., 1], res[..., 2]), self.dimens, order='F')
@@ -242,7 +236,7 @@ class Grid(SpatialComponent):
         numpy.ndarray
             Matrix of distances.
         """
-        actnum = self.to_spatial(attr='ACTNUM', inplace=False)
+        actnum = self.actnum
         if neighbours_matrix is None:
             neighbours_matrix = self.get_neighbors_matrix(
                 connectivity=connectivity,

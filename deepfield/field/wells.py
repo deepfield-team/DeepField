@@ -16,7 +16,6 @@ from .well_segment import WellSegment
 from .rates import calculate_cf, show_rates, show_rates2, show_blocks_dynamics
 from .grids import OrthogonalGrid
 from .base_component import BaseComponent
-from .utils import full_ind_to_active_ind, active_ind_to_full_ind
 from .getting_wellblocks import defining_wellblocks_vtk, find_first_entering_point, defining_wellblocks_compdat
 from .wells_dump_utils import write_perf, write_events, write_schedule, write_welspecs
 from .wells_load_utils import (load_rsm, load_ecl_binary, load_group, load_grouptree,
@@ -57,7 +56,6 @@ class Wells(BaseComponent):
         self._resolver = Resolver()
         self.init_state(has_blocks=False,
                         has_cf=False,
-                        spatial=True,
                         all_tracks_complete=False,
                         all_tracks_inside=False,
                         full_perforation=False)
@@ -353,45 +351,6 @@ class Wells(BaseComponent):
         print(RenderTree(self.root, style=AsciiStyle()).by_attr())
         return self
 
-    def blocks_ravel(self):
-        """Transforms block coordinates into 1D representation."""
-        if not self.state.spatial:
-            return self
-        self.set_state(spatial=False)
-        return self._blocks_ravel()
-
-    def blocks_to_spatial(self):
-        """Transforms block coordinates into 3D representation."""
-        if self.state.spatial:
-            return self
-        self.set_state(spatial=True)
-        return self._blocks_to_spatial()
-
-    @apply_to_each_segment
-    def _blocks_ravel(self, segment):
-        if 'BLOCKS' not in segment or not len(segment.blocks):
-            return self
-        grid = self.field.grid
-        res = np.ravel_multi_index(
-            tuple(segment.blocks[:, i] for i in range(3)),
-            dims=grid.dimens,
-            order='F'
-        )
-        res = full_ind_to_active_ind(res, grid)
-        setattr(segment, 'BLOCKS', res)
-        return self
-
-    @apply_to_each_segment
-    def _blocks_to_spatial(self, segment):
-        if 'BLOCKS' not in segment or not len(segment.blocks):
-            return self
-        grid = self.field.grid
-        res = active_ind_to_full_ind(segment.blocks, grid)
-        res = np.unravel_index(res, shape=grid.dimens, order='F')
-        res = np.stack(res, axis=1)
-        setattr(segment, 'BLOCKS', res)
-        return self
-
     @apply_to_each_segment
     def add_welltrack(self, segment):
         """Reconstruct welltrack from COMPDAT table.
@@ -416,8 +375,6 @@ class Wells(BaseComponent):
         root = np.array([i0, j0, 0])
         track = []
         centroids = grid.cell_centroids
-        if not grid.state.spatial:
-            centroids = centroids.reshape(tuple(grid.dimens) + (3,), order='F')
         for _ in range(len(df)):
             dist = np.linalg.norm(df[['I', 'J', 'K1']] - root, axis=1)
             row = df.iloc[[dist.argmin()]]
