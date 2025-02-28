@@ -1,6 +1,8 @@
 """States component."""
+import copy
 import os
 import numpy as np
+import pandas as pd
 
 from .decorators import apply_to_each_input, state_check, ndim_check
 from .base_spatial import SpatialComponent
@@ -13,6 +15,40 @@ FULL_STATE_KEYS = ('PRESSURE', 'RS', 'SGAS', 'SOIL', 'SWAT')
 
 class States(SpatialComponent):
     """States component of geological model."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs = copy.copy(kwargs)
+        if 'dates' in kwargs:
+            self._dates = kwargs['dates']
+            del kwargs['dates']
+        else:
+            self._dates = None
+        super().__init__(*args, **kwargs)
+
+    def copy(self):
+        cp = super().copy()
+        cp.dates = copy.deepcopy(self.dates)
+        return cp
+
+    def _dump_hdf5_group(self, grp, compression, state, **kwargs):
+        super()._dump_hdf5_group(grp, compression, state, **kwargs)
+        grp = grp[self.class_name] if self.class_name in grp else grp.create_group(self.class_name)
+        grp.create_dataset('DATES', data=self._make_data_dump('DATES', fmt='HDF5'), compression=compression)
+
+    @property
+    def dates(self):
+        """Dates for which states are available.
+
+        Returns
+        -------
+        pandas.DatetimeIndex
+            Dates.
+        """
+        return self._dates
+
+    @dates.setter
+    def dates(self, value):
+        self._dates = value
 
     @property
     def n_timesteps(self):
@@ -199,6 +235,10 @@ class States(SpatialComponent):
         """
         if attrs is None:
             attrs = FULL_STATE_KEYS
+
+        rsspec_path = get_single_path(path_to_results, basename + '.RSSPEC')
+        if rsspec_path is not None:
+            self._load_ecl_rsspec(rsspec_path, logger=logger)
         unifout_path = get_single_path(path_to_results, basename + '.UNRST', logger)
         multout_paths = get_multout_paths(path_to_results, basename)
 
@@ -210,6 +250,22 @@ class States(SpatialComponent):
             logger.warning('The results in "%s" were not found!' % path_to_results)
             return self
         raise FileNotFoundError('The results in "%s" were not found!' % path_to_results)
+
+    def _load_ecl_rsspec(self, path, logger, subset=None, **kwargs):
+        _ = kwargs
+        data = read_ecl_bin(path, attrs=['ITIME'], sequential=True, subset=subset,
+                            logger=logger)
+        dates = pd.to_datetime(
+            [f'{row[3]}-{row[2]}-{row[1]}' for row in data['ITIME']]
+        )
+        self._dates = dates
+        return self
+
+    def _load_hdf5_group(self, grp, attrs, raise_errors, logger, subset):
+        super()._load_hdf5_group(grp, attrs, raise_errors, logger, subset)
+        if 'DATES' in self._data:
+            self._dates = pd.to_datetime(self._data['DATES'])
+            del self._data['DATES']
 
     def _load_ecl_bin_unifout(self, path, attrs, logger, subset=None, **kwargs):
         """Load states from .UNRST binary file.
@@ -287,6 +343,8 @@ class States(SpatialComponent):
             data = self.ravel(attr=attr, inplace=False)
             return data[0]
         if fmt.upper() == 'HDF5':
+            if attr.upper() == 'DATES':
+                return self.dates.astype(np.int64)
             if actnum is None:
                 data = self.ravel(attr=attr, inplace=False)
             else:

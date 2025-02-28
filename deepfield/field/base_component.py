@@ -153,7 +153,8 @@ class BaseComponent:
     def copy(self):
         """Returns a deepcopy of attributes. Cached properties are not copied."""
         copy = self.__class__(
-            **{k: deepcopy(v) if not issubclass(v.__class__, BaseComponent) else v.copy() for k, v in self.items()}
+            **{k: deepcopy(v) if not issubclass(v.__class__, BaseComponent) else v.copy() for k, v in self.items()},
+            field = self.field,
         )
         copy.init_state(**self.state.as_dict())
         copy.class_name = self.class_name
