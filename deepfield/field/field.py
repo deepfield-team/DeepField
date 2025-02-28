@@ -19,7 +19,6 @@ from vtk.util.numpy_support import numpy_to_vtk # pylint: disable=no-name-in-mod
 from .arithmetics import load_add, load_copy, load_equals, load_multiply
 from .faults import Faults
 from .aquifer import Aquifers
-from .base_spatial import SpatialComponent
 from .configs import default_config
 from .dump_ecl_utils import egrid, init, restart, summary
 from .grids import CornerPointGrid, Grid, OrthogonalGrid, specify_grid
@@ -70,16 +69,6 @@ class FieldState:
         """Reference Field."""
         return self._field()
 
-    @property
-    def spatial(self):
-        """Common state of spatial components."""
-        states = np.array([comp.state.spatial for comp in self.field._components.values()
-                           if isinstance(comp, SpatialComponent)])
-        if np.all(states):
-            return True
-        if np.all(~states):
-            return False
-        raise ValueError('Spatial components have different states.')
 
 class Field:
     """Reservoir model.
@@ -395,33 +384,12 @@ class Field:
             raise NotImplementedError('Format {} is not supported.'.format(fmt))
         if 'grid' in self.components:
             self.grid = specify_grid(self.grid)
-        if 'rock' in self.components:
-            self.rock.to_spatial()
-        if 'states' in self.components:
-            self.states.to_spatial()
 
-        loaded = self._check_loaded_attrs()
+        loaded = self._collect_loaded_attrs()
         if 'WELLS' in loaded and ('COMPDAT' in loaded['WELLS'] or 'COMPDATL' in loaded['WELLS']):
             self.meta['MODEL_TYPE'] = 'ECL'
-            for node in self.wells:
-                for attr in ['COMPDAT', 'WCONPROD', 'WCONINJE', 'COMPDATL', 'WEFAC', 'WFRAC', 'WFRACP', 'COMPDATMD']:
-                    if attr in node:
-                        df = getattr(node, attr)
-                        df['DATE'] = pd.to_datetime(df['DATE'].fillna(self.start))
-                        df.sort_values(by='DATE', inplace=True)
-                        df.reset_index(drop=True, inplace=True)
-            if 'GRID' in loaded:
-                self.wells.add_welltrack()
         else:
             self.meta['MODEL_TYPE'] = 'TN'
-
-        if ('grid' in self.components and
-            self._config['grid']['kwargs'].get('apply_mapaxes', False)):
-            self.grid.map_grid()
-            self._logger.info(
-                ''.join(('Grid pillars (`COORD`) are mapped to new axis ',
-                         'with respect to `MAPAXES`.')))
-
         return self
 
     def _load_hdf5(self, raise_errors):
@@ -517,38 +485,52 @@ class Field:
         return self
 
     def _check_vapoil(self, config):
-        if 'VAPOIL' in self.meta['FLUIDS'] and 'tables' in config:
+        if 'VAPOIL' in self.meta['FLUIDS'] and 'tables' in self.components:
             # TODO should we make a kwarg for convertion key?
             self.tables.pvtg_to_pvdg(as_saturated=False)
             self.meta['FLUIDS'].remove('VAPOIL')
             self._logger.warning(
                 """Vaporized oil option is not currently supported.
-                PVTG table will be converted into PVDG one."""
+                PVTG table is converted into PVDG one."""
             )
         return self
 
-
     def _load_data(self, raise_errors=False, include_binary=True):
         """Load model in DATA format."""
-
         if include_binary:
             self._load_binary(components=('grid',),
                               raise_errors=raise_errors)
             if 'ACTNUM' in self.grid.attributes:
                 self._load_binary(components=('rock',), raise_errors=raise_errors)
+
         loaders = self._get_loaders(self._config)
         tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
                           raise_errors=raise_errors)
+
+        self.grid = specify_grid(self.grid)
+
         if 'MINPV' in self.grid.attributes:
             if 'ACTNUM' in self.grid.state.binary_attributes:
                 self._logger.info('ACTNUM is loaded from binary file: MINPV was not applied.')
             else:
                 self.grid.apply_minpv()
                 self._logger.info('MINPV {} is applied.'.format(self.grid.minpv[0]))
+
         if include_binary:
             self._load_binary(components=('states', 'wells'), raise_errors=raise_errors)
+
         self._load_results(self._config, raise_errors, include_binary)
         self._check_vapoil(self._config)
+
+        if 'wells' in self.components and 'grid' in self.components:
+            self.wells.add_welltrack()
+
+        if ('grid' in self.components and
+            self._config['grid']['kwargs'].get('apply_mapaxes', False)):
+            self.grid.map_grid()
+            self._logger.info(
+                ''.join(('Grid pillars (`COORD`) are mapped to new axis ',
+                         'with respect to `MAPAXES`.')))
         return self
 
     def _read_buffer(self, buffer, attr, logger):
@@ -586,20 +568,10 @@ class Field:
         assert len(self.meta['HUNITS']) == len(defaults), 'Missmatch of HUNITS array length'
         return self
 
-    def _check_loaded_attrs(self):
-        """Collect loaded attributes and fill defaults for missing ones."""
+    def _collect_loaded_attrs(self):
+        """Collect loaded attributes."""
         out = {}
         self._logger.info("===== Field summary =====")
-        if 'START' not in self.meta:
-            self._meta['START'] = '1 JAN 1973' #default ECLIPSE/tNavigator start date
-            self._logger.warning("Missed start date, set default 1 JAN 1973.")
-        if 'FLUIDS' not in self.meta:
-            self._meta['FLUIDS'] = ['OIL', 'GAS', 'WATER', 'DISGAS']
-            self._logger.warning("FLUIDS are not found, set default ['OIL', 'GAS', 'WATER', 'DISGAS'].")
-        if not self.meta['DATES'].empty:
-            dates = pd.DatetimeIndex([self.start]).append(self.meta['DATES'])
-            if not ((dates[1:] - dates[:-1]) > pd.Timedelta(0)).all():
-                self._logger.error('Start date and DATES are not monotone.')
         for comp in self.components:
             if comp == 'wells':
                 attrs = []
@@ -783,10 +755,10 @@ class Field:
             template = Template(template.safe_substitute(grid_specs=ORTHOGONAL_GRID))
             fill_values.update(dict(
                 mapaxes=' '.join(self.grid.mapaxes.astype(str)),
-                dx=compressed_str(self.grid.ravel('dx', inplace=False)),
-                dy=compressed_str(self.grid.ravel('dy', inplace=False)),
-                dz=compressed_str(self.grid.ravel('dz', inplace=False)),
-                tops=compressed_str(self.grid.ravel('tops', inplace=False))
+                dx=compressed_str(self.grid.ravel('dx')),
+                dy=compressed_str(self.grid.ravel('dy')),
+                dz=compressed_str(self.grid.ravel('dz')),
+                tops=compressed_str(self.grid.ravel('tops'))
             ))
         elif isinstance(self.grid, CornerPointGrid):
             template = Template(template.safe_substitute(grid_specs=CORNERPOINT_GRID))

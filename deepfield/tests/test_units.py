@@ -233,8 +233,7 @@ class TestArithmetics():
         assert np.allclose(arithmetics_model.rock.permy[3:6, 3:6, 1:1], arithmetics_model.rock.permx[3:6, 3:6, 1:1] + 5)
 
 class TestBenchmarksLoading():
-    """Test loading benchmarks. 
-        To assighn a path to benchmarks use option --path_to_benchmarks"""
+    """Test loading benchmarks. To assighn a path to benchmarks use option --path_to_benchmarks"""
     def test_benchmarks(self, path_to_benchmarks):
         """Test loading models from benchmarks."""
 

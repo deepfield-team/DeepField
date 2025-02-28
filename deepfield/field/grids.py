@@ -105,11 +105,11 @@ class Grid(SpatialComponent):
         elif attr in ['DXV', 'DYV', 'DZV']:
             super()._read_buffer(buffer, attr[:2], dtype=float, logger=logger, compressed=True)
             data = getattr(self, attr[:2])
-            expanded = np.zeros(self.dimens)
             data = (data.reshape(-1, 1, 1) if attr == 'DXV' else
                     data.reshape(1, -1, 1) if attr == 'DYV' else
                     data.reshape(1, 1, -1))
-            setattr(self, attr[:2], expanded + data)
+            setattr(self, attr[:2], (np.zeros(self.dimens) + data).ravel(order='F'))
+            logger.info("Keyword {} was converted to {}.".format(attr, attr[:2]))
         elif attr == 'ZCORN':
             super()._read_buffer(buffer, attr, dtype=float, compressed=True)
         elif attr == 'COORD':
@@ -131,12 +131,10 @@ class Grid(SpatialComponent):
         self.actnum = self.actnum * mask
 
     @apply_to_each_input
-    def _to_spatial(self, attr, inplace=True, **kwargs):
+    def _to_spatial(self, attr, **kwargs):
         """Spatial order 'F' transformations."""
         _ = kwargs
         data = getattr(self, attr)
-        if self.state.spatial:
-            return self if inplace else data
         if isinstance(data, np.ndarray) and data.ndim == 1:
             if attr in ['ACTNUM', 'DX', 'DY', 'DZ', 'TOPS']:
                 data = data.reshape(self.dimens, order='F')
@@ -149,10 +147,10 @@ class Grid(SpatialComponent):
                 data = data.reshape((2, nx, 2, ny, 2, nz), order='F')
                 data = np.moveaxis(data, range(6), (3, 0, 4, 1, 5, 2))
                 data = data.reshape((nx, ny, nz, 8), order='F')
-            if inplace:
-                setattr(self, attr, data)
+            else:
                 return self
-        return data
+            setattr(self, attr, data)
+        return self
 
     @apply_to_each_input
     def _ravel(self, attr, **kwargs):
@@ -168,7 +166,7 @@ class Grid(SpatialComponent):
             data = data.reshape((nx, ny, nz, 2, 2, 2), order='F')
             data = np.moveaxis(data, (3, 0, 4, 1, 5, 2), range(6)).ravel(order='F')
         else:
-            data = super()._ravel(attr=attr, order='F', inplace=False)
+            data = super()._ravel(attr=attr, order='F')
         return data
 
     def _make_data_dump(self, attr, fmt=None, float_dtype=None, **kwargs):

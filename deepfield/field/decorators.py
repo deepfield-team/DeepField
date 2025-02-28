@@ -84,7 +84,7 @@ def apply_to_each_input(method):
         elif attr is None:
             attr = self.attributes
             if not self.attributes:
-                return None
+                return self
 
         res = []
         for att in attr:

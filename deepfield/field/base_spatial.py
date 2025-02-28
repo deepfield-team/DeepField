@@ -80,9 +80,8 @@ class SpatialComponent(BaseComponent):
         """Ravel transformations."""
         return super().ravel(attr=attr, **kwargs)
 
-    def to_spatial(self, attr=None, inplace=True, **kwargs):
-        """Bring component to spatial state. If not inplace returns
-        spatial representation for attributes with pre-defined spatial transformation.
+    def to_spatial(self, attr=None, **kwargs):
+        """Bring component to spatial state.
 
         Parameters
         ----------
@@ -95,20 +94,15 @@ class SpatialComponent(BaseComponent):
 
         Returns
         -------
-        out : сomponent if inplace else raveled attribute.
+        out : component with spatial attributes.
         """
-        if attr is not None and inplace:
-            raise ValueError('`attr` should be None for inplace operation.')
-        res = self._to_spatial(attr=attr, inplace=inplace, **kwargs)
-        if not inplace:
-            return res
-        self.set_state(spatial=True)
+        self._to_spatial(attr=attr, **kwargs)
         return self
 
     @apply_to_each_input
-    def _to_spatial(self, attr, inplace, **kwargs):
+    def _to_spatial(self, attr, **kwargs):
         """Spatial transformations."""
-        _ = attr, inplace, kwargs
+        _ = attr, kwargs
         raise NotImplementedError()
 
     def _make_data_dump(self, attr, fmt=None, **kwargs):
@@ -116,7 +110,6 @@ class SpatialComponent(BaseComponent):
         return self.ravel(attr=attr, order='F')
 
     def load(self, path_or_buffer, **kwargs):
-        self.set_state(spatial=False)
         super().load(path_or_buffer, **kwargs)
         self.to_spatial()
 

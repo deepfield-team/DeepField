@@ -51,12 +51,12 @@ class States(SpatialComponent):
         return res
 
     @apply_to_each_input
-    def _to_spatial(self, attr, inplace=True):
+    def _to_spatial(self, attr):
         """Spatial order 'F' transformations."""
         dimens = self.field.grid.dimens
         self.pad_na(attr=attr)
         return self.reshape(attr=attr, newshape=(-1,) + tuple(dimens),
-                            order='F', inplace=inplace)
+                            order='F', inplace=True)
 
     @apply_to_each_input
     def _ravel(self, attr):
