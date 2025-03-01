@@ -92,8 +92,8 @@ class RestartField(Field):
                           raise_errors=raise_errors)
         if include_binary:
             self._load_binary(components=('states', 'wells'), raise_errors=raise_errors)
-        self._load_results(self._config, raise_errors, include_binary)
-        self._check_vapoil(self._config)
+        self._load_results(raise_errors, include_binary)
+        self._check_vapoil()
         return self
 
     def _read_buffer(self, buffer, attr, logger):
