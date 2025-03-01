@@ -126,7 +126,7 @@ class Grid(SpatialComponent):
         minpv_value = self.minpv[0]
         volumes = self.cell_volumes
         poro = self.field.rock.poro
-        ntg = self.field.rock.ntg
+        ntg = getattr(self.field.rock, "ntg", 1)
         mask = poro * volumes*ntg >= minpv_value
         self.actnum = self.actnum * mask
 

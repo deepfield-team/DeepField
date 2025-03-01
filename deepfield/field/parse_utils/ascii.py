@@ -15,15 +15,14 @@ INT_NAN = -99999999
 
 _COLUMN_LENGTH = 13
 
-
 DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
-
 
 IGNORE_SECTIONS = [('ARITHMETIC',),
                    ('RPTISOL', 'RPTPROPS', 'RPTREGS', 'RPTRST',
                    'RPTRUNSP', 'RPTSCHED', 'RPTSMRY', 'RPTSOL',
                    'OUTSOL'),
                    ('FRACTURE_ARITHMETIC',)]
+
 class StringIteratorIO:
     """String iterator for text files."""
     def __init__(self, path, encoding=None):

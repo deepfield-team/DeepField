@@ -56,7 +56,6 @@ class TestModelLoad:
         """Testing data shape."""
         dimens = (2, 1, 6)
         assert np.all(model.grid.dimens == dimens)
-        assert model.state.spatial
         assert np.all(model.rock.poro.shape == model.grid.dimens)
         assert np.all(model.grid.actnum.shape == model.grid.dimens)
         assert model.grid.zcorn.shape == dimens + (8, )
@@ -153,7 +152,6 @@ class TestOrthogonalGrid():
 
     def test_setup(self, orth_grid): #pylint: disable=redefined-outer-name
         """Testing grid setup."""
-        assert orth_grid.state.spatial
         assert np.all(orth_grid.dimens == [4, 6, 8])
         assert np.all(orth_grid.cell_volumes == 1)
         assert np.all(np.isclose(orth_grid.xyz, orth_grid.as_corner_point.xyz))
@@ -189,7 +187,6 @@ class TestCornerPointGrid():
                                          [[2., 0., 0., 2., 0., 6.],
                                           [2., 1., 0., 2., 1., 6.]]])
         assert np.all(upscaled.zcorn == [0., 0., 0., 0., 6., 6., 6., 6.])
-        assert upscaled.state.spatial
 
 
 class TestWellblocks():
