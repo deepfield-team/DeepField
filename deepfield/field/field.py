@@ -471,7 +471,8 @@ class Field:
                     loaders[k] = partial(self.aquifers.load, attr=k, logger=self._logger)
         return loaders
 
-    def _load_results(self, config, raise_errors, include_binary):
+    def _load_results(self, raise_errors, include_binary):
+        config = self._config
         if (('wells' in config) and ('attrs' in config['wells']) and
             ('RESULTS' in config['wells']['attrs'])):
             path_to_results = os.path.join(os.path.dirname(self.path), 'RESULTS')
@@ -484,7 +485,7 @@ class Field:
                 self.wells.load(rsm, logger=self._logger)
         return self
 
-    def _check_vapoil(self, config):
+    def _check_vapoil(self):
         if 'VAPOIL' in self.meta['FLUIDS'] and 'tables' in self.components:
             # TODO should we make a kwarg for convertion key?
             self.tables.pvtg_to_pvdg(as_saturated=False)
@@ -519,8 +520,8 @@ class Field:
         if include_binary:
             self._load_binary(components=('states', 'wells'), raise_errors=raise_errors)
 
-        self._load_results(self._config, raise_errors, include_binary)
-        self._check_vapoil(self._config)
+        self._load_results(raise_errors, include_binary)
+        self._check_vapoil()
 
         if 'wells' in self.components and 'grid' in self.components:
             self.wells.add_welltrack()
