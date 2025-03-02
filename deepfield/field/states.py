@@ -61,7 +61,7 @@ class States(SpatialComponent):
     @apply_to_each_input
     def _ravel(self, attr):
         """Ravel order 'F' transformations."""
-        return self.reshape(attr=attr, newshape=(self.n_timesteps, -1), order='F')
+        return self.reshape(attr=attr, newshape=(self.n_timesteps, -1), order='F', inplace=False)
 
     @apply_to_each_input
     def pad_na(self, attr, fill_na=0., inplace=True):
@@ -116,7 +116,7 @@ class States(SpatialComponent):
 
         Returns
         -------
-        output : component if inplace else stripped attribute.
+        output : stripped attribute.
 
         Notes
         -----

@@ -97,6 +97,7 @@ class Field:
         self._components = {}
         self._config = None
         self._meta = {'UNITS': 'METRIC',
+                      'START': pd.to_datetime(''),
                       'DATES': pd.to_datetime([]),
                       'FLUIDS': [],
                       'HUNITS': DEFAULT_HUNITS['METRIC']}

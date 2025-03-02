@@ -78,12 +78,10 @@ class Rock(SpatialComponent):
         ----------
         attr: str, array-like
             Attributes to be stripped
-        inplace: bool
-            Modify сomponent inplace.
 
         Returns
         -------
-        output : component if inplace else stripped attribute.
+        output : stripped attribute.
         """
         data = self.ravel(attr)
         actnum = self.field.grid.actnum

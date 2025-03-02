@@ -233,13 +233,10 @@ class BaseComponent:
             Attribute to ravel.
         order : str
             Numpy reshape order. Default to 'F'.
-        inplace : bool
-            If `True`, ravel is made inplace, return BaseComponent.
-            Else, return raveled attribute.
 
         Returns
         -------
-        out : BaseComponent if inplace else raveled attribute itself.
+        out : Raveled attribute.
         """
         return self.reshape(attr=attr, newshape=(-1, ), order=order, inplace=False)
 
@@ -401,7 +398,7 @@ class BaseComponent:
         return self
 
     def _make_data_dump(self, attr, fmt=None, **kwargs):
-        """Prepare data for dump. Ravels arrays and leaves scalars unchanched."""
+        """Prepare data for dump."""
         _ = fmt, kwargs
         return getattr(self, attr)
 
