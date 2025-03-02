@@ -86,7 +86,7 @@ class RestartField(Field):
         parent_path = _get_path(restart_path, data_dir, self._logger, raise_errors)
         self.parent = Field(str(parent_path),
                             config=self._parent_model_config).load()
-        self._meta = self.parent._meta.copy()
+        self._meta = self.parent.meta.copy()
         self.wells = self.parent.wells.copy()
         loaders = self._get_loaders(self._restart_config)
         tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
