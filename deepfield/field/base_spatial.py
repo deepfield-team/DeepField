@@ -102,7 +102,7 @@ class SpatialComponent(BaseComponent):
     @apply_to_each_input
     def _to_spatial(self, attr, **kwargs):
         """Spatial transformations."""
-        _ = attr, kwargs
+        _ = self, attr, kwargs
         raise NotImplementedError()
 
     def _make_data_dump(self, attr, fmt=None, **kwargs):
