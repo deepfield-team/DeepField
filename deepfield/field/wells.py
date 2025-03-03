@@ -1,22 +1,15 @@
-#pylint: disable=too-many-lines
-"""Wells and WellSegment components."""
-from copy import deepcopy
-import warnings
-from weakref import ref
+"""Wells components."""
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import h5py
-from anytree import (RenderTree, AsciiStyle, Resolver, PreOrderIter, PostOrderIter,
-                     find_by_attr)
+from anytree import PreOrderIter, PostOrderIter
 
 from .parse_utils.ascii import INT_NAN
 
 from .well_segment import WellSegment
+from .base_tree import BaseTree
 from .rates import calculate_cf, show_rates, show_rates2, show_blocks_dynamics
-from .grids import OrthogonalUniformGrid
-from .base_component import BaseComponent
-from .utils import full_ind_to_active_ind, active_ind_to_full_ind
+from .grids import OrthogonalGrid
 from .getting_wellblocks import defining_wellblocks_vtk, find_first_entering_point, defining_wellblocks_compdat
 from .wells_dump_utils import write_perf, write_events, write_schedule, write_welspecs
 from .wells_load_utils import (load_rsm, load_ecl_binary, load_group, load_grouptree,
@@ -27,19 +20,7 @@ from .wells_load_utils import (load_rsm, load_ecl_binary, load_group, load_group
 from .decorators import apply_to_each_segment, state_check
 
 
-class IterableWells:
-    """Wells iterator."""
-    def __init__(self, root):
-        self.iter = PreOrderIter(root)
-
-    def __next__(self):
-        x = next(self.iter)
-        if x.ntype != 'well':
-            return next(self)
-        return x
-
-
-class Wells(BaseComponent):
+class Wells(BaseTree):
     """Wells component.
 
     Contains wells and groups in a single tree structure, wells attributes
@@ -52,62 +33,17 @@ class Wells(BaseComponent):
     """
 
     def __init__(self, node=None, **kwargs):
-        super().__init__(**kwargs)
-        self._root = WellSegment(name='FIELD', ntype="group") if node is None else node
-        self._resolver = Resolver()
+        super().__init__(node=node, nodeclass=WellSegment, **kwargs)
         self.init_state(has_blocks=False,
                         has_cf=False,
-                        spatial=True,
                         all_tracks_complete=False,
                         all_tracks_inside=False,
                         full_perforation=False)
-
-    def copy(self):
-        """Returns a deepcopy. Cached properties are not copied."""
-        copy = self.__class__(self.root.copy())
-        copy._state = deepcopy(self.state) #pylint: disable=protected-access
-        for node in PreOrderIter(self.root):
-            if node.is_root:
-                continue
-            node_copy = node.copy()
-            node_copy.parent = copy[node.parent.name]
-        return copy
-
-    @property
-    def field(self):
-        return self._field()
-
-    @field.setter
-    def field(self, field):
-        """Set field to which component belongs."""
-        if isinstance(field, ref) or field is None:
-            self._field = field
-            return self
-        self._field = ref(field)
-        if hasattr(self, 'root'):
-            for node in self:
-                node.field = field
-        return self
-
-    @property
-    def root(self):
-        """Tree root."""
-        return self._root
-
-    @property
-    def resolver(self):
-        """Tree resolver."""
-        return self._resolver
 
     @property
     def main_branches(self):
         """List of main branches names."""
         return [node.name for node in self if node.is_main_branch]
-
-    @property
-    def names(self):
-        """List of well names."""
-        return [node.name for node in self]
 
     @property
     def event_dates(self):
@@ -142,37 +78,19 @@ class Wells(BaseComponent):
         """Cumulative rates over all wells."""
         return self.root.cum_rates
 
-    def __getitem__(self, key):
-        node = find_by_attr(self.root, key)
-        if node is None:
-            raise KeyError(key)
-        return node
-
-    def __setitem__(self, key, value):
-        raise NotImplementedError()
-
-    def __delitem__(self, key):
-        self.drop(key)
-
-    def __iter__(self):
-        return IterableWells(self.root)
-
-    def __contains__(self, key):
-        return find_by_attr(self.root, key) is not None
-
     def _get_fmt_loader(self, fmt):
         """Get loader for given file format."""
         if fmt == 'RSM':
             return self._load_rsm
         return super()._get_fmt_loader(fmt)
 
-    def update(self, wellsdata, mode='w', **kwargs):
+    def update(self, data, mode='w', **kwargs):
         """Update tree nodes with new wellsdata. If node does not exists,
         it will be attached to root.
 
         Parameters
         ----------
-        wellsdata : dict
+        data : dict
             Keys are well names, values are dicts with well attributes.
         mode : str, optional
             If 'w', write new data. If 'a', try to append new data. Default to 'w'.
@@ -195,20 +113,20 @@ class Wells(BaseComponent):
                     return WellSegment(parent=self.root, name=groupname, ntype='group', field=self.field)
             return self.root
 
-        for name in sorted(wellsdata):
-            data = wellsdata[name]
+        for name in sorted(data):
+            wdata = data[name]
             name = name.strip(' \t\'"')
             try:
                 node = self[name]
             except KeyError:
-                parent = _get_parent(name, data)
-                node = WellSegment(parent=parent, name=name, ntype='well', field=self.field)
+                parent = _get_parent(name, wdata)
+                node = self._nodeclass(parent=parent, name=name, ntype='well', field=self.field)
 
-            if 'WELSPECS' in data:
-                parent = _get_parent(name, data)
+            if 'WELSPECS' in wdata:
+                parent = _get_parent(name, wdata)
                 node.parent = parent
 
-            for k, v in data.items():
+            for k, v in wdata.items():
                 if mode == 'w':
                     setattr(node, k, v)
                 elif mode == 'a':
@@ -223,50 +141,6 @@ class Wells(BaseComponent):
                 if isinstance(att, pd.DataFrame) and 'DATE' in att.columns:
                     att = att.sort_values(by='DATE').reset_index(drop=True)
                     setattr(node, k, att)
-        return self
-
-    def group(self, node_names, group_name):
-        """Group nodes in a new group attached to root.
-
-        Parameters
-        ----------
-        node_names : array-like
-            Array of nodes to be grouped.
-        group_name : str
-            Name of a new group.
-
-        Returns
-        -------
-        out : Wells
-            Wells with a new group added.
-        """
-        group = WellSegment(name=group_name, parent=self.root, ntype="group")
-        nodes = [self[name] for name in node_names]
-        node_types = [node.ntype for node in nodes]
-        if np.unique(node_types).size > 1:
-            raise ValueError("Can not group mixture of wells and groups in a new group.")
-        for node in nodes:
-            node.parent = group
-        return self
-
-    def drop(self, names):#pylint:disable=arguments-renamed
-        """Detach nodes by names.
-
-        Parameters
-        ----------
-        names : str, array-like
-            Nodes to be detached.
-
-        Returns
-        -------
-        out : Wells
-            Wells without detached nodes.
-        """
-        for name in np.atleast_1d(names):
-            try:
-                self[name].parent = None
-            except KeyError:
-                continue
         return self
 
     def drop_incomplete(self, logger=None, required=None):
@@ -333,65 +207,6 @@ class Wells(BaseComponent):
         self.set_state(all_tracks_inside=True)
         return self
 
-    def drop_empty_groups(self, logger=None):
-        """Drop groups without wells in descendants."""
-        for node in PostOrderIter(self.root):
-            if node.ntype != 'group':
-                continue
-            if not node.children:
-                self.drop(node.name)
-                if logger is not None:
-                    logger.info(f'Group {node.name} is empty and is removed.')
-        return self
-
-    def glob(self, name):
-        """Return instances at ``name`` supporting wildcards."""
-        return self.resolver.glob(self.root, name)
-
-    def render_tree(self):
-        """Print tree structure."""
-        print(RenderTree(self.root, style=AsciiStyle()).by_attr())
-        return self
-
-    def blocks_ravel(self):
-        """Transforms block coordinates into 1D representation."""
-        if not self.state.spatial:
-            return self
-        self.set_state(spatial=False)
-        return self._blocks_ravel()
-
-    def blocks_to_spatial(self):
-        """Transforms block coordinates into 3D representation."""
-        if self.state.spatial:
-            return self
-        self.set_state(spatial=True)
-        return self._blocks_to_spatial()
-
-    @apply_to_each_segment
-    def _blocks_ravel(self, segment):
-        if 'BLOCKS' not in segment or not len(segment.blocks):
-            return self
-        grid = self.field.grid
-        res = np.ravel_multi_index(
-            tuple(segment.blocks[:, i] for i in range(3)),
-            dims=grid.dimens,
-            order='F'
-        )
-        res = full_ind_to_active_ind(res, grid)
-        setattr(segment, 'BLOCKS', res)
-        return self
-
-    @apply_to_each_segment
-    def _blocks_to_spatial(self, segment):
-        if 'BLOCKS' not in segment or not len(segment.blocks):
-            return self
-        grid = self.field.grid
-        res = active_ind_to_full_ind(segment.blocks, grid)
-        res = np.unravel_index(res, shape=grid.dimens, order='F')
-        res = np.stack(res, axis=1)
-        setattr(segment, 'BLOCKS', res)
-        return self
-
     @apply_to_each_segment
     def add_welltrack(self, segment):
         """Reconstruct welltrack from COMPDAT table.
@@ -416,8 +231,6 @@ class Wells(BaseComponent):
         root = np.array([i0, j0, 0])
         track = []
         centroids = grid.cell_centroids
-        if not grid.state.spatial:
-            centroids = centroids.reshape(tuple(grid.dimens) + (3,), order='F')
         for _ in range(len(df)):
             dist = np.linalg.norm(df[['I', 'J', 'K1']] - root, axis=1)
             row = df.iloc[[dist.argmin()]]
@@ -447,8 +260,9 @@ class Wells(BaseComponent):
         if 'COMPDAT' in segment.attributes:
             segment.blocks = defining_wellblocks_compdat(segment.compdat)
             segment.blocks_info = pd.DataFrame(np.empty((segment.blocks.shape[0], 0)))
-            if isinstance(self.field.grid, OrthogonalUniformGrid):
-                h_well = np.stack([(0, 0, self.field.grid.dz) for _ in range(segment.blocks.shape[0])])
+            if isinstance(self.field.grid, OrthogonalGrid):
+                h_well = np.stack([(0, 0, self.field.grid.dz[i[0], i[1], i[2]])
+                                   for i in segment.blocks])
             else:
                 h_well = np.stack([(np.NaN, np.NaN, np.NaN) for _ in range(segment.blocks.shape[0])])
             segment.blocks_info = pd.DataFrame(h_well, columns=['Hx', 'Hy', 'Hz'])
@@ -459,8 +273,6 @@ class Wells(BaseComponent):
             segment.blocks_info = pd.DataFrame(h_well, columns=['Hx', 'Hy', 'Hz'])
         else:
             grid = grid.as_corner_point
-            if isinstance(grid, OrthogonalUniformGrid):
-                grid = grid.to_spatial()
 
             if grid._vtk_locator is None or grid._cell_id_d is None: #pylint: disable=protected-access
                 grid.create_vtk_locator(use_only_active=True, scaling=False)
@@ -937,54 +749,6 @@ class Wells(BaseComponent):
         wellnames = self.names if wellnames is None else wellnames
         return show_blocks_dynamics(self, timesteps=timesteps, wellnames=wellnames, figsize=figsize)
 
-    def _load_hdf5(self, path, attrs=None, **kwargs):
-        """Load data from a HDF5 file.
-
-        Parameters
-        ----------
-        path : str
-            Path to file to load data from.
-        attrs : str or array of str, optional
-            Array of dataset's names to get from file. If not given, loads all.
-
-        Returns
-        -------
-        comp : BaseComponent
-            BaseComponent with loaded attributes.
-        """
-        _ = kwargs
-        if isinstance(attrs, str):
-            attrs = [attrs]
-
-        def update_tree(grp, parent=None):
-            """Build tree recursively following HDF5 node hierarchy."""
-            if parent is None:
-                node = self.root
-            else:
-                ntype = grp.attrs.get('ntype', None)
-                if ntype is None: #backward compatibility, will be removed in a future
-                    ntype = 'group' if grp.attrs.get('is_group', False) else 'well'
-                node = WellSegment(parent=parent, name=grp.name.split('/')[-1], ntype=ntype)
-            for k, v in grp.items():
-                if k == 'data':
-                    for att in v.keys() if attrs is None else attrs:
-                        try:
-                            data = v[att]
-                        except KeyError:
-                            continue
-                        if isinstance(data, h5py.Group):
-                            data = pd.read_hdf(path, key='/'.join([grp.name, 'data', att]), mode='r')
-                            setattr(node, att, data)
-                        else:
-                            setattr(node, att, data[()])
-                else:
-                    update_tree(v, node)
-
-        with h5py.File(path, 'r') as f:
-            self.set_state(**dict(f[self.class_name].attrs.items()))
-            update_tree(f[self.class_name])
-        return self
-
     def _read_buffer(self, buffer, attr, **kwargs):
         """Load well data from an ASCII file.
 
@@ -1040,63 +804,6 @@ class Wells(BaseComponent):
         """Load results from UNSMRY file."""
         return load_ecl_binary(self, *args, **kwargs)
 
-    def _dump_hdf5(self, path, mode='a', state=True, **kwargs):  #pylint: disable=too-many-branches
-        """Save data into HDF5 file.
-
-        Parameters
-        ----------
-        path : str
-            Path to output file.
-        mode : str
-            Mode to open file.
-            'w': write, a new file is created (an existing file with
-            the same name would be deleted).
-            'a': append, an existing file is opened for reading and writing,
-            and if the file does not exist it is created.
-            Default to 'a'.
-        state : bool
-            Dump compoments's state.
-
-        Returns
-        -------
-        comp : Wells
-            Wells unchanged.
-        """
-        _ = kwargs
-        with h5py.File(path, mode) as f:
-            wells = f[self.class_name] if self.class_name in f else f.create_group(self.class_name)
-            if state:
-                for k, v in self.state.as_dict().items():
-                    wells.attrs[k] = v
-            for node in PreOrderIter(self.root):
-                if node.is_root:
-                    continue
-                node_path = node.fullname
-                if node.name == 'data':
-                    raise ValueError("Name 'data' is not allowed for nodes.")
-                grp = wells[node_path] if node_path in wells else wells.create_group(node_path)
-                grp.attrs['ntype'] = node.ntype
-                if 'data' not in grp:
-                    grp_data = wells.create_group(node_path + '/data')
-                else:
-                    grp_data = grp['data']
-                for att, data in node.items():
-                    if isinstance(data, pd.DataFrame):
-                        continue
-                    if att in grp_data:
-                        del grp_data[att]
-                    grp_data.create_dataset(att, data=data)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-            for node in PreOrderIter(self.root):
-                if node.is_root:
-                    continue
-                for att, data in node.items():
-                    if isinstance(data, pd.DataFrame):
-                        data.to_hdf(path, key='/'.join([self.class_name, node.fullname,
-                                                        'data', att]), mode='a')
-        return self
     @apply_to_each_segment
     def fill_na(self, segment, attr):
         """

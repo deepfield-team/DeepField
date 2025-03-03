@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from .base_spatial import SpatialComponent
-from .decorators import apply_to_each_input, state_check, ndim_check
+from .decorators import apply_to_each_input
 from .plot_utils import show_slice_static, show_slice_interactive
 from .utils import rolling_window, get_single_path
 from .parse_utils import read_ecl_bin
@@ -25,16 +25,17 @@ class Rock(SpatialComponent):
             self.state.binary_attributes.append(k)
 
     @apply_to_each_input
-    def _to_spatial(self, attr, inplace=True):
+    def _to_spatial(self, attr):
         """Spatial order 'F' transformations."""
         dimens = self.field.grid.dimens
-        return self.reshape(attr=attr, newshape=dimens, order='F', inplace=inplace)
+        self.pad_na(attr=attr)
+        return self.reshape(attr=attr, newshape=dimens, order='F', inplace=True)
 
     def _make_data_dump(self, attr, fmt=None, float_dtype=None, **kwargs):
         """Prepare data for dump."""
         if fmt.upper() != 'HDF5':
             return super()._make_data_dump(attr, fmt=fmt, **kwargs)
-        data = self.ravel(attr=attr, inplace=False)
+        data = self.ravel(attr=attr)
         return data if float_dtype is None else data.astype(float_dtype)
 
     @apply_to_each_input
@@ -61,7 +62,7 @@ class Rock(SpatialComponent):
             return self if inplace else data
         actnum = self.field.grid.actnum
         if data.ndim > 1:
-            raise ValueError('Data should be raveled before padding.')
+            raise ValueError('Data should be ravel for padding.')
         padded_data = np.full(shape=(actnum.size,), fill_value=fill_na, dtype=float)
         padded_data[actnum.ravel(order='F')] = data
         if inplace:
@@ -70,30 +71,23 @@ class Rock(SpatialComponent):
         return padded_data
 
     @apply_to_each_input
-    def strip_na(self, attr, inplace=True):
+    def strip_na(self, attr):
         """Remove non-active cells from the rock vector.
 
         Parameters
         ----------
         attr: str, array-like
             Attributes to be stripped
-        inplace: bool
-            Modify сomponent inplace.
 
         Returns
         -------
-        output : component if inplace else stripped attribute.
+        output : stripped attribute.
         """
-        if self.state.spatial and inplace:
-            raise ValueError('Inplace is not allowed in spatial state.')
-        data = self.ravel(attr, inplace=False)
+        data = self.ravel(attr)
         actnum = self.field.grid.actnum
         if data.size == np.sum(actnum):
-            return self if inplace else data
+            return data
         stripped_data = data[actnum.ravel(order='F')]
-        if inplace:
-            setattr(self, attr, stripped_data)
-            return self
         return stripped_data
 
     def show_histogram(self, attr, **kwargs):
@@ -120,8 +114,6 @@ class Rock(SpatialComponent):
         plt.show()
         return self
 
-    @state_check(lambda state: state.spatial)
-    @ndim_check(3)
     def show_slice(self, attr, i=None, j=None, k=None, figsize=None, **kwargs):
         """Visualize slices of 3D array. If no slice is specified, all 3 slices
         will be shown with interactive slider widgets.
@@ -153,7 +145,6 @@ class Rock(SpatialComponent):
             show_slice_static(self, attr, i=i, j=j, k=k, figsize=figsize, **kwargs)
         return self
 
-    @state_check(lambda state: state.spatial)
     @apply_to_each_input
     def upscale(self, attr, factors, weights=None):
         """Upscale properties.

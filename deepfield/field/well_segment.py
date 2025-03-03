@@ -2,13 +2,12 @@
 """Wells and WellSegment components."""
 import numpy as np
 import pandas as pd
-from anytree import NodeMixin
 
 from .rates import apply_perforations, calculate_cf
-from .base_component import BaseComponent
+from .base_tree_node import BaseTreeNode
 
 
-class WellSegment(BaseComponent, NodeMixin):
+class WellSegment(BaseTreeNode):
     """Well's node.
 
     Parameters
@@ -30,45 +29,13 @@ class WellSegment(BaseComponent, NodeMixin):
         Node's full name from root.
     """
 
-    def __init__(self, *args, parent=None, children=None, name=None, ntype=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        super().__setattr__('parent', parent)
-        self._name = name
-        self._ntype = ntype
-        if children is not None:
-            super().__setattr__('children', children)
-
-    def copy(self):
-        """Returns a deepcopy. Cached properties are not copied."""
-        copy = super().copy()
-        copy._name = self._name #pylint: disable=protected-access
-        copy._ntype = self._ntype #pylint: disable=protected-access
-        return copy
-
-    @property
-    def is_group(self):
-        """Check that node is a group of wells."""
-        return self._ntype == 'group'
 
     @property
     def is_main_branch(self):
         """Check that node in a main well's branch."""
         return (not self._ntype == 'group') and (':' not in self.name)
-
-    @property
-    def ntype(self):
-        """Node's type."""
-        return self._ntype
-
-    @property
-    def name(self):
-        """Node's name."""
-        return self._name
-
-    @property
-    def fullname(self):
-        """Full name from root."""
-        return self.separator.join([node.name for node in self.path[1:]])
 
     @property
     def total_rates(self):

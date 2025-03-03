@@ -178,63 +178,16 @@ def get_well_mask(field):
     well_mask: np.array
         Array with well-names in cells which are registered as well-blocks and empty strings everywhere else.
     """
-    if field.state.spatial:
-        well_mask = np.zeros(field.grid.dimens, dtype='U32')
-    else:
-        well_mask = np.zeros(field.grid.actnum.sum(), dtype='U32')
+    well_mask = np.zeros(field.grid.dimens, dtype='U32')
     for node in field.wells:
         if node.is_main_branch:
             for branch in PreOrderIter(node):
                 ind = branch.blocks
                 if ind.shape[0]:
-                    if field.wells.state.spatial:
-                        ind = ind.T
-                        well_mask[ind[0], ind[1], ind[2]] = branch.name
-                    else:
-                        well_mask[ind] = branch.name
+                    ind = ind.T
+                    well_mask[ind[0], ind[1], ind[2]] = branch.name
     return well_mask
 
-def full_ind_to_active_ind(ind, grid):
-    """Transforms 1D indices with respect to all cells to the indices with respect to only active cells.
-
-    Parameters
-    ----------
-    ind: array-like
-        Indices to be transformed.
-    grid: Grid
-        Grid component of a model.
-
-    Returns
-    -------
-    ind: array-like
-        Transformed indices.
-    """
-    ind = ind.copy()
-    f2a = grid.ravel(attr='actnum', inplace=False).astype(int)
-    ind[f2a[ind] == 0] = -1
-    f2a[f2a == 1] = np.arange(f2a.sum())
-    f2a = np.concatenate([f2a, [-1]])
-    return f2a[ind]
-
-def active_ind_to_full_ind(ind, grid):
-    """Transforms 1D indices with respect to active to the indices with respect to all cells.
-
-    Parameters
-    ----------
-    ind: array-like
-        Indices to be transformed.
-    grid: Grid
-        Grid component of a model.
-
-    Returns
-    -------
-    ind: array-like
-        Transformed indices.
-    """
-    actnum = grid.ravel(attr='actnum', inplace=False).astype(int)
-    a2f = np.arange(len(actnum))[actnum == 1]
-    a2f = np.concatenate([a2f, [-1]])
-    return a2f[ind]
 
 def get_control_interval_mask(control_dates, time_interval):
     """Returns a mask for control dates that affect the given time interval."""
@@ -282,13 +235,12 @@ def get_spatial_well_control(field, attrs, date_range=None, fill_shut=0., fill_o
     -------
     control: np.array
     """
-    spatial = field.state.spatial
     well_mask = field.well_mask
     attrs = [k.upper() for k in attrs]
 
     prehistory_dates, dates = get_control_interval_dates(field, date_range)
 
-    spatial_dims = tuple(field.grid.dimens) if spatial else (np.sum(field.grid.actnum),)
+    spatial_dims = tuple(field.grid.dimens)
 
     control = np.full((len(prehistory_dates) + len(dates), len(attrs)) + spatial_dims, fill_outside)
 
@@ -351,13 +303,12 @@ def get_spatial_perf(field, subset=None, mode=None):
     -------
     perf_ratio: np.array
     """
-    spatial = field.state.spatial
     full_perforation = field.wells.state.full_perforation
     if subset is None:
         n_ts = len(field.wells.event_dates)
     else:
         n_ts = len(subset) - 1
-    spatial_dims = tuple(field.grid.dimens) if spatial else (np.sum(field.grid.actnum),)
+    spatial_dims = tuple(field.grid.dimens)
     perf = np.zeros((n_ts, 1) + spatial_dims)
     event_dates = field.wells.event_dates
     for t in range(n_ts):
@@ -376,10 +327,7 @@ def get_spatial_perf(field, subset=None, mode=None):
                     perf_ratio = branch.blocks_info.PERF_RATIO[perf_ind_mask].values
                     perf_ind, perf_ratio = _remove_repeating_blocks(perf_ind, perf_ratio)
                     if perf_ind.shape[0]:
-                        if spatial:
-                            perf[t, 0, perf_ind[:, 0], perf_ind[:, 1], perf_ind[:, 2]] = perf_ratio
-                        else:
-                            perf[t, 0, perf_ind] = perf_ratio
+                        perf[t, 0, perf_ind[:, 0], perf_ind[:, 1], perf_ind[:, 2]] = perf_ratio
     if full_perforation:
         field.wells.apply_perforations()
     return perf
@@ -400,12 +348,11 @@ def get_spatial_cf_and_perf(field, date_range=None, mode=None):
     connection_factors: np.array
     perf_ratio: np.array
     """
-    spatial = field.state.spatial
     full_perforation = field.wells.state.full_perforation
 
     prehistory, dates = get_control_interval_dates(field, date_range)
 
-    spatial_dims = tuple(field.grid.dimens) if spatial else (np.sum(field.grid.actnum),)
+    spatial_dims = tuple(field.grid.dimens)
 
     cf = np.zeros((len(prehistory) + len(dates), 1) + spatial_dims)
     perf = np.zeros((len(prehistory) + len(dates), 1) + spatial_dims)
@@ -433,13 +380,9 @@ def get_spatial_cf_and_perf(field, date_range=None, mode=None):
 
                     if perf_ind.shape[0]:
                         cf_mask = np.stack([(ind.reshape(1, -1) == perf_ind).all(axis=1).any() for ind in cf_ind])
-                        if spatial:
-                            perf[i + len(prehistory), 0, perf_ind[:, 0], perf_ind[:, 1], perf_ind[:, 2]] = perf_ratio
-                            cf[i + len(prehistory), 0, perf_ind[:, 0], perf_ind[:, 1], perf_ind[:, 2]] = \
-                                connection_factors[cf_mask]
-                        else:
-                            perf[i + len(prehistory), perf_ind] = perf_ratio
-                            cf[i + len(prehistory), perf_ind] = connection_factors[cf_mask]
+                        perf[i + len(prehistory), 0, perf_ind[:, 0], perf_ind[:, 1], perf_ind[:, 2]] = perf_ratio
+                        cf[i + len(prehistory), 0, perf_ind[:, 0], perf_ind[:, 1], perf_ind[:, 2]] = \
+                            connection_factors[cf_mask]
     if full_perforation:
         field.wells.apply_perforations()
     return cf, perf

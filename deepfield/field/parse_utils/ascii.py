@@ -15,15 +15,14 @@ INT_NAN = -99999999
 
 _COLUMN_LENGTH = 13
 
-
 DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
-
 
 IGNORE_SECTIONS = [('ARITHMETIC',),
                    ('RPTISOL', 'RPTPROPS', 'RPTREGS', 'RPTRST',
                    'RPTRUNSP', 'RPTSCHED', 'RPTSMRY', 'RPTSOL',
                    'OUTSOL', 'ROCKOPTS'),
                    ('FRACTURE_ARITHMETIC',)]
+
 class StringIteratorIO:
     """String iterator for text files."""
     def __init__(self, path, encoding=None):
@@ -363,8 +362,8 @@ def _read_numerical_table_data(buffer, depth, dtype):
     else:
         tmp_iter = data
     for d in (tmp_iter):
-        for i, dd in enumerate(d):
-            d[i] = np.hstack(dd)
+        for i, vals in enumerate(d):
+            d[i] = np.hstack(vals)
     return data
 
 def read_table(buffer, table_info, dtype=None, units='METRIC'):

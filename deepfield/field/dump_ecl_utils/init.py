@@ -199,10 +199,10 @@ def save_init(field_rock, name, grid_dim,
         return
 
     data = {}
-    data['poro'] = field_rock.ravel(attr='PORO', inplace=False)
-    data['permx'] = field_rock.ravel(attr='PERMX', inplace=False)
-    data['permy'] = field_rock.ravel(attr='PERMY', inplace=False)
-    data['permz'] = field_rock.ravel(attr='PERMZ', inplace=False)
+    data['poro'] = field_rock.ravel(attr='PORO')
+    data['permx'] = field_rock.ravel(attr='PERMX')
+    data['permy'] = field_rock.ravel(attr='PERMY')
+    data['permz'] = field_rock.ravel(attr='PERMZ')
 
     with open(name + '.INIT', 'w+b') as file_init:
         size_inte = write_unrst_section(file_init, INTEHEAD, META_BLOCK_SPEC[INTEHEAD], grid_dim,
