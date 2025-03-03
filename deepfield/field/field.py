@@ -19,11 +19,9 @@ from vtk.util.numpy_support import numpy_to_vtk # pylint: disable=no-name-in-mod
 from .arithmetics import load_add, load_copy, load_equals, load_multiply
 from .faults import Faults
 from .aquifer import Aquifers
-from .base_spatial import SpatialComponent
 from .configs import default_config
-from .decorators import cached_property, state_check
 from .dump_ecl_utils import egrid, init, restart, summary
-from .grids import CornerPointGrid, Grid, OrthogonalUniformGrid, specify_grid
+from .grids import CornerPointGrid, Grid, OrthogonalGrid, specify_grid
 from .parse_utils import (dates_to_str, preprocess_path,
                           read_dates_from_buffer, tnav_ascii_parser)
 from .rates import calc_rates, calc_rates_multiprocess
@@ -39,7 +37,7 @@ from .wells import Wells
 ACTOR = None
 
 COMPONENTS_DICT = {'cornerpointgrid': ['grid', CornerPointGrid],
-                   'orthogonaluniformgrid': ['grid', OrthogonalUniformGrid],
+                   'orthogonalgrid': ['grid', OrthogonalGrid],
                    'grid': ['grid', Grid],
                    'rock': ['rock', Rock],
                    'states': ['states', States],
@@ -71,18 +69,6 @@ class FieldState:
         """Reference Field."""
         return self._field()
 
-    @property
-    def spatial(self):
-        """Common state of spatial components."""
-        states = np.array([comp.state.spatial for comp in self.field._components.values()
-                           if isinstance(comp, SpatialComponent)])
-        if 'wells' in self.field.components:
-            states = np.concatenate([states, [self.field.wells.state.spatial]])
-        if np.all(states):
-            return True
-        if np.all(~states):
-            return False
-        raise ValueError('Spatial components have different states.')
 
 class Field:
     """Reservoir model.
@@ -111,6 +97,7 @@ class Field:
         self._components = {}
         self._config = None
         self._meta = {'UNITS': 'METRIC',
+                      'START': pd.to_datetime(''),
                       'DATES': pd.to_datetime([]),
                       'FLUIDS': [],
                       'HUNITS': DEFAULT_HUNITS['METRIC']}
@@ -143,8 +130,8 @@ class Field:
                 elif 'grid' in config:
                     if 'cornerpointgrid' in keys:
                         config['cornerpointgrid'] = config.pop('grid')
-                    elif 'orthogonaluniformgrid' in keys:
-                        config['orthogonaluniformgrid'] = config.pop('grid')
+                    elif 'orthogonalgrid' in keys:
+                        config['orthogonalgrid'] = config.pop('grid')
         elif config is None:
             self._logger.info('Using default config.')
             config = {k.lower(): self._config_parser(v) for k, v in default_config.items()}
@@ -326,9 +313,7 @@ class Field:
             dates = pd.DatetimeIndex([self.start]).append(self.wells.event_dates)
         return pd.DatetimeIndex(dates.unique().date)
 
-    @cached_property(
-        lambda self, x: x.reshape(-1, order='F')[self.grid.actnum] if not self.state.spatial and x.ndim == 3 else x
-    )
+    @property
     def well_mask(self):
         """Get the model's well mask in a spatial form.
 
@@ -374,7 +359,7 @@ class Field:
         copy._meta = deepcopy(self.meta) #pylint: disable=protected-access
         return copy
 
-    def load(self, raise_errors=False, include_binary=True, spatial=True, fill_na=0.):
+    def load(self, raise_errors=False, include_binary=True):
         """Load model components.
 
         Parameters
@@ -384,10 +369,6 @@ class Field:
             If False, errors will be printed but do not stop loading.
         include_binary : bool
             Read data from binary files in RESULTS folder. Default to True.
-        spatial : bool
-            Return Field components is spatial state.
-        fill_na: float
-            Value to fill at non-active cells. Default to 0.
 
         Returns
         -------
@@ -404,90 +385,12 @@ class Field:
             raise NotImplementedError('Format {} is not supported.'.format(fmt))
         if 'grid' in self.components:
             self.grid = specify_grid(self.grid)
-            if 'ACTNUM' not in self.grid and 'DIMENS' in self.grid:
-                self.grid.actnum = np.full(self.grid.dimens.prod(), True) # ADD HERE (GRID SECTION) FAULTS CHECKING
-        for k in self._components.values():
-            if isinstance(k, SpatialComponent):
-                k.set_state(spatial=False)
 
-        loaded = self._check_loaded_attrs()
+        loaded = self._collect_loaded_attrs()
         if 'WELLS' in loaded and ('COMPDAT' in loaded['WELLS'] or 'COMPDATL' in loaded['WELLS']):
             self.meta['MODEL_TYPE'] = 'ECL'
-            for node in self.wells:
-                for attr in ['COMPDAT', 'WCONPROD', 'WCONINJE', 'COMPDATL', 'WEFAC', 'WFRAC', 'WFRACP', 'COMPDATMD']:
-                    if attr in node:
-                        df = getattr(node, attr)
-                        df['DATE'] = pd.to_datetime(df['DATE'].fillna(self.start))
-                        df.sort_values(by='DATE', inplace=True)
-                        df.reset_index(drop=True, inplace=True)
-            if 'GRID' in loaded:
-                self.wells.add_welltrack()
         else:
             self.meta['MODEL_TYPE'] = 'TN'
-
-        if spatial:
-            self.to_spatial(fill_na=fill_na)
-            if ('grid' in self.components and
-                self._config['grid']['kwargs'].get('apply_mapaxes', False)):
-                self.grid.map_grid()
-                self._logger.info(
-                    ''.join(('Grid pillars (`COORD`) are mapped to new axis ',
-                             'with respect to `MAPAXES`.')))
-
-        return self
-
-    def to_spatial(self, fill_na=0.):
-        """Bring data to spatial state.
-
-        Parameters
-        ----------
-        fill_na: float
-            Value to fill at non-active cells. Default to 0.
-
-        Returns
-        -------
-        out: Field
-            Field in spatial representation.
-        """
-        if 'grid' in self.components:
-            self.grid.to_spatial()
-        if 'rock' in self.components:
-            if 'ACTNUM' in self.grid:
-                self.rock.pad_na(fill_na=float(fill_na))
-            self.rock.to_spatial()
-        if 'states' in self.components:
-            if 'ACTNUM' in self.grid:
-                self.states.pad_na(fill_na=float(fill_na))
-            self.states.to_spatial()
-        if 'wells' in self.components and self.wells.state.has_blocks:
-            self.wells.blocks_to_spatial()
-        return self
-
-    def ravel(self, only_active=True):
-        """Ravel data in spatial components.
-
-        Parameters
-        ----------
-        only_active : bool
-            Strip non-active cells fron state vectors. Default is True.
-
-        Returns
-        -------
-        out: Field
-            Field with reshaped spatial components.
-        """
-        if 'grid' in self.components:
-            self.grid.ravel()
-        if 'rock' in self.components:
-            self.rock.ravel()
-            if only_active:
-                self.rock.strip_na()
-        if 'states' in self.components:
-            self.states.ravel()
-            if only_active:
-                self.states.strip_na()
-        if 'wells' in self.components and self.wells.state.has_blocks:
-            self.wells.blocks_ravel()
         return self
 
     def _load_hdf5(self, raise_errors):
@@ -569,7 +472,8 @@ class Field:
                     loaders[k] = partial(self.aquifers.load, attr=k, logger=self._logger)
         return loaders
 
-    def _load_results(self, config, raise_errors, include_binary):
+    def _load_results(self, raise_errors, include_binary):
+        config = self._config
         if (('wells' in config) and ('attrs' in config['wells']) and
             ('RESULTS' in config['wells']['attrs'])):
             path_to_results = os.path.join(os.path.dirname(self.path), 'RESULTS')
@@ -582,39 +486,53 @@ class Field:
                 self.wells.load(rsm, logger=self._logger)
         return self
 
-    def _check_vapoil(self, config):
-        if 'VAPOIL' in self.meta['FLUIDS'] and 'tables' in config:
+    def _check_vapoil(self):
+        if 'VAPOIL' in self.meta['FLUIDS'] and 'tables' in self.components:
             # TODO should we make a kwarg for convertion key?
             self.tables.pvtg_to_pvdg(as_saturated=False)
             self.meta['FLUIDS'].remove('VAPOIL')
             self._logger.warning(
                 """Vaporized oil option is not currently supported.
-                PVTG table will be converted into PVDG one."""
+                PVTG table is converted into PVDG one."""
             )
         return self
 
-
     def _load_data(self, raise_errors=False, include_binary=True):
         """Load model in DATA format."""
-
         if include_binary:
             self._load_binary(components=('grid',),
                               raise_errors=raise_errors)
             if 'ACTNUM' in self.grid.attributes:
                 self._load_binary(components=('rock',), raise_errors=raise_errors)
+
         loaders = self._get_loaders(self._config)
         tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
                           raise_errors=raise_errors)
+
+        self.grid = specify_grid(self.grid)
+
         if 'MINPV' in self.grid.attributes:
             if 'ACTNUM' in self.grid.state.binary_attributes:
                 self._logger.info('ACTNUM is loaded from binary file: MINPV was not applied.')
             else:
                 self.grid.apply_minpv()
                 self._logger.info('MINPV {} is applied.'.format(self.grid.minpv[0]))
+
         if include_binary:
             self._load_binary(components=('states', 'wells'), raise_errors=raise_errors)
-        self._load_results(self._config, raise_errors, include_binary)
-        self._check_vapoil(self._config)
+
+        self._load_results(raise_errors, include_binary)
+        self._check_vapoil()
+
+        if 'wells' in self.components and 'grid' in self.components:
+            self.wells.add_welltrack()
+
+        if ('grid' in self.components and
+            self._config['grid']['kwargs'].get('apply_mapaxes', False)):
+            self.grid.map_grid()
+            self._logger.info(
+                ''.join(('Grid pillars (`COORD`) are mapped to new axis ',
+                         'with respect to `MAPAXES`.')))
         return self
 
     def _read_buffer(self, buffer, attr, logger):
@@ -652,20 +570,10 @@ class Field:
         assert len(self.meta['HUNITS']) == len(defaults), 'Missmatch of HUNITS array length'
         return self
 
-    def _check_loaded_attrs(self):
-        """Collect loaded attributes and fill defaults for missing ones."""
+    def _collect_loaded_attrs(self):
+        """Collect loaded attributes."""
         out = {}
         self._logger.info("===== Field summary =====")
-        if 'START' not in self.meta:
-            self._meta['START'] = '1 JAN 1973' #default ECLIPSE/tNavigator start date
-            self._logger.warning("Missed start date, set default 1 JAN 1973.")
-        if 'FLUIDS' not in self.meta:
-            self._meta['FLUIDS'] = ['OIL', 'GAS', 'WATER', 'DISGAS']
-            self._logger.warning("FLUIDS are not found, set default ['OIL', 'GAS', 'WATER', 'DISGAS'].")
-        if not self.meta['DATES'].empty:
-            dates = pd.DatetimeIndex([self.start]).append(self.meta['DATES'])
-            if not ((dates[1:] - dates[:-1]) > pd.Timedelta(0)).all():
-                self._logger.error('Start date and DATES are not monotone.')
         for comp in self.components:
             if comp == 'wells':
                 attrs = []
@@ -832,14 +740,27 @@ class Field:
         fill_values['dimens'] = ' '.join(self.grid.dimens.astype(str))
         fill_values['size'] = np.prod(self.grid.dimens)
 
-        if isinstance(self.grid, OrthogonalUniformGrid):
+        def compressed_str(arr):
+            "Compressed array string."
+            out = ''
+            d = np.hstack([[0], np.where(np.diff(arr) != 0)[0]+1, [len(arr)]])
+            for i in range(len(d)-1):
+                val = arr[d[i]]
+                count = d[i+1] - d[i]
+                if count > 1:
+                    out += '{}*{} '.format(count, val)
+                else:
+                    out += '{} '.format(val)
+            return out + '/'
+
+        if isinstance(self.grid, OrthogonalGrid):
             template = Template(template.safe_substitute(grid_specs=ORTHOGONAL_GRID))
             fill_values.update(dict(
                 mapaxes=' '.join(self.grid.mapaxes.astype(str)),
-                dx=str(self.grid.dx),
-                dy=str(self.grid.dy),
-                dz=str(self.grid.dz),
-                tops=str(self.grid.dimens[0] * self.grid.dimens[1]) + '*' + str(self.grid.tops)
+                dx=compressed_str(self.grid.ravel('dx')),
+                dy=compressed_str(self.grid.ravel('dy')),
+                dz=compressed_str(self.grid.ravel('dz')),
+                tops=compressed_str(self.grid.ravel('tops'))
             ))
         elif isinstance(self.grid, CornerPointGrid):
             template = Template(template.safe_substitute(grid_specs=CORNERPOINT_GRID))
@@ -963,12 +884,12 @@ class Field:
 
         grid_type = {
             'CornerPointGrid': 0,
-            'OrthogonalUniformGrid': 3,
+            'OrthogonalGrid': 3,
         }[self.grid.class_name]
 
         grid_format = {
             'CornerPointGrid': 1,
-            'OrthogonalUniformGrid': 2,
+            'OrthogonalGrid': 2,
         }.get(self.grid.class_name, 0)# 0 - Unknown; 1 - Corner point; 2 - Block centered
 
         i_phase = 0
@@ -984,7 +905,7 @@ class Field:
 
         restart.save_restart(is_unified,
                              dir_name,
-                             self.states.strip_na(inplace=False),
+                             self.states.strip_na(),
                              self.states.attributes,
                              self.result_dates,
                              grid_dim,
@@ -1065,20 +986,16 @@ class Field:
             vtk dataset with states and rock data.
 
         """
-        if isinstance(self.grid, OrthogonalUniformGrid):
-            grid = self.grid.to_corner_point()
-        else:
-            grid = self.grid
-        if not isinstance(grid, CornerPointGrid):
-            raise ValueError('Creating vtk datasests is supported only for corner point grid.')
+        grid = self.grid.to_corner_point()
         vtk_grid_old = grid._vtk_grid
-        grid.create_vtk_grid() # recreate vtk grid for the case of unproper `_vtk_grid` attribute
+        grid.create_vtk_grid()
         dataset = grid._vtk_grid
+
         for comp_name in ('rock', 'states'):
             comp = getattr(self, comp_name)
             for attr in comp.attributes:
                 val = getattr(comp, attr)
-                if val.ndim ==3:
+                if val.ndim == 3:
                     array = numpy_to_vtk(val[grid.actnum])
                 elif val.ndim == 4:
                     array = numpy_to_vtk(val[:, grid.actnum].T)
@@ -1098,11 +1015,7 @@ class Field:
     # pylint: disable=protected-access
     def _create_pyvista_grid(self):
         """Creates pyvista grid object with attributes."""
-
-        if isinstance(self.grid, OrthogonalUniformGrid):
-            self._pyvista_grid = pv.ImageData(self.grid._vtk_grid)
-        elif isinstance(self.grid, CornerPointGrid):
-            self._pyvista_grid = pv.UnstructuredGrid(self.grid._vtk_grid)
+        self._pyvista_grid = pv.UnstructuredGrid(self.grid._vtk_grid)
 
         attributes = {}
         active_cells = self.grid.actnum if 'ACTNUM' in self.grid else np.full(self.grid.dimens, True)
@@ -1112,10 +1025,7 @@ class Field:
                 return data[active_cells].astype(float)
             new_data = data.copy()
             new_data[~active_cells] = np.nan
-            if isinstance(self.grid, OrthogonalUniformGrid):
-                return new_data.ravel(order='F').astype(float)
             return new_data.ravel().astype(float)
-
 
         attributes.update({'ACTNUM': make_data(active_cells)})
 
@@ -1134,16 +1044,9 @@ class Field:
         well_tracks = {node.name: self.wells[node.name].welltrack[:, :3].copy()
                        for node in self.wells if 'WELLTRACK' in node.attributes}
 
-        if isinstance(self.grid, OrthogonalUniformGrid):
-            for _, value in well_tracks.items():
-                value -= self.grid.origin
-
         labeled_points = {}
-        if isinstance(self.grid, OrthogonalUniformGrid):
-            dz = self._pyvista_grid.bounds[5] - self._pyvista_grid.bounds[4]
-            z_min = self._pyvista_grid.bounds[4] - 0.1 * dz
-        else:
-            z_min = self._pyvista_grid.bounds[4]
+        dz = self._pyvista_grid.bounds[5] - self._pyvista_grid.bounds[4]
+        z_min = self._pyvista_grid.bounds[4] - 0.05 * dz
 
         vertices = []
         faces = []
@@ -1151,8 +1054,6 @@ class Field:
         for well_name, value in well_tracks.items():
             wtrack_idx, first_intersection = self.wells[well_name]._first_entering_point # pylint: disable=protected-access
             if first_intersection is not None:
-                if isinstance(self.grid, OrthogonalUniformGrid):
-                    first_intersection -= self.grid.origin
                 value = np.concatenate([np.array([[first_intersection[0], first_intersection[1], z_min]]),
                                         np.asarray(first_intersection).reshape(1, -1),
                                         value[wtrack_idx + 1:]])
@@ -1198,10 +1099,9 @@ class Field:
 
         return labeled_points
 
-    @state_check(lambda state: state.spatial)
     def show(self, attr=None, thresholding=False, slicing=False, timestamp=None,
-             use_only_active=True, cell_size=None, scaling=True, cmap=None,
-             notebook=False, theme='default', show_edges=True, faults_color='red', show_labels=True):
+             use_only_active=True, scaling=True, cmap=None, notebook=False,
+             theme='default', show_edges=True, faults_color='red', show_labels=True):
         """Field visualization.
 
         Parameters
@@ -1218,8 +1118,6 @@ class Field:
             Has no effect given non-sequential attributes.
         use_only_active: bool
             Corner point grid creation using only active cells. Default to True.
-        cell_size: int
-            Cell size for orthogonal uniform grid.
         scaling: bool, list or tuple
             The ratio of the axes in case of iterable, if True then it's (1, 1, 1),
             if False then no scaling is applied. Default True.
@@ -1239,9 +1137,7 @@ class Field:
             Show x, y, z axis labels. Default True.
         """
         attribute = 'ACTNUM' if attr is None else attr.upper()
-        grid_params = {'use_only_active': use_only_active, 'cell_size': cell_size, 'scaling': scaling}
-        if isinstance(self.grid, OrthogonalUniformGrid):
-            grid_params['use_only_active'] = False
+        grid_params = {'use_only_active': use_only_active, 'scaling': scaling}
 
         plot_params = {'show_edges': show_edges, 'cmap': cmap}
 

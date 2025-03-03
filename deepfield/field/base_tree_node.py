@@ -1,19 +1,23 @@
-"""FaultSegment component."""
-#pylint: disable=too-many-lines
+"""TreeSegment components."""
 from anytree import NodeMixin
+
 from .base_component import BaseComponent
 
 
-class FaultSegment(BaseComponent, NodeMixin):
-    """Fault's node.
+class BaseTreeNode(BaseComponent, NodeMixin):
+    """Well's node.
 
     Parameters
     ----------
     name : str, optional
         Node's name.
+    is_group : bool, optional
+        Should a node represet a group of nodes. Default to False.
 
     Attributes
     ----------
+    is_group : bool
+        Indicator of a group.
     name : str
         Node's name.
     fullname : str
@@ -34,6 +38,11 @@ class FaultSegment(BaseComponent, NodeMixin):
         copy._name = self._name #pylint: disable=protected-access
         copy._ntype = self._ntype #pylint: disable=protected-access
         return copy
+
+    @property
+    def is_group(self):
+        """Check that node is a group of wells."""
+        return self._ntype == 'group'
 
     @property
     def ntype(self):

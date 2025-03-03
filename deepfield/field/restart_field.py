@@ -86,14 +86,15 @@ class RestartField(Field):
         parent_path = _get_path(restart_path, data_dir, self._logger, raise_errors)
         self.parent = Field(str(parent_path),
                             config=self._parent_model_config).load()
+        self._meta = self.parent.meta.copy()
         self.wells = self.parent.wells.copy()
         loaders = self._get_loaders(self._restart_config)
         tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
                           raise_errors=raise_errors)
         if include_binary:
             self._load_binary(components=('states', 'wells'), raise_errors=raise_errors)
-        self._load_results(self._config, raise_errors, include_binary)
-        self._check_vapoil(self._config)
+        self._load_results(raise_errors, include_binary)
+        self._check_vapoil()
         return self
 
     def _read_buffer(self, buffer, attr, logger):
@@ -140,7 +141,5 @@ class RestartField(Field):
                                 ), ignore_index=True))
         tmp_model.wells = wells_tmp
         tmp_model.meta.update(self.parent.meta)
-        tmp_model.meta['Dates'] = self.parent.meta['DATES'].append(self.meta['DATES'])
-        if self.state.spatial:
-            tmp_model.to_spatial()
+        tmp_model.meta['DATES'] = self.parent.meta['DATES'].append(self.meta['DATES'])
         return tmp_model
