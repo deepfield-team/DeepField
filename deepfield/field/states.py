@@ -33,7 +33,7 @@ class States(SpatialComponent):
     def _dump_hdf5_group(self, grp, compression, state, **kwargs):
         super()._dump_hdf5_group(grp, compression, state, **kwargs)
         grp = grp[self.class_name] if self.class_name in grp else grp.create_group(self.class_name)
-        grp.create_dataset('DATES', data=self._make_data_dump('DATES', fmt='HDF5'), compression=compression)
+        grp.attrs['DATES'] = self.dates.astype(np.int64)
 
     @property
     def dates(self):
@@ -254,10 +254,10 @@ class States(SpatialComponent):
         return self
 
     def _load_hdf5_group(self, grp, attrs, raise_errors, logger, subset):
-        super()._load_hdf5_group(grp, attrs, raise_errors, logger, subset)
-        if 'DATES' in self._data:
-            self._dates = pd.to_datetime(self._data['DATES'])
-            del self._data['DATES']
+        grp_tmp = grp[self.class_name]
+        if 'DATES' in grp.attrs:
+            self._dates = pd.to_datetime(grp_tmp.attrs['DATES'])
+        return super()._load_hdf5_group(grp, attrs, raise_errors, logger, subset)
 
     def _load_ecl_bin_unifout(self, path, attrs, logger, subset=None, **kwargs):
         """Load states from .UNRST binary file.
