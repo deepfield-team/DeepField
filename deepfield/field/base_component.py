@@ -323,7 +323,7 @@ class BaseComponent:
             Subset of items to load. Be default all items are loaded.
         """
         grp = grp[self.class_name]
-        state = dict([(k, v) for k, v in grp.attrs.items() if k!='DATES'])
+        state = {k : v for k, v in grp.attrs.items() if k!='DATES'}
         for k, v in state.items():
             try:
                 state[k] = v if not np.isnan(v) else None
