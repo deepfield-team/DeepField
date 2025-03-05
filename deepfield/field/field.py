@@ -391,7 +391,7 @@ class Field:
         with h5py.File(self.path, 'r') as f:
             for k, v in f.attrs.items():
                 if k == 'DATES':
-                    self.meta['DATES'] = pd.to_datetime(v, format='mixed')
+                    self.meta['DATES'] = pd.to_datetime(v)
                 else:
                     self.meta[k] = v
         for comp, config in self._config.items():
@@ -681,7 +681,7 @@ class Field:
         with h5py.File(path, mode) as f:
             for k, v in self.meta.items():
                 if k == 'DATES':
-                    f.attrs['DATES'] = [str(d) for d in v]
+                    f.attrs['DATES'] = pd.to_datetime(self.meta['DATES']).astype(np.int64)
                 else:
                     f.attrs[k] = v
         for k, comp in self.items():

@@ -33,7 +33,7 @@ class States(SpatialComponent):
     def _dump_hdf5_group(self, grp, compression, state, **kwargs):
         super()._dump_hdf5_group(grp, compression, state, **kwargs)
         grp = grp[self.class_name] if self.class_name in grp else grp.create_group(self.class_name)
-        grp.create_dataset('DATES', data=self._make_data_dump('DATES', fmt='HDF5'), compression=compression)
+        grp.attrs['DATES'] = self.dates.astype(np.int64)
 
     @property
     def dates(self):
@@ -245,19 +245,25 @@ class States(SpatialComponent):
 
     def _load_ecl_rsspec(self, path, logger, subset=None, **kwargs):
         _ = kwargs
-        data = read_ecl_bin(path, attrs=['ITIME'], sequential=True, subset=subset,
+        data = read_ecl_bin(path, attrs=['TIME', 'ITIME'], sequential=True, subset=subset,
                             logger=logger)
-        dates = pd.to_datetime(
-            [f'{row[3]}-{row[2]}-{row[1]}' for row in data['ITIME']]
-        )
+        dates = None
+        if len(data['ITIME'][0]) > 1:
+            dates = pd.to_datetime(
+                [f'{row[3]}-{row[2]}-{row[1]}' for row in data['ITIME']]
+            )
+        else:
+            dates = pd.DatetimeIndex(
+                [pd.to_datetime(self.field.meta['START']) +
+                 pd.Timedelta(v[0], 'days') for v in data['TIME']])
         self._dates = dates
         return self
 
     def _load_hdf5_group(self, grp, attrs, raise_errors, logger, subset):
-        super()._load_hdf5_group(grp, attrs, raise_errors, logger, subset)
-        if 'DATES' in self._data:
-            self._dates = pd.to_datetime(self._data['DATES'])
-            del self._data['DATES']
+        grp_tmp = grp[self.class_name]
+        if 'DATES' in grp.attrs:
+            self._dates = pd.to_datetime(grp_tmp.attrs['DATES'])
+        return super()._load_hdf5_group(grp, attrs, raise_errors, logger, subset)
 
     def _load_ecl_bin_unifout(self, path, attrs, logger, subset=None, **kwargs):
         """Load states from .UNRST binary file.
