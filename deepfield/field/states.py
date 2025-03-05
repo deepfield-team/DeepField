@@ -245,11 +245,17 @@ class States(SpatialComponent):
 
     def _load_ecl_rsspec(self, path, logger, subset=None, **kwargs):
         _ = kwargs
-        data = read_ecl_bin(path, attrs=['ITIME'], sequential=True, subset=subset,
+        data = read_ecl_bin(path, attrs=['TIME', 'ITIME'], sequential=True, subset=subset,
                             logger=logger)
-        dates = pd.to_datetime(
-            [f'{row[3]}-{row[2]}-{row[1]}' for row in data['ITIME']]
-        )
+        dates = None
+        if len(data['ITIME'][0]) > 1:
+            dates = pd.to_datetime(
+                [f'{row[3]}-{row[2]}-{row[1]}' for row in data['ITIME']]
+            )
+        else:
+            dates = pd.DatetimeIndex(
+                [pd.to_datetime(self.field.meta['START']) +
+                 pd.Timedelta(v[0], 'days') for v in data['TIME']])
         self._dates = dates
         return self
 
