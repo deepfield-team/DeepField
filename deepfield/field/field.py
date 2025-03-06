@@ -900,7 +900,7 @@ class Field:
                              dir_name,
                              self.states.strip_na(),
                              self.states.attributes,
-                             self.result_dates,
+                             self.states.dates,
                              grid_dim,
                              time_size,
                              mode,
