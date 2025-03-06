@@ -56,11 +56,11 @@ class RestartField(Field):
     @property
     def restart_date(self):
         "Show restart date."
+        if 'RESTART' in self.meta:
+            return self.parent.states.dates[0]
         restart_date = self.meta['RESTARTDATE']
-        return pd.to_datetime(
-            f'{restart_date[4]}-{restart_date[3]}'+
-            f'{restart_date[2]}'
-        )
+        restart_date = pd.to_datetime(f'{restart_date[4]}-{restart_date[3]}' + f'{restart_date[2]}')
+        return self.parent.states.dates[self.parent.states.dates <= restart_date][-1]
 
     @property
     def grid(self):
@@ -86,7 +86,8 @@ class RestartField(Field):
         parent_path = _get_path(restart_path, data_dir, self._logger, raise_errors)
         self.parent = Field(str(parent_path),
                             config=self._parent_model_config).load()
-        self._meta = self.parent.meta.copy()
+        self._meta = {**self.parent.meta, **self.meta}
+        self._meta['START'] = self.restart_date
         self.wells = self.parent.wells.copy()
         loaders = self._get_loaders(self._restart_config)
         tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
@@ -119,13 +120,14 @@ class RestartField(Field):
         for comp in self.parent.components:
             if comp in ('grid', 'rock', 'tables', 'aquifers'):
                 setattr(tmp_model, comp, getattr(self.parent, comp).copy())
-        result_dates_parent = self.parent.result_dates
         result_dates_restart = self.result_dates
+        states_dates_parent = self.states.parent.dates
+        states_dates_restart = self.states.dates
         states_tmp = States()
         for attr in self.states.attributes:
             setattr(states_tmp, attr,
                 np.concatenate(
-                    (getattr(self.parent.states, attr)[result_dates_parent < result_dates_restart[0]],
+                    (getattr(self.parent.states, attr)[states_dates_parent < states_dates_restart[0]],
                      getattr(self.states, attr)))
             )
         tmp_model.states = states_tmp
