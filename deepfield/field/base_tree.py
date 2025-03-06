@@ -38,7 +38,8 @@ class BaseTree(BaseComponent):
     def __init__(self, node=None, nodeclass=None, **kwargs):
         super().__init__(**kwargs)
         nodeclass = BaseTreeNode if nodeclass is None else nodeclass
-        self._root = nodeclass(name='FIELD', ntype="group") if node is None else node
+        self._root = nodeclass(name='FIELD', ntype="group",
+                               field=self._field) if node is None else node
         self._resolver = Resolver()
         self._nodeclass = nodeclass
 
@@ -214,7 +215,8 @@ class BaseTree(BaseComponent):
                 ntype = grp.attrs.get('ntype', None)
                 if ntype is None: #backward compatibility, will be removed in a future
                     ntype = 'group' if grp.attrs.get('is_group', False) else 'well'
-                node = self._nodeclass(parent=parent, name=grp.name.split('/')[-1], ntype=ntype)
+                node = self._nodeclass(parent=parent, name=grp.name.split('/')[-1],
+                                       ntype=ntype, field=self.field)
             for k, v in grp.items():
                 if k == 'data':
                     for att in v.keys() if attrs is None else attrs:

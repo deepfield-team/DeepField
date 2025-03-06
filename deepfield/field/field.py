@@ -304,14 +304,7 @@ class Field:
     @property
     def result_dates(self):
         """Result dates, actual if present, target otherwise."""
-        dates = self.wells.result_dates
-        if not dates.empty:
-            return dates
-        if not self.meta['DATES'].empty:
-            dates = pd.DatetimeIndex([self.start]).append(self.meta['DATES'])
-        else:
-            dates = pd.DatetimeIndex([self.start]).append(self.wells.event_dates)
-        return pd.DatetimeIndex(dates.unique().date)
+        return self.wells.result_dates
 
     @property
     def well_mask(self):
@@ -398,7 +391,7 @@ class Field:
         with h5py.File(self.path, 'r') as f:
             for k, v in f.attrs.items():
                 if k == 'DATES':
-                    self.meta['DATES'] = pd.to_datetime(v, format='mixed')
+                    self.meta['DATES'] = pd.to_datetime(v)
                 else:
                     self.meta[k] = v
         for comp, config in self._config.items():
@@ -688,7 +681,7 @@ class Field:
         with h5py.File(path, mode) as f:
             for k, v in self.meta.items():
                 if k == 'DATES':
-                    f.attrs['DATES'] = [str(d) for d in v]
+                    f.attrs['DATES'] = pd.to_datetime(self.meta['DATES']).astype(np.int64)
                 else:
                     f.attrs[k] = v
         for k, comp in self.items():
@@ -907,7 +900,7 @@ class Field:
                              dir_name,
                              self.states.strip_na(),
                              self.states.attributes,
-                             self.result_dates,
+                             self.states.dates,
                              grid_dim,
                              time_size,
                              mode,
