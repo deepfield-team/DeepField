@@ -154,7 +154,8 @@ class BaseComponent:
     def copy(self):
         """Returns a deepcopy of attributes. Cached properties are not copied."""
         copy = self.__class__(
-            **{k: deepcopy(v) if not issubclass(v.__class__, BaseComponent) else v.copy() for k, v in self.items()}
+            **{k: deepcopy(v) if not issubclass(v.__class__, BaseComponent) else v.copy() for k, v in self.items()},
+            field = self.field,
         )
         copy.init_state(**self.state.as_dict())
         copy.class_name = self.class_name
@@ -322,7 +323,7 @@ class BaseComponent:
             Subset of items to load. Be default all items are loaded.
         """
         grp = grp[self.class_name]
-        state = dict(grp.attrs.items())
+        state = {k : v for k, v in grp.attrs.items() if k!='DATES'}
         for k, v in state.items():
             try:
                 state[k] = v if not np.isnan(v) else None
