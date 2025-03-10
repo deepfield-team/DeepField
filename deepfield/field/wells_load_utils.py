@@ -28,7 +28,7 @@ def load_rsm(wells, path, logger):
     logger.info("Start reading {}".format(path))
     rsm = read_rsm(path, logger)
     logger.info("Finish reading {}".format(path))
-    if not ('_global' in rsm):
+    if '_global' not in rsm:
         logger.warning("Empty RSM file {}".format(path))
         return wells
     if '_children' in rsm['_global']:
