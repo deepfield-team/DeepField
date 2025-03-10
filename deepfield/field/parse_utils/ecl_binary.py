@@ -13,8 +13,8 @@ DATA_TYPES = {
     'C008': (8, '8s', 105),
     'C009': (9, '9s', 105)
 }
-for i in range(10, 40):
-    DATA_TYPES['C0{}'.format(i)] = (i, '{}s'.format(i), 105)
+for val in range(10, 40):
+    DATA_TYPES['C0{}'.format(val)] = (val, '{}s'.format(val), 105)
 
 
 def _get_type_info(data_type):
