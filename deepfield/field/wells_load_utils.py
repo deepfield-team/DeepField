@@ -28,6 +28,9 @@ def load_rsm(wells, path, logger):
     logger.info("Start reading {}".format(path))
     rsm = read_rsm(path, logger)
     logger.info("Finish reading {}".format(path))
+    if '_global' not in rsm:
+        logger.warning("Empty RSM file {}".format(path))
+        return wells
     if '_children' in rsm['_global']:
         del rsm['_global']['_children']
     df = pd.DataFrame({k: v['data'] for k, v in rsm['_global'].items()})
