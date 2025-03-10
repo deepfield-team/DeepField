@@ -1,8 +1,10 @@
 """States component."""
+import copy
 import os
 import numpy as np
+import pandas as pd
 
-from .decorators import apply_to_each_input, state_check, ndim_check
+from .decorators import apply_to_each_input
 from .base_spatial import SpatialComponent
 from .plot_utils import show_slice_static, show_slice_interactive
 from .parse_utils import read_ecl_bin
@@ -13,6 +15,40 @@ FULL_STATE_KEYS = ('PRESSURE', 'RS', 'SGAS', 'SOIL', 'SWAT')
 
 class States(SpatialComponent):
     """States component of geological model."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs = copy.copy(kwargs)
+        if 'dates' in kwargs:
+            self._dates = kwargs['dates']
+            del kwargs['dates']
+        else:
+            self._dates = None
+        super().__init__(*args, **kwargs)
+
+    def copy(self):
+        cp = super().copy()
+        cp.dates = copy.deepcopy(self.dates)
+        return cp
+
+    def _dump_hdf5_group(self, grp, compression, state, **kwargs):
+        super()._dump_hdf5_group(grp, compression, state, **kwargs)
+        grp = grp[self.class_name] if self.class_name in grp else grp.create_group(self.class_name)
+        grp.attrs['DATES'] = self.dates.astype(np.int64)
+
+    @property
+    def dates(self):
+        """Dates for which states are available.
+
+        Returns
+        -------
+        pandas.DatetimeIndex
+            Dates.
+        """
+        return self._dates
+
+    @dates.setter
+    def dates(self, value):
+        self._dates = value
 
     @property
     def n_timesteps(self):
@@ -51,16 +87,17 @@ class States(SpatialComponent):
         return res
 
     @apply_to_each_input
-    def _to_spatial(self, attr, inplace=True):
+    def _to_spatial(self, attr):
         """Spatial order 'F' transformations."""
         dimens = self.field.grid.dimens
+        self.pad_na(attr=attr)
         return self.reshape(attr=attr, newshape=(-1,) + tuple(dimens),
-                            order='F', inplace=inplace)
+                            order='F', inplace=True)
 
     @apply_to_each_input
-    def _ravel(self, attr, inplace):
+    def _ravel(self, attr):
         """Ravel order 'F' transformations."""
-        return self.reshape(attr=attr, newshape=(self.n_timesteps, -1), order='F', inplace=inplace)
+        return self.reshape(attr=attr, newshape=(self.n_timesteps, -1), order='F', inplace=False)
 
     @apply_to_each_input
     def pad_na(self, attr, fill_na=0., inplace=True):
@@ -103,7 +140,7 @@ class States(SpatialComponent):
         return padded_data
 
     @apply_to_each_input
-    def strip_na(self, attr, inplace=True):
+    def strip_na(self, attr):
         """Remove non-active cells from the state vector.
 
         Parameters
@@ -112,27 +149,20 @@ class States(SpatialComponent):
             Attributes to be stripped
         actnum: array-like of type bool
             Vector representing mask of active and non-active cells.
-        inplace: bool
-            Modify сomponent inplace.
 
         Returns
         -------
-        output : component if inplace else stripped attribute.
+        output : stripped attribute.
 
         Notes
         -----
         Outputs 1d array for each timestamp.
         """
-        if self.state.spatial and inplace:
-            raise ValueError('Inplace is not allowed in spatial state.')
-        data = self.ravel(attr, inplace=False)
+        data = self.ravel(attr)
         actnum = self.field.grid.actnum
         if data.shape[1] == np.sum(actnum):
-            return self if inplace else data
+            return data
         stripped_data = data[..., actnum.ravel(order='F')]
-        if inplace:
-            setattr(self, attr, stripped_data)
-            return self
         return stripped_data
 
     def __getitem__(self, keys):
@@ -145,8 +175,6 @@ class States(SpatialComponent):
         out.set_state(**self.state.as_dict())
         return out
 
-    @state_check(lambda state: state.spatial)
-    @ndim_check(4)
     def show_slice(self, attr, t=None, i=None, j=None, k=None, figsize=None, **kwargs):
         """Visualize slices of 4D states arrays. If no slice is specified, spatial slices
         will be shown with interactive slider widgets.
@@ -199,6 +227,10 @@ class States(SpatialComponent):
         """
         if attrs is None:
             attrs = FULL_STATE_KEYS
+
+        rsspec_path = get_single_path(path_to_results, basename + '.RSSPEC')
+        if rsspec_path is not None:
+            self._load_ecl_rsspec(rsspec_path, logger=logger)
         unifout_path = get_single_path(path_to_results, basename + '.UNRST', logger)
         multout_paths = get_multout_paths(path_to_results, basename)
 
@@ -210,6 +242,28 @@ class States(SpatialComponent):
             logger.warning('The results in "%s" were not found!' % path_to_results)
             return self
         raise FileNotFoundError('The results in "%s" were not found!' % path_to_results)
+
+    def _load_ecl_rsspec(self, path, logger, subset=None, **kwargs):
+        _ = kwargs
+        data = read_ecl_bin(path, attrs=['TIME', 'ITIME'], sequential=True, subset=subset,
+                            logger=logger)
+        dates = None
+        if len(data['ITIME'][0]) > 1:
+            dates = pd.to_datetime(
+                [f'{row[3]}-{row[2]}-{row[1]}' for row in data['ITIME']]
+            )
+        else:
+            dates = pd.DatetimeIndex(
+                [pd.to_datetime(self.field.meta['START']) +
+                 pd.Timedelta(v[0], 'days') for v in data['TIME']])
+        self._dates = dates
+        return self
+
+    def _load_hdf5_group(self, grp, attrs, raise_errors, logger, subset):
+        grp_tmp = grp[self.class_name]
+        if 'DATES' in grp.attrs:
+            self._dates = pd.to_datetime(grp_tmp.attrs['DATES'])
+        return super()._load_hdf5_group(grp, attrs, raise_errors, logger, subset)
 
     def _load_ecl_bin_unifout(self, path, attrs, logger, subset=None, **kwargs):
         """Load states from .UNRST binary file.
@@ -284,12 +338,14 @@ class States(SpatialComponent):
     def _make_data_dump(self, attr, fmt=None, actnum=None, float_dtype=None, **kwargs):
         """Prepare data for dump."""
         if fmt.upper() == 'ASCII':
-            data = self.ravel(attr=attr, inplace=False)
+            data = self.ravel(attr=attr)
             return data[0]
         if fmt.upper() == 'HDF5':
+            if attr.upper() == 'DATES':
+                return self.dates.astype(np.int64)
             if actnum is None:
-                data = self.ravel(attr=attr, inplace=False)
+                data = self.ravel(attr=attr)
             else:
-                data = self.strip_na(attr=attr, inplace=False)
+                data = self.strip_na(attr=attr)
             return data if float_dtype is None else data.astype(float_dtype)
         return super()._make_data_dump(attr, fmt=fmt, **kwargs)

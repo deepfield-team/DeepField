@@ -1,5 +1,6 @@
 """Wells utils."""
 import re
+import shlex
 import numpy as np
 import pandas as pd
 
@@ -118,7 +119,7 @@ def load_grouptree(wells, buffer, **kwargs):
     for line in buffer:
         if line.strip() == '/':
             return wells
-        node, grp = re.sub("[\"\']", "", line).split('/')[0].strip().split()
+        node, grp = shlex.split(line.split('/')[0])[:2]#re.sub("[\"\']", "", line).split('/')[0].strip().split()
         if grp == '1*':
             grp = DEFAULTS['GROUP']
         try:
@@ -136,12 +137,27 @@ def _load_control_table(wells, attribute, columns, column_types, has_date, buffe
     _ = kwargs
     if has_date:
         dates = meta['DATES']
-        date = dates[-1] if not dates.empty else pd.to_datetime('')
+        date = dates[-1] if not dates.empty else wells.field.start
     else:
         date = None
     df = parse_eclipse_keyword(buffer, columns, column_types, DEFAULTS, date)
     if not df.empty:
-        welldata = {k: {attribute : v.reset_index(drop=True)} for k, v in df.groupby('WELL')}
+        welldata = {}
+        for k, v in df.groupby('WELL'):
+            tmp = k.split('*')
+            if len(tmp) == 1:
+                welldata[k] = {
+                    attribute: v.reset_index(drop=True)
+                }
+            elif len(tmp) == 2 and not tmp[1]:
+                well_names = [name for name in
+                              wells.main_branches if name.startswith(tmp[0])]
+                for name in well_names:
+                    welldata[name] = {
+                        attribute: v.reset_index(drop=True).assign(WELL=name)
+                    }
+            else:
+                raise ValueError(f'Cound not parse well name "{k}"')
         wells.update(welldata, mode='a', ignore_index=True)
         wells.fill_na(attribute)
     return wells
@@ -155,6 +171,19 @@ def load_welspecs(wells, buffer, meta, **kwargs):
         'float': columns[4:5] + columns[6:]
     }
     attribute = 'WELSPECS'
+    has_date = False
+    return _load_control_table(wells, attribute, columns, column_types, has_date,
+                               buffer, meta, **kwargs)
+
+def load_welspecl(wells, buffer, meta, **kwargs):
+    """Partial load WELSPECL table."""
+    columns = ['WELL', 'GROUP', 'LGR', 'I', 'J', 'DREF', 'PHASE', 'DRAINAGE_RADIUS']
+    column_types = {
+        'text': columns[1:3] + columns[6:7],
+        'int': columns[3:5],
+        'float': columns[5:6] + columns[7:]
+    }
+    attribute = 'WELSPECS' #ignore LGR and create WELSPECS attribute
     has_date = False
     return _load_control_table(wells, attribute, columns, column_types, has_date,
                                buffer, meta, **kwargs)

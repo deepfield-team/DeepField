@@ -33,7 +33,7 @@ class Tables(BaseComponent):
             Tables with new attribute.
         """
         dtype = kwargs.get('dtype', None)
-        table = read_table(buffer, TABLE_INFO[attr], dtype)
+        table = read_table(buffer, TABLE_INFO[attr], dtype, units=self.field.meta['UNITS'])
         setattr(self, attr, _Table(data=table, name=attr))
         return self
 

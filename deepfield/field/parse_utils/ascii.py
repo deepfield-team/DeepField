@@ -2,6 +2,7 @@
 import copy
 import os
 import re
+import shlex
 from io import StringIO
 from itertools import zip_longest
 from pathlib import Path
@@ -14,11 +15,13 @@ INT_NAN = -99999999
 
 _COLUMN_LENGTH = 13
 
-IGNORE_SECTIONS = ['ARITHMETIC',
-                   'RPTISOL', 'RPTPROPS', 'RPTREGS',
-                   'RPTRUNSP', 'RPTSCHED', 'RPTSMRY', 'RPTSOL', 'RPTRST']
-
 DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
+
+IGNORE_SECTIONS = [('ARITHMETIC',),
+                   ('RPTISOL', 'RPTPROPS', 'RPTREGS', 'RPTRST',
+                   'RPTRUNSP', 'RPTSCHED', 'RPTSMRY', 'RPTSOL',
+                   'OUTSOL', 'ROCKOPTS'),
+                   ('FRACTURE_ARITHMETIC',)]
 
 class StringIteratorIO:
     """String iterator for text files."""
@@ -157,13 +160,15 @@ def tnav_ascii_parser(path, loaders_map, logger, data_dir=None, encoding=None, r
     """Read tNav ASCII files and call loaders."""
     data_dir = path.parent if data_dir is None else data_dir
     filename = path.name
+    for sections_to_ignore, loader in zip(IGNORE_SECTIONS,
+                                          (_dummy_loader, _dummy_loader2, _dummy_loader3)):
+        for keyword in sections_to_ignore:
+            loaders_map[keyword] = loader
     logger.info("Start reading {}".format(filename))
     with StringIteratorIO(path, encoding=encoding) as lines:
         for line in lines:
             firstword = line.split(maxsplit=1)[0].upper()
-            if firstword in IGNORE_SECTIONS:
-                lines.skip_to('/')
-            elif firstword in ['EFOR', 'EFORM', 'HFOR', 'HFORM']:
+            if firstword in ['EFOR', 'EFORM', 'HFOR', 'HFORM']:
                 column_names = line.split()[1:]
             elif firstword == 'ETAB':
                 if 'ETAB' in loaders_map:
@@ -280,7 +285,88 @@ def read_array(buffer, dtype=None, compressed=True, **kwargs):
             break
     return np.hstack(arr)
 
-def read_table(buffer, table_info, dtype=None):
+def _read_numerical_table_data(buffer, depth, dtype):
+    """Read numerical data for table.
+
+    Parameters
+    ----------
+    buffer : StringIteratorIO
+        String buffer to read.
+    depth : _type_
+        Depth of the table nesting (2 for multiindex table, 1 for normal table)
+    dtype : _type_
+        Data dtype.
+
+    Returns
+    -------
+    List[np.ndarray] or List[List[np.ndarray]]
+        List of numpy arrays (1 array for each region), if `depth==1`.
+        List of lists of numpy array (1 array for each subtable, list of arrays
+        for each region), if depth==2
+
+    Raises
+    ------
+    ValueError
+        If table block is not properly closed
+    """
+    data = []
+    for _ in range(depth):
+        data = list(data)
+    ind = [0] * depth
+    group_end = True
+    expr = re.compile(r'(\d*)\*')
+
+    def _repl(match):
+        num = match.groups()[0]
+        num = int(num) if num else 1
+        return ' '.join(['nan']*num)
+
+    for line in buffer:
+        line = line.strip()
+        split = line.split("/")
+        line = split[0]
+        if len(line) > 0:
+            cur_item = data
+            line = expr.sub(_repl, line)
+            for i in reversed(ind):
+                if len(cur_item) == i:
+                    cur_item.append([])
+                cur_item = cur_item[i]
+            if not (line[0].isdigit() or line[0]=='.' or line[:3]=='nan'): # line can start from `.`, e.g `.123`
+                buffer.prev()
+                break
+            numbers = np.fromstring(line, dtype=dtype, sep=' ')
+            cur_item.append(numbers)
+            group_end = False
+        if len(split) > 1:
+            if group_end:
+                try:
+                    ind[1] += 1
+                except IndexError:
+                    data.append([])
+                    buffer.prev()
+                    break
+                ind[0] = 0
+            else:
+                ind[0] += 1
+            group_end = True
+    if data[-1] and (len(data[-1][0])):
+        if ind[-1] == len(data)-1:
+            raise ValueError('Table block was not properly closed.')
+    else:
+        del data[-1]
+        ind[-1] -= 1
+
+    if depth == 1:
+        tmp_iter = [data]
+    else:
+        tmp_iter = data
+    for d in (tmp_iter):
+        for i, vals in enumerate(d):
+            d[i] = np.hstack(vals)
+    return data
+
+def read_table(buffer, table_info, dtype=None, units='METRIC'):
     """Read numerical table data from a string buffer before first occurrence of non-digit line.
 
     Parameters
@@ -299,66 +385,54 @@ def read_table(buffer, table_info, dtype=None):
     table : pandas DataFrame
         Parsed table.
     """
-    table = []
-    group = []
-    group_sep = '/'
-    is_group_end = False
-    n_columns = None
     n_attrs = len(table_info['attrs'])
 
     if dtype is None:
         dtype = float
-    for line in buffer:
-        line = line.strip()
-        if not line[0].isdigit():
-            if group:
-                group = np.stack(group, axis=0)
-                group[np.isnan(group)] = group[0, 0]
-                table.append(group)
-            table = np.concatenate(table, axis=0)
-            buffer.prev()
-            break
-        if group_sep in line:
-            line = line.split(group_sep)[0] #re.sub(group_sep, '', line)
-            is_group_end = True
 
-        x = np.fromstring(line, dtype=dtype, sep=' ')
+    depth = 2 if table_info['domain'] and len(table_info['domain'])==2 else 1
+    data = _read_numerical_table_data(buffer, dtype=dtype, depth=depth)
+    tables = []
+    for region_table_data in data:
+        if depth == 2:
+            table_parts = []
+            for d in region_table_data:
+                data_tmp = d[1:].reshape(-1, n_attrs-1)
+                data_tmp = np.hstack(
+                    (np.ones((data_tmp.shape[0], 1), dtype=data_tmp.dtype) * d[0],
+                     data_tmp))
+                table_parts.append(data_tmp)
+            table = pd.DataFrame(np.vstack(table_parts), columns=table_info['attrs'])
+        else:
+            if region_table_data.size < n_attrs:
+                tmp = np.empty(n_attrs - region_table_data.size)
+                tmp[:] = np.nan
+                region_table_data = np.concatenate((region_table_data, tmp))
+            data_tmp = region_table_data.reshape(-1, n_attrs)
+            table = pd.DataFrame(data_tmp, columns=table_info['attrs'])
 
-        if x.size:
-            n_columns = x.shape[0] if n_columns is None else n_columns
-            fixed_n_of_columns = n_columns == x.shape[0]
 
-            if n_attrs != x.shape[0] and not fixed_n_of_columns:
-                x = np.concatenate([np.full(n_attrs - x.shape[0], np.nan), x])
-            if n_attrs != x.shape[0]:
-                if table_info['defaults'] is None or table_info['defaults'][x.shape[0]] is None:
-                    raise ValueError('Default values are not assumed for this position in the table.')
-                x = np.concatenate([x, np.array(table_info['defaults'][x.shape[0]:])])
+        if table_info['defaults']:
+            for col, default in zip(table_info['attrs'], table_info['defaults']):
+                if default:
+                    if hasattr(default, '__iter__'):
+                        val = default[0] if units=='METRIC' else default[1]
+                    else:
+                        val = default
+                    table[col] = table[col].fillna(val)
 
-            group.append(x)
-        if is_group_end:
-            if group:
-                group = np.stack(group, axis=0)
-                group[np.isnan(group)] = group[0, 0]
-                table.append(group)
-            is_group_end = False
-            group = []
-
-        n_columns = x.shape[0]
-
-    table = pd.DataFrame(table, columns=table_info['attrs'])
-
-    if table_info['domain'] is not None:
-        domain_attrs = np.array(table_info['attrs'])[table_info['domain']]
-    else:
-        domain_attrs = np.array([])
-    if domain_attrs.shape[0] == 1:
-        table = table.set_index(domain_attrs[0])
-    elif domain_attrs.shape[0] > 1:
-        multi_index = pd.MultiIndex.from_frame(table[domain_attrs])
-        table = table.drop(domain_attrs, axis=1)
-        table = table.set_index(multi_index)
-    return table
+        if table_info['domain'] is not None:
+            domain_attrs = np.array(table_info['attrs'])[table_info['domain']]
+        else:
+            domain_attrs = np.array([])
+        if domain_attrs.shape[0] == 1:
+            table = table.set_index(domain_attrs[0])
+        elif domain_attrs.shape[0] > 1:
+            multi_index = pd.MultiIndex.from_frame(table[domain_attrs])
+            table = table.drop(domain_attrs, axis=1)
+            table = table.set_index(multi_index)
+        tables.append(table)
+    return tables[0] # return table for the first region
 
 def read_rsm(filename, logger):
     """Parse *.RSM files to dict."""
@@ -620,6 +694,20 @@ def read_restartdate_from_buffer(buffer, attr, logger):
         full = parse_vals(columns, shift, full, vals)
     return full
 
+def read_restart_from_buffer(buffer, attr, logger):
+    """Read RESTART keyword."""
+    _, __ = attr, logger
+    columns = ['NAME', 'STEP']
+    full = None
+    for line in buffer:
+        vals = line.split()[:len(columns)]
+        if not line.split('/')[0].strip():
+            break
+        full = [None] * len(columns)
+        shift = 0
+        full = parse_vals(columns, shift, full, vals)
+    return full
+
 def parse_vals(columns, shift, full, vals):
     """Parse values (unpack asterisk terms)."""
     full = copy.deepcopy(full)
@@ -627,9 +715,13 @@ def parse_vals(columns, shift, full, vals):
         if i + shift >= len(columns):
             break
         if '*' in v:
+            v = v.strip('\'\"')
             if v == '*':
                 continue
-            shift += int(v.strip('*')) - 1
+            try:
+                shift += int(v.strip('*')) - 1
+            except ValueError:
+                full[i+shift] = v
         else:
             full[i+shift] = v
     return full
@@ -662,7 +754,7 @@ def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, date=Non
         line = line.split('/')[0].strip()
         if not line:
             break
-        vals = line.split()[:len(columns)]
+        vals = shlex.split(line)[:len(columns)]
         full = [None] * len(columns)
         if date is not None:
             full[0] = date
@@ -684,3 +776,22 @@ def parse_eclipse_keyword(buffer, columns, column_types, defaults=None, date=Non
             if k in df:
                 df[k] = df[k].fillna(v)
     return df
+
+def _dummy_loader(buffer):
+    """Dummy loader. Read until empty line with `/`. """
+    buffer.skip_to('/')
+
+def _dummy_loader2(buffer):
+    """Dummy loader. Read until first `/`. """
+    for line in buffer:
+        if '/' in line:
+            break
+
+def _dummy_loader3(buffer):
+    """Dummy loader. Read until empty line with `/` after the line ended with `/`. """
+    end_line = False
+    for line in buffer:
+        if line.startswith('/'):
+            if end_line:
+                break
+        end_line = '/' in line

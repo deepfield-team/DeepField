@@ -15,6 +15,8 @@ Python framework for reservoir engineering.
 * detailed [documentation](https://deepfield-team.github.io/DeepField/)
 * [tutorials](/tutorials) to explore the framework step-by-step
 
+ > [!TIP]
+ > Try out a new [web application](https://github.com/deepfield-team/DeepField-app) based on DeepField for visualization and exploration of reservoir models.
 
 ## Installation
 

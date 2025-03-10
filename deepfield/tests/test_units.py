@@ -1,10 +1,12 @@
-"""Testsing module."""
+"""Testing module."""
 import os
+import pathlib
+import warnings
 import pytest
 import numpy as np
 import pandas as pd
 
-from ..field import Field, OrthogonalUniformGrid
+from ..field import Field, OrthogonalGrid
 from ..field.base_component import BaseComponent
 from ..field.base_spatial import SpatialComponent
 from ..field.getting_wellblocks import defining_wellblocks_vtk
@@ -54,7 +56,6 @@ class TestModelLoad:
         """Testing data shape."""
         dimens = (2, 1, 6)
         assert np.all(model.grid.dimens == dimens)
-        assert model.state.spatial
         assert np.all(model.rock.poro.shape == model.grid.dimens)
         assert np.all(model.grid.actnum.shape == model.grid.dimens)
         assert model.grid.zcorn.shape == dimens + (8, )
@@ -130,19 +131,20 @@ class TestSpatialComponent():
         data = np.arange(10).reshape(2, 5)
         comp = SpatialComponent()
         comp.arr = data
-        comp.ravel()
-        assert not comp.state.spatial
-        assert comp.arr.shape == (10,)
-        assert np.all(comp.arr == data.ravel(order='F'))
+        data_ravel = comp.ravel('ARR')
+        assert data_ravel.shape == (10,)
+        assert np.all(data_ravel == data.ravel(order='F'))
 
 
 @pytest.fixture(scope="module")
 def orth_grid():
     """Provides orthogonal uniform grid."""
-    grid = OrthogonalUniformGrid(dimens=np.array([4, 6, 8]),
-                                 dx=0.5, dy=1, dz=1.5,
-                                 actnum=np.ones((4, 6, 8)))
-    grid.set_state(spatial=True)
+    grid = OrthogonalGrid(dimens=np.array([4, 6, 8]),
+                          dx=np.ones([4, 6, 8]),
+                          dy=np.ones([4, 6, 8]),
+                          dz=np.ones([4, 6, 8]),
+                          tops=np.zeros([4, 6, 8]) + np.arange(8),
+                          actnum=np.ones((4, 6, 8)))
     return grid
 
 class TestOrthogonalGrid():
@@ -151,19 +153,20 @@ class TestOrthogonalGrid():
     def test_setup(self, orth_grid): #pylint: disable=redefined-outer-name
         """Testing grid setup."""
         assert np.all(orth_grid.dimens == [4, 6, 8])
-        assert np.all(orth_grid.cell_size == [0.5, 1, 1.5])
+        assert np.all(orth_grid.cell_volumes == 1)
+        assert np.all(np.isclose(orth_grid.xyz, orth_grid.as_corner_point.xyz))
+        assert np.all(np.isclose(orth_grid.cell_centroids, orth_grid.as_corner_point.cell_centroids))
 
     def test_upscale(self, orth_grid): #pylint: disable=redefined-outer-name
         """Testing grid upscale and downscale methods."""
         upscaled = orth_grid.upscale(2)
-        assert np.all(upscaled.cell_size == 2 * orth_grid.cell_size)
         assert np.all(upscaled.dimens == orth_grid.dimens / 2)
-        assert np.all(upscaled.actnum == 1)
-        assert upscaled.state.spatial
-        downscaled = upscaled.downscale(2)
-        assert np.all(downscaled.cell_size == orth_grid.cell_size)
-        assert np.all(downscaled.dimens == orth_grid.dimens)
-        assert downscaled.state.spatial
+        assert np.all(upscaled.cell_volumes == 8)
+        assert np.all(upscaled.actnum)
+        downscaled = orth_grid.downscale(2)
+        assert np.all(downscaled.dimens == orth_grid.dimens * 2)
+        assert np.all(downscaled.cell_volumes == 1/8)
+        assert np.all(downscaled.actnum)
 
 
 class TestCornerPointGrid():
@@ -184,7 +187,6 @@ class TestCornerPointGrid():
                                          [[2., 0., 0., 2., 0., 6.],
                                           [2., 1., 0., 2., 1., 6.]]])
         assert np.all(upscaled.zcorn == [0., 0., 0., 0., 6., 6., 6., 6.])
-        assert upscaled.state.spatial
 
 
 class TestWellblocks():
@@ -192,10 +194,11 @@ class TestWellblocks():
 
     def test_algorithm(self):
         """Creating test wells and check blocks and intersections for every block."""
-        grid = OrthogonalUniformGrid(dimens=np.array([2, 1, 6]),
-                                     dx=1, dy=1, dz=1,
-                                     actnum=np.ones((2, 1, 6)).astype(bool))
-        grid.set_state(spatial=True)
+        grid = OrthogonalGrid(dimens=np.array([2, 1, 6]),
+                              dx=np.ones([2, 1, 6]),
+                              dy=np.ones([2, 1, 6]),
+                              dz=np.ones([2, 1, 6]),
+                              actnum=np.ones([2, 1, 6]).astype(bool))
         grid = grid.to_corner_point()
 
         grid.actnum[0, 0, 1] = False
@@ -225,3 +228,34 @@ class TestArithmetics():
         assert np.allclose(arithmetics_model.rock.permx, arithmetics_model.rock.poro * 500)
         assert np.allclose(arithmetics_model.rock.permz, arithmetics_model.rock.permx * 0.1)
         assert np.allclose(arithmetics_model.rock.permy[3:6, 3:6, 1:1], arithmetics_model.rock.permx[3:6, 3:6, 1:1] + 5)
+
+class TestBenchmarksLoading():
+    """Test loading benchmarks. To assighn a path to benchmarks use option --path_to_benchmarks"""
+    def test_benchmarks(self, path_to_benchmarks):
+        """Test loading models from benchmarks."""
+
+        traverse = pathlib.Path(path_to_benchmarks)
+        models_pathways_data_uppercase = list(map(str, list(traverse.rglob("*.DATA"))))
+        models_pathways_data_lowercase = list(map(str, list(traverse.rglob("*.data"))))
+        models_pathways = models_pathways_data_uppercase + models_pathways_data_lowercase
+        if len(models_pathways) > 0:
+            failed = []
+
+            for model in models_pathways:
+                try:
+                    Field(model, loglevel='ERROR').load()
+                except Exception as err: #pylint: disable=broad-exception-caught
+                    failed.append((model, str(err)))
+
+            errors_df = pd.DataFrame(failed, columns=['Path', 'Error'])
+            errors_grouped = []
+
+            for err, df in errors_df.groupby("Error"):
+                for record in df.values:
+                    errors_grouped.append((err, record[0]))
+
+            errors_grouped_df = pd.DataFrame(errors_grouped, columns=['Error', 'Path'])
+            errors_grouped_df.to_csv('errors_grouped.csv', index=False)
+            assert len(failed) == 0
+        else:
+            warnings.warn("Benchmarks folder does not exist")

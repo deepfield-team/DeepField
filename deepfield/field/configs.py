@@ -2,19 +2,23 @@
 """Configs collection."""
 from .parse_utils.table_info import TABLE_INFO
 
-orth_grid_config = {'OrthogonalUniformGrid': {'attrs': ['ACTNUM', 'DIMENS', 'DX', 'DY', 'DZ',
-                                                        'MAPAXES', 'TOPS', 'MINPV']}}
-corn_grid_config = {'CornerPointGrid': {'attrs': ['ACTNUM', 'COORD', 'DIMENS', 'MAPAXES', 'ZCORN', 'MINPV'],
+orth_grid_config = {'OrthogonalGrid': {'attrs': ['ACTNUM', 'DIMENS', 'DX', 'DY', 'DZ',
+                                                 'DXV', 'DYV', 'DZV',
+                                                 'MAPAXES', 'TOPS', 'MINPV']}}
+corn_grid_config = {'CornerPointGrid': {'attrs': ['ACTNUM', 'COORD', 'DIMENS',
+                                                  'MAPAXES', 'ZCORN', 'MINPV'],
                                         'apply_mapaxes': True}}
-any_grid_config = {'Grid': {'attrs': list(set(orth_grid_config['OrthogonalUniformGrid']['attrs'] +
+any_grid_config = {'Grid': {'attrs': list(set(orth_grid_config['OrthogonalGrid']['attrs'] +
                                               corn_grid_config['CornerPointGrid']['attrs']))}}
 
 base_config = {
-    'Rock': {'attrs': ['PERMX', 'PERMY', 'PERMZ', 'PORO', 'KRW', 'KRWR', 'SGU', 'SOGCR', 'SOWCR', 'SWATINIT', 'SWCR', 'SWL', 'NTG']},
+    'Rock': {'attrs': ['PERMX', 'PERMY', 'PERMZ', 'PORO', 'KRW', 'KRWR',
+                       'SGU', 'SOGCR', 'SOWCR', 'SWATINIT', 'SWCR', 'SWL', 'NTG']},
     'States': {'attrs': ['PRESSURE', 'SOIL', 'SWAT', 'SGAS', 'RS']},
     'Tables': {'attrs': list(TABLE_INFO.keys())},
     'Wells': {'attrs': ['EVENTS', 'HISTORY', 'RESULTS', 'PERF', 'WELLTRACK',
-                        'COMPDAT', 'WELSPECS', 'WCONPROD', 'WCONINJE', 'COMPDATL', 'COMPDATMD', 'WEFAC', 'WFRAC', 'WFRACP']},
+                        'COMPDAT', 'WELSPECS', 'WELSPECL', 'WCONPROD', 'WCONINJE',
+                        'COMPDATL', 'COMPDATMD', 'WEFAC', 'WFRAC', 'WFRACP']},
     'Faults': {'attrs': ['FAULTS', 'MULTFLT']},
     'Aquifers': {'attrs': None}
 }

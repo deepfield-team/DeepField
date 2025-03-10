@@ -25,6 +25,7 @@ class State:
     def __repr__(self):
         return repr(self.__dict__)
 
+
 class BaseComponent:
     """Base class for components of geological model."""
     def __init__(self, *args, **kwargs):
@@ -153,7 +154,8 @@ class BaseComponent:
     def copy(self):
         """Returns a deepcopy of attributes. Cached properties are not copied."""
         copy = self.__class__(
-            **{k: deepcopy(v) if not issubclass(v.__class__, BaseComponent) else v.copy() for k, v in self.items()}
+            **{k: deepcopy(v) if not issubclass(v.__class__, BaseComponent) else v.copy() for k, v in self.items()},
+            field = self.field,
         )
         copy.init_state(**self.state.as_dict())
         copy.class_name = self.class_name
@@ -223,7 +225,7 @@ class BaseComponent:
             return self
         return data
 
-    def ravel(self, attr=None, order='F', inplace=True):
+    def ravel(self, attr=None, order='F'):
         """Ravel attributes where applicable assuming by default Fortran order.
 
         Parameters
@@ -232,15 +234,12 @@ class BaseComponent:
             Attribute to ravel.
         order : str
             Numpy reshape order. Default to 'F'.
-        inplace : bool
-            If `True`, ravel is made inplace, return BaseComponent.
-            Else, return raveled attribute.
 
         Returns
         -------
-        out : BaseComponent if inplace else raveled attribute itself.
+        out : Raveled attribute.
         """
-        return self.reshape(attr=attr, newshape=(-1, ), order=order, inplace=inplace)
+        return self.reshape(attr=attr, newshape=(-1, ), order=order, inplace=False)
 
     def _get_fmt_loader(self, fmt):
         """Get loader for given file format."""
@@ -324,7 +323,7 @@ class BaseComponent:
             Subset of items to load. Be default all items are loaded.
         """
         grp = grp[self.class_name]
-        state = dict(grp.attrs.items())
+        state = {k : v for k, v in grp.attrs.items() if k!='DATES'}
         for k, v in state.items():
             try:
                 state[k] = v if not np.isnan(v) else None
@@ -400,7 +399,7 @@ class BaseComponent:
         return self
 
     def _make_data_dump(self, attr, fmt=None, **kwargs):
-        """Prepare data for dump. Ravels arrays and leaves scalars unchanched."""
+        """Prepare data for dump."""
         _ = fmt, kwargs
         return getattr(self, attr)
 

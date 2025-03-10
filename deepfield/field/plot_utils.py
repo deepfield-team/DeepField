@@ -7,6 +7,80 @@ from ipywidgets import interact, widgets
 
 COLORS = ['r', 'b', 'm', 'g']
 
+def get_slice_trisurf(component, att, i=None, j=None, k=None, t=None):
+    """Get slice surface triangulaution for further plotting
+
+    Parameters
+    ----------
+    component : BaseComponent
+        Component containing attribute to show.
+    att : str
+        Attribute to show.
+    i : int or None
+        Slice along x-axis to show.
+    j : int or None
+        Slice along y-axis to show.
+    k : int or None
+        Slice along z-axis to show.
+    t : int or None
+        Slice along t-axis to show.
+    Returns
+    -------
+    np.ndarray or None, np.ndarray or None, np.ndarray or None, np.ndarray or None,
+    np.ndarray or None
+        x-coordinates of vertices, y-coordinate of vertices, triangles, data,
+        cell indices corresponding to triangles
+    """
+    count = np.sum([i is not None for i in [i, j, k, t]])
+    grid = component.field.grid
+    xyz = grid.xyz
+    actnum = grid.actnum
+    data = getattr(component, att)
+    if data.ndim == 4:
+        if count != 2:
+            raise ValueError('Two slices are expected for spatio-temporal data, found {}.'.format(count))
+        if t is None:
+            raise ValueError('`t` should be provided for spatio-temporal data.')
+    elif data.ndim == 3:
+        if count != 1:
+            raise ValueError('Single slice is expected for spatial data, found {}.'.format(count))
+        if t is not None:
+            raise ValueError('`t` should not be provided for spatial only data.')
+    else:
+        raise ValueError('Data should have 3 or 4 dimensions, found {}.'.format(data.ndim))
+
+    dims = 4
+    if data.ndim == 3:
+        dims = 3
+    if dims == 4:
+        data = data[t]
+
+    if i is not None:
+        points = xyz[i, :, :, ::2, 1:][actnum[i, :, :]]
+        n_blocks = actnum[i, :, :].sum()
+        data = np.tile(data[i, :, :][actnum[i, :, :]].reshape(-1,1), (1, 2)).ravel()
+        indices = np.indices(grid.dimens)[:, i, :, :][...,actnum[i, :, :]]
+    elif j is not None:
+        points = xyz[:, j, :,][...,(0, 1, 4, 5), :][..., (0,2)][actnum[:, j, :]]
+        n_blocks = actnum[:, j, :].sum()
+        data = np.tile(data[:, j, :][actnum[:, j, :]].reshape(-1,1), (1, 2)).ravel()
+        indices = np.indices(grid.dimens)[:, :, j, :][..., actnum[:, j, :]]
+    elif k is not None:
+        points = xyz[:, :, k, :4, :2][actnum[:, :, k]]
+        n_blocks = actnum[:, :, k].sum()
+        data = np.tile(data[:, :, k][actnum[:, :, k]].reshape(-1,1), (1, 2)).ravel()
+        indices = np.indices(grid.dimens)[:, :, :, k][..., actnum[:, :, k]]
+    else:
+        raise ValueError('One of i, j, or k slices should be defined.')
+
+    if n_blocks > 0:
+        x, y = points[:, :, 0].ravel(), points[:, :, 1].ravel()
+        triangles = np.tile(np.hstack((np.arange(3), np.array([1,2,3]))), (n_blocks, 1))
+        triangles = triangles + np.arange(0, n_blocks*4,4).reshape(-1,1)
+        triangles = triangles.reshape(-1, 3)
+        indices = np.tile(indices[..., np.newaxis], (1, 1, 2)).reshape(3, -1).T
+        return x, y, triangles, data, indices
+    return None, None, None, None, None
 
 def show_slice_static(component, att, i=None, j=None, k=None, t=None,
                       i_line=None, j_line=None, k_line=None,
@@ -44,36 +118,15 @@ def show_slice_static(component, att, i=None, j=None, k=None, t=None,
     -------
     Plot of a cube slice.
     """
-    count = np.sum([i is not None for i in [i, j, k, t]])
     grid = component.field.grid
     xyz = grid.xyz
     actnum = grid.actnum
-    data = getattr(component, att)
-    if data.ndim == 4:
-        if count != 2:
-            raise ValueError('Two slices are expected for spatio-temporal data, found {}.'.format(count))
-        if t is None:
-            raise ValueError('`t` should be provided for spatio-temporal data.')
-    elif data.ndim == 3:
-        if count != 1:
-            raise ValueError('Single slice is expected for spatial data, found {}.'.format(count))
-        if t is not None:
-            raise ValueError('`t` should not be provided for spatial only data.')
-    else:
-        raise ValueError('Data should have 3 or 4 dimensions, found {}.'.format(data.ndim))
+
 
     lines = []
-    dims = 4
-    if data.ndim == 3:
-        dims = 3
     if ax is None:
         _, ax = plt.subplots(figsize=figsize)
-    if dims == 4:
-        data = data[t]
     if i is not None:
-        points = xyz[i, :, :, ::2, 1:][actnum[i, :, :]]
-        n_blocks = actnum[i, :, :].sum()
-        colors = np.tile(data[i, :, :][actnum[i, :, :]].reshape(-1,1), (1, 2)).ravel()
         xlabel = 'y'
         ylabel = 'z'
         invert_y = True
@@ -84,9 +137,6 @@ def show_slice_static(component, att, i=None, j=None, k=None, t=None,
         if i_line is not None:
             raise ValueError('`i_line` should be None for i-slice')
     elif j is not None:
-        points = xyz[:, j, :,][...,(0, 1, 4, 5), :][..., (0,2)][actnum[:, j, :]]
-        n_blocks = actnum[:, j, :].sum()
-        colors = np.tile(data[:, j, :][actnum[:, j, :]].reshape(-1,1), (1, 2)).ravel()
         xlabel = 'x'
         ylabel = 'z'
         invert_y = True
@@ -97,9 +147,6 @@ def show_slice_static(component, att, i=None, j=None, k=None, t=None,
         if j_line is not None:
             raise ValueError('`j_line` should be None for j-slice')
     elif k is not None:
-        points = xyz[:, :, k, :4, :2][actnum[:, :, k]]
-        n_blocks = actnum[:, :, k].sum()
-        colors = np.tile(data[:, :, k][actnum[:, :, k]].reshape(-1,1), (1, 2)).ravel()
         xlabel = 'x'
         ylabel = 'y'
         invert_y = False
@@ -112,11 +159,8 @@ def show_slice_static(component, att, i=None, j=None, k=None, t=None,
     else:
         raise ValueError('One of i, j, or k slices should be defined.')
 
-    if n_blocks > 0:
-        x, y = points[:, :, 0].ravel(), points[:, :, 1].ravel()
-        triangles = np.tile(np.hstack((np.arange(3), np.array([1,2,3]))), (n_blocks, 1))
-        triangles = triangles + np.arange(0, n_blocks*4,4).reshape(-1,1)
-        triangles = triangles.reshape(-1, 3)
+    x, y, triangles, colors, _ = get_slice_trisurf(component, att, i, j, k, t)
+    if triangles is not None:
         ax.tripcolor(x, y, colors, triangles=triangles, **kwargs)
         for line in lines:
             x, y = line[:, 0], line[:, 1]
