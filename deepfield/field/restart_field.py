@@ -121,7 +121,7 @@ class RestartField(Field):
             if comp in ('grid', 'rock', 'tables', 'aquifers'):
                 setattr(tmp_model, comp, getattr(self.parent, comp).copy())
         result_dates_restart = self.result_dates
-        states_dates_parent = self.states.parent.dates
+        states_dates_parent = self.parent.states.dates
         states_dates_restart = self.states.dates
         states_tmp = States()
         for attr in self.states.attributes:
