@@ -377,8 +377,8 @@ class Field:
         if fmt.upper() == 'HDF5':
             self._load_hdf5(raise_errors=raise_errors)
             self._collect_loaded_attrs()
-            return
-        elif fmt.upper() in ['DATA', 'DAT']:
+            return self
+        if fmt.upper() in ['DATA', 'DAT']:
             self._load_data(raise_errors=raise_errors, include_binary=include_binary)
         else:
             raise NotImplementedError('Format {} is not supported.'.format(fmt))
