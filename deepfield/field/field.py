@@ -58,6 +58,9 @@ SECTIONS_DICT = {
               ('ISGL', 'rock'), ('ISWL', 'rock'), ('ISOGCR', 'rock'), ('ISOWCR', 'rock')]
 }
 
+SUMMARY_KW = ['WLPR', 'WOPR', 'WGPR', 'WWPR', 'WWIR', 'WGIR', 'WBHP',
+              'EXCEL', 'RPTONLY', 'SEPARATE']
+
 #pylint: disable=protected-access
 class FieldState:
     """State holder."""
@@ -100,6 +103,7 @@ class Field:
                       'START': pd.to_datetime(''),
                       'DATES': pd.to_datetime([]),
                       'FLUIDS': [],
+                      'SUMMARY': [],
                       'HUNITS': DEFAULT_HUNITS['METRIC']}
         self._state = FieldState(self)
 
@@ -372,6 +376,8 @@ class Field:
         fmt = os.path.splitext(name)[1].strip('.')
         if fmt.upper() == 'HDF5':
             self._load_hdf5(raise_errors=raise_errors)
+            self._collect_loaded_attrs()
+            return
         elif fmt.upper() in ['DATA', 'DAT']:
             self._load_data(raise_errors=raise_errors, include_binary=include_binary)
         else:
@@ -495,7 +501,7 @@ class Field:
         if include_binary:
             self._load_binary(components=('grid',),
                               raise_errors=raise_errors)
-            if 'ACTNUM' in self.grid.attributes:
+            if 'ACTNUM' in self.grid.state.binary_attributes:
                 self._load_binary(components=('rock',), raise_errors=raise_errors)
 
         loaders = self._get_loaders(self._config)
@@ -544,6 +550,8 @@ class Field:
             self._read_hunits(next(buffer))
         elif attr in ['OIL', 'GAS', 'WATER', 'DISGAS', 'VAPOIL']:
             self.meta['FLUIDS'].append(attr)
+        elif attr in SUMMARY_KW:
+            self.meta['SUMMARY'].append(attr)
         else:
             raise NotImplementedError("Keyword {} is not supported.".format(attr))
         return self
@@ -647,7 +655,7 @@ class Field:
             raise NotImplementedError('Format {} is not supported.'.format(fmt))
         return self
 
-    def _dump_hdf5(self, path, mode='a', only_active=False, reduce_floats=True, **kwargs):
+    def _dump_hdf5(self, path, mode='w', only_active=False, reduce_floats=True, **kwargs):
         """Dump model into HDF5 file.
 
         Parameters
@@ -660,7 +668,7 @@ class Field:
             the same name would be deleted).
             'a': append, an existing file is opened for reading and writing,
             and if the file does not exist it is created.
-            Default to 'a'.
+            Default to 'w'.
         only_active : bool
             Keep state values in active cells only. Default to False.
         reduce_floats : bool
