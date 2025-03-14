@@ -61,6 +61,11 @@ SECTIONS_DICT = {
 SUMMARY_KW = ['WLPR', 'WOPR', 'WGPR', 'WWPR', 'WWIR', 'WGIR', 'WBHP',
               'EXCEL', 'RPTONLY', 'SEPARATE']
 
+META_KW = ['ARRA', 'ARRAY', 'DATES', 'TITLE', 'START', 'METRIC', 'FIELD',
+           'HUNI', 'HUNITS', 'OIL', 'GAS', 'WATER', 'DISGAS', 'VAPOIL', 'RES',
+           'RESTARTDATE', 'RESTART'] + SUMMARY_KW
+
+
 #pylint: disable=protected-access
 class FieldState:
     """State holder."""
@@ -426,9 +431,7 @@ class Field:
 
     def _get_loaders(self, config):
         loaders = {}
-        for k in ['ARRA', 'ARRAY', 'DATES', 'TITLE', 'START', 'METRIC', 'FIELD',
-                  'HUNI', 'HUNITS', 'OIL', 'GAS', 'WATER', 'DISGAS', 'VAPOIL', 'RES',
-                  'RESTARTDATE', 'RESTART'] + SUMMARY_KW:
+        for k in META_KW:
             loaders[k] = partial(self._read_buffer, attr=k, logger=self._logger)
 
         loaders['COPY'] = partial(load_copy, self, logger=self._logger)

@@ -48,12 +48,10 @@ def load_rsm(wells, path, logger):
         welldata[wellname] = {'RESULTS': wdf.sort_values('DATE')}
     return wells.update(welldata)
 
-def load_ecl_binary(wells, path_to_results, attrs, basename, logger=None, **kwargs):
+def load_ecl_binary(wells, path_to_results, basename, logger=None, **kwargs):
     """Load results from UNSMRY file."""
     _ = kwargs
 
-    if 'RESULTS' not in attrs:
-        return wells
     smry_path_unifout = get_single_path(path_to_results, basename + '.UNSMRY', logger)
     smry_path_multout = get_multout_paths(path_to_results, basename, r'S\d+')
     if smry_path_unifout is None and smry_path_multout is None:
