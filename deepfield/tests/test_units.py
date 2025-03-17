@@ -50,7 +50,7 @@ class TestModelLoad:
         assert set(model.states.attributes) == {'PRESSURE', }
         assert len(model.wells.names) == len(TEST_WELLS)
         assert set(model.meta.keys()) == {'FLUIDS', 'UNITS', 'HUNITS', 'DATES',
-                                          'START', 'TITLE', 'MODEL_TYPE'}
+                                          'START', 'TITLE', 'MODEL_TYPE', 'SUMMARY'}
 
     def test_shape(self, model):
         """Testing data shape."""

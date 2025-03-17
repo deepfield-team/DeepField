@@ -109,6 +109,7 @@ class Field:
                       'DATES': pd.to_datetime([]),
                       'FLUIDS': [],
                       'SUMMARY': [],
+                      'MODEL_TYPE': '',
                       'HUNITS': DEFAULT_HUNITS['METRIC']}
         self._state = FieldState(self)
 
@@ -379,22 +380,15 @@ class Field:
         """
         name = os.path.basename(self._path)
         fmt = os.path.splitext(name)[1].strip('.')
+
         if fmt.upper() == 'HDF5':
             self._load_hdf5(raise_errors=raise_errors)
-            self._collect_loaded_attrs()
-            return self
-        if fmt.upper() in ['DATA', 'DAT']:
+        elif fmt.upper() in ['DATA', 'DAT']:
             self._load_data(raise_errors=raise_errors, include_binary=include_binary)
         else:
             raise NotImplementedError('Format {} is not supported.'.format(fmt))
-        if 'grid' in self.components:
-            self.grid = specify_grid(self.grid)
 
-        loaded = self._collect_loaded_attrs()
-        if 'WELLS' in loaded and ('COMPDAT' in loaded['WELLS'] or 'COMPDATL' in loaded['WELLS']):
-            self.meta['MODEL_TYPE'] = 'ECL'
-        else:
-            self.meta['MODEL_TYPE'] = 'TN'
+        self._collect_loaded_attrs()
         return self
 
     def _load_hdf5(self, raise_errors):
@@ -526,15 +520,26 @@ class Field:
         self._load_results(raise_errors, include_binary)
         self._check_vapoil()
 
-        if 'wells' in self.components and 'grid' in self.components:
+        if 'wells' in self.components:
             self.wells.add_welltrack()
+            for well in self.wells:
+                if 'COMPDAT' in well or 'COMPDATL' in well:
+                    self.meta['MODEL_TYPE'] = 'ECL'
+                    break
+            else:
+                self.meta['MODEL_TYPE'] = 'TN'
+            self._logger.info('Model type is determined as {}.'.format(self.meta['MODEL_TYPE']))
 
-        if ('grid' in self.components and
-            self._config['grid']['kwargs'].get('apply_mapaxes', False)):
+
+        if self._config['grid']['kwargs'].get('apply_mapaxes', False):
             self.grid.map_grid()
-            self._logger.info(
-                ''.join(('Grid pillars (`COORD`) are mapped to new axis ',
-                         'with respect to `MAPAXES`.')))
+            self._logger.info('Grid pillars `COORD` are mapped to new axis with respect to `MAPAXES`.')
+
+        if 'states' in self.components:
+            if not self.states.state.binary_attributes and self.states.attributes:
+                self.states.dates = pd.to_datetime([self.meta['START']])
+                self._logger.info('States dates are set to start date {}.'.format(self.meta['START']))
+
         return self
 
     def _read_buffer(self, buffer, attr, logger):
