@@ -1,37 +1,50 @@
 # pylint: disable=too-many-lines
 """Field class."""
-import logging
-import os
-import sys
-import weakref
 from copy import deepcopy
 from functools import partial
+import logging
+import os
 from string import Template
+import sys
+import weakref
 
+from anytree import PreOrderIter
 import h5py
 import numpy as np
 import pandas as pd
 import pyvista as pv
-from anytree import PreOrderIter
-from vtk import vtkXMLUnstructuredGridWriter # pylint: disable=no-name-in-module
-from vtk.util.numpy_support import numpy_to_vtk # pylint: disable=no-name-in-module, import-error
+from vtk import vtkXMLUnstructuredGridWriter
+from vtk.util.numpy_support import numpy_to_vtk
 
-from .arithmetics import load_add, load_copy, load_equals, load_multiply
-from .faults import Faults
 from .aquifer import Aquifers
+from .arithmetics import load_add, load_copy, load_equals, load_multiply
 from .configs import default_config
 from .dump_ecl_utils import egrid, init, restart, summary
+from .dump_utils.data_directory import DATA_DIRECTORY, dump_keyword
+from .faults import Faults
 from .grids import CornerPointGrid, Grid, OrthogonalGrid, specify_grid
-from .parse_utils import (dates_to_str, preprocess_path,
-                          read_dates_from_buffer, tnav_ascii_parser)
+from .parse_utils import (
+    dates_to_str,
+    preprocess_path,
+    read_dates_from_buffer,
+    tnav_ascii_parser,
+)
 from .rates import calc_rates, calc_rates_multiprocess
 from .rock import Rock
 from .states import States
 from .tables import Tables
-from .template_models import (CORNERPOINT_GRID, DEFAULT_ECL_MODEL,
-                              DEFAULT_TN_MODEL, ORTHOGONAL_GRID)
-from .utils import (get_single_path, get_spatial_cf_and_perf,
-                    get_spatial_well_control, get_well_mask)
+from .template_models import (
+    CORNERPOINT_GRID,
+    DEFAULT_ECL_MODEL,
+    DEFAULT_TN_MODEL,
+    ORTHOGONAL_GRID,
+)
+from .utils import (
+    get_single_path,
+    get_spatial_cf_and_perf,
+    get_spatial_well_control,
+    get_well_mask,
+)
 from .wells import Wells
 
 ACTOR = None
@@ -1315,6 +1328,16 @@ class Field:
         plotter.show_grid(show_xlabels=show_labels, show_ylabels=show_labels, show_zlabels=show_labels)
         plotter.show()
 
+    def _get_runspec(self):
+        runspec = [(entry, entry.getter(self) if entry.data_type is not None else None) for
+            entry in DATA_DIRECTORY['RUNSPEC'] if entry.is_present(self)]
+        return runspec
+
+    def _export_runspec(self):
+        return '\n\n'.join([
+            "RUNSPEC",
+            *[dump_keyword(*entry) for entry in self._get_runspec()]
+        ])
 
 def create_mesh(plotter, grid, attribute, opacity, threshold, slice_xyz, timestamp, plot_params, scaling):
     """Create mesh for pyvista visualisation."""
