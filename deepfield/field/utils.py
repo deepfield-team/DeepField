@@ -35,7 +35,7 @@ def signal_handler(signum, frame):
 def execute_tnav_models(models, license_url,
                         tnav_path, base_script_path=None, logfile=None,
                         global_timeout=None, process_timeout=None,
-                        dump_rsm=True, dump_egrid=False, dump_unsmry=False, dump_unrst=True):
+                        dump_rsm=True, dump_egrid=True, dump_unsmry=True, dump_unrst=True):
     """Execute a bash script for each model in a set of models.
 
     Parameters
