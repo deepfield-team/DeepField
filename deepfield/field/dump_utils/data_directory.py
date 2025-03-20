@@ -8,9 +8,9 @@ import numpy as np
 
 MAX_STRLEN = 40
 
-_FLUID_KEYWORDS = ('OIL', 'GAS', 'WATER')
-_ORTHOGONAL_GRID_KEYWORDS = ('DX', 'DY', 'DZ', 'TOPS')
-_ROCK_GRID = ('PORO', 'PERMX', 'PERMY', 'PERMZ')
+FLUID_KEYWORDS = ('OIL', 'GAS', 'WATER')
+ORTHOGONAL_GRID_KEYWORDS = ('DX', 'DY', 'DZ', 'TOPS', 'ACTNUM')
+ROCK_GRID_KEYWORDS = ('PORO', 'PERMX', 'PERMY', 'PERMZ', 'NTG')
 
 class DataTypes(Enum):
     STRING = auto()
@@ -20,7 +20,7 @@ class DataTypes(Enum):
     STATEMENT_LIST = auto()
     ARRAY = auto()
 
-_TABLE_COLUMNS = {
+TABLE_COLUMNS = {
     'RUNCTRL': ('Parameter', 'Value'),
     'TNAVCTRL': ('Parameter', 'Value')
 }
@@ -29,48 +29,23 @@ _TABLE_COLUMNS = {
 class DirectoryEntrySpecification:
     keyword: str
     data_type: Optional[DataTypes]
-    getter: Optional[Callable]
-    is_present: Callable = lambda _: True
 
 DATA_DIRECTORY = {
     "RUNSPEC": [
-        DirectoryEntrySpecification('TITLE', DataTypes.STRING, lambda field: field.meta['TITLE']),
-        DirectoryEntrySpecification('MULTOUT', None, None),
-        DirectoryEntrySpecification('MULTOUTS', None, None),
-        DirectoryEntrySpecification('START', DataTypes.STRING, lambda field: field.meta['START']),
-        DirectoryEntrySpecification('METRIC', None, None, lambda field: field.meta['UNITS'] == 'METRIC'),
-        *[
-            DirectoryEntrySpecification(
-                fluid, None, None, lambda field: fluid in field.meta['FLUIDS']
-            ) for fluid in _FLUID_KEYWORDS
-        ],
-        DirectoryEntrySpecification('DIMENS', DataTypes.VECTOR, lambda field: field.grid.DIMENS),
-        DirectoryEntrySpecification('RUNCTRL', DataTypes.STATEMENT_LIST,
-                                    lambda field: pd.DataFrame(
-                                        [['WELLEQUATIONS', 1], ['WATERZONE', 1]],
-                                        columns=_TABLE_COLUMNS['RUNCTRL']
-                                    )
-                                   ),
-        DirectoryEntrySpecification('TNAVCTRL', DataTypes.STATEMENT_LIST,
-                                    lambda field: pd.DataFrame(
-                                        [['LONGNAMES', 1]],
-                                        columns=_TABLE_COLUMNS['TNAVCTRL']
-                                    )
-        )
+        DirectoryEntrySpecification('TITLE', DataTypes.STRING),
+        DirectoryEntrySpecification('MULTOUT', None),
+        DirectoryEntrySpecification('MULTOUTS', None),
+        DirectoryEntrySpecification('START', DataTypes.STRING),
+        DirectoryEntrySpecification('METRIC', None),
+        *[DirectoryEntrySpecification( fluid, None) for fluid in FLUID_KEYWORDS],
+        DirectoryEntrySpecification('DIMENS', DataTypes.VECTOR),
+        DirectoryEntrySpecification('RUNCTRL', DataTypes.STATEMENT_LIST),
+        DirectoryEntrySpecification('TNAVCTRL', DataTypes.STATEMENT_LIST)
 ],
     "GRID": [
-        DirectoryEntrySpecification('MAPAXES', DataTypes.VECTOR, lambda field: field.grid.MAPAXES,
-                                    lambda field: "MAPAXES" in field.grid.attributes),
-        *[
-            DirectoryEntrySpecification(
-                    keyword, DataTypes.ARRAY, lambda field, keyword=keyword: getattr(field.grid, keyword)
-            ) for keyword in _ORTHOGONAL_GRID_KEYWORDS
-        ],
-        *[
-            DirectoryEntrySpecification(
-                keyword, DataTypes.ARRAY, lambda field, keyword=keyword: getattr(field.rock, keyword)
-            ) for keyword in _ROCK_GRID
-        ]
+        DirectoryEntrySpecification('MAPAXES', DataTypes.VECTOR),
+        *[DirectoryEntrySpecification(keyword, DataTypes.ARRAY) for keyword in ORTHOGONAL_GRID_KEYWORDS],
+        *[DirectoryEntrySpecification( keyword, DataTypes.ARRAY) for keyword in ROCK_GRID_KEYWORDS]
     ]
 }
 

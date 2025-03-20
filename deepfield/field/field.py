@@ -46,6 +46,7 @@ from .utils import (
     get_well_mask,
 )
 from .wells import Wells
+from ._data_getters import DATA_GETTERS
 
 ACTOR = None
 
@@ -1328,10 +1329,16 @@ class Field:
         plotter.show_grid(show_xlabels=show_labels, show_ylabels=show_labels, show_zlabels=show_labels)
         plotter.show()
 
+    def _get_keyword_data(self, section, keyword):
+        return DATA_GETTERS[section][keyword](self)
+
     def _get_section_data(self, section):
-        runspec = [(entry, entry.getter(self) if entry.data_type is not None else None) for
-            entry in DATA_DIRECTORY[section] if entry.is_present(self)]
-        return runspec
+        section_data = []
+        for entry in DATA_DIRECTORY[section]:
+            data = self._get_keyword_data(section, entry.keyword)
+            if data[0]:
+                section_data.append((entry, data[1]))
+        return section_data
 
     def _export_runspec(self):
         return '\n\n'.join([
