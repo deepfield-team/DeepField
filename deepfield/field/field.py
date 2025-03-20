@@ -1328,16 +1328,36 @@ class Field:
         plotter.show_grid(show_xlabels=show_labels, show_ylabels=show_labels, show_zlabels=show_labels)
         plotter.show()
 
-    def _get_runspec(self):
+    def _get_section_data(self, section):
         runspec = [(entry, entry.getter(self) if entry.data_type is not None else None) for
-            entry in DATA_DIRECTORY['RUNSPEC'] if entry.is_present(self)]
+            entry in DATA_DIRECTORY[section] if entry.is_present(self)]
         return runspec
 
     def _export_runspec(self):
         return '\n\n'.join([
             "RUNSPEC",
-            *[dump_keyword(*entry) for entry in self._get_runspec()]
+            *[dump_keyword(*entry) for entry in self._get_section_data()]
         ])
+
+    def _export_section(self, section, buf, include_path):
+        buf_tmp = buf
+        data = self._get_section_data(section)
+        buf.write(f'{section}\n\n')
+        for entry in data:
+            buf_tmp = dump_keyword(*entry, buf_tmp, include_path)
+        return buf_tmp
+
+    def _export(self, path):
+        title = self.meta['TITLE']
+        dir_path = os.path.join(path, title)
+        if not os.path.exists(dir_path):
+            os.mkdir(dir_path)
+        include_path = os.path.join(dir_path, 'include')
+        if not os.path.exists(include_path):
+            os.mkdir(include_path)
+        with open(os.path.join(dir_path, f'{title}.data'), 'w') as buf:
+            for section in ['RUNSPEC', 'GRID']:
+                buf = self._export_section(section, buf, include_path)
 
 def create_mesh(plotter, grid, attribute, opacity, threshold, slice_xyz, timestamp, plot_params, scaling):
     """Create mesh for pyvista visualisation."""
