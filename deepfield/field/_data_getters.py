@@ -1,5 +1,8 @@
 import pandas as pd
-from .dump_utils.data_directory import FLUID_KEYWORDS, ORTHOGONAL_GRID_KEYWORDS, ROCK_GRID_KEYWORDS, TABLE_COLUMNS
+from .dump_utils.data_directory import (FLUID_KEYWORDS, ORTHOGONAL_GRID_KEYWORDS,
+                                        ROCK_GRID_KEYWORDS, TABLE_COLUMNS, TABLES_KEYWORDS)
+
+INDEXED_TABLES = ('PVCDO', 'PVTW', 'ROCK', 'SWOF')
 
 DATA_GETTERS = {
     "RUNSPEC": {
@@ -22,10 +25,15 @@ DATA_GETTERS = {
     },
     "GRID": {
         'MAPAXES':  lambda field: field.grid.MAPAXES,
-        **{keyword:  lambda field, keyword=keyword: _array_getter(keyword, field.grid)
+        **{keyword: lambda field, keyword=keyword: _array_getter(keyword, field.grid)
                                                     for keyword in ORTHOGONAL_GRID_KEYWORDS},
-        **{keyword:  lambda field, keyword=keyword: _array_getter(keyword, field.states)
+        **{keyword: lambda field, keyword=keyword: _array_getter(keyword, field.states)
                                                     for keyword in ROCK_GRID_KEYWORDS}
+    },
+    "PROPS": {
+        **{keyword: lambda field, keyword=keyword: _table_getter(
+            keyword, field, is_indexed=keyword in INDEXED_TABLES
+        ) for keyword in TABLES_KEYWORDS}
     }
 }
 
@@ -43,3 +51,10 @@ def _array_getter(keyword, component):
     is_present = keyword in component.attributes
     val = getattr(component, keyword).reshape(-1, order='F') if is_present else None
     return is_present, val
+
+def _table_getter(keyword, field, is_indexed):
+    is_present = keyword in field.tables
+    val = getattr(field.tables, keyword) if is_present else None
+    if is_indexed and is_present:
+        val = val.reset_index()
+    return is_present, [val]

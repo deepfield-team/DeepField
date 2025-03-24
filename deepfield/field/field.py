@@ -1363,7 +1363,7 @@ class Field:
         if not os.path.exists(include_path):
             os.mkdir(include_path)
         with open(os.path.join(dir_path, f'{title}.data'), 'w') as buf:
-            for section in ['RUNSPEC', 'GRID']:
+            for section in ['RUNSPEC', 'GRID', 'PROPS']:
                 buf = self._export_section(section, buf, include_path)
 
 def create_mesh(plotter, grid, attribute, opacity, threshold, slice_xyz, timestamp, plot_params, scaling):
