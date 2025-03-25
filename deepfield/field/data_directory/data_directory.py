@@ -34,6 +34,10 @@ TABLE_COLUMNS = {
     'DENSITY': ('DENSO', 'DENSW', 'DENSG'),
 }
 
+DTYPES = {
+    'DIMENS': int,
+}
+
 @dataclass
 class DirectoryEntrySpecification:
     keyword: str
@@ -80,6 +84,47 @@ DATA_DIRECTORY = {
     ]
 }
 
+
+DATA_DIRECTORY = {
+    "RUNSPEC": {
+        'TITLE': DataTypes.STRING,
+        'MULTOUT': None,
+        'MULTOUTS': None,
+        'START': DataTypes.STRING,
+        'METRIC': None,
+        **{fluid: None for fluid in FLUID_KEYWORDS},
+        'DIMENS': DataTypes.VECTOR,
+        'RUNCTRL': DataTypes.STATEMENT_LIST,
+        'TNAVCTRL': DataTypes.STATEMENT_LIST
+    },
+    "GRID": {
+        'MAPAXES': DataTypes.VECTOR,
+        **{keyword: DataTypes.ARRAY for keyword in ORTHOGONAL_GRID_KEYWORDS},
+        **{keyword: DataTypes.ARRAY for keyword in ROCK_GRID_KEYWORDS}
+    },
+    "PROPS": {
+        **{keyword: DataTypes.TABLE_SET for keyword in TABLES_KEYWORDS}
+    },
+    "REGIONS": {
+    },
+    "SOLUTION": {
+        'EQUIL': DataTypes.TABLE_SET,
+        'RPTSOL': DataTypes.PARAMETERS
+    },
+    "SUMMARY": {
+        **{keyword: None for keyword in FIELD_SUMMARY_KETWORDS},
+        **{keyword: DataTypes.OBJECT_LIST for keyword in WELL_SUMMARY_KEYWORDS},
+        **{keyword: None for keyword in TOTAL_SUMMARY_KEYWORDS},
+        'EXCEL': None,
+        'RPTONLY': None
+    },
+    'SCHEDULE': {
+        'RPTSCHED': DataTypes.PARAMETERS,
+        'RPTRST': DataTypes.PARAMETERS,
+        'WELSPECS': DataTypes.STATEMENT_LIST,
+        **{keyword: DataTypes.STATEMENT_LIST for keyword in SCHEDULE_KEYWORDS}
+    }
+}
 def dump_keyword(spec, val, buf, include_path):
     _DUMP_ROUTINES[spec.data_type](spec.keyword, val, buf, include_path)
     buf.write('\n')

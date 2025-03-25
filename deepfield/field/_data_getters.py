@@ -1,5 +1,5 @@
 import pandas as pd
-from .dump_utils.data_directory import (FLUID_KEYWORDS, ORTHOGONAL_GRID_KEYWORDS,
+from .data_directory.data_directory import (FLUID_KEYWORDS, ORTHOGONAL_GRID_KEYWORDS,
                                         ROCK_GRID_KEYWORDS, TABLE_COLUMNS, TABLES_KEYWORDS)
 
 INDEXED_TABLES = ('PVCDO', 'PVTW', 'ROCK', 'SWOF')
