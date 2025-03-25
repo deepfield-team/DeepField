@@ -17,13 +17,8 @@ class States(SpatialComponent):
     """States component of geological model."""
 
     def __init__(self, *args, **kwargs):
-        kwargs = copy.copy(kwargs)
-        if 'dates' in kwargs:
-            self._dates = kwargs['dates']
-            del kwargs['dates']
-        else:
-            self._dates = None
-        super().__init__(*args, **kwargs)
+        self._dates = kwargs['dates'] if 'dates' in kwargs else pd.to_datetime([])
+        super().__init__(*args, **{k:v for k, v in kwargs.items() if k != 'dates'})
 
     def copy(self):
         cp = super().copy()
@@ -247,7 +242,7 @@ class States(SpatialComponent):
         _ = kwargs
         data = read_ecl_bin(path, attrs=['TIME', 'ITIME'], sequential=True, subset=subset,
                             logger=logger)
-        dates = None
+        dates = pd.to_datetime([])
         if len(data['ITIME'][0]) > 1:
             dates = pd.to_datetime(
                 [f'{row[3]}-{row[2]}-{row[1]}' for row in data['ITIME']]

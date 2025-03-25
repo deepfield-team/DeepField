@@ -168,6 +168,8 @@ def tnav_ascii_parser(path, loaders_map, logger, data_dir=None, encoding=None, r
     with StringIteratorIO(path, encoding=encoding) as lines:
         for line in lines:
             firstword = line.split(maxsplit=1)[0].upper()
+            if firstword in ['RUNSPEC', 'GRID', 'PROPS', 'REGIONS', 'SOLUTION', 'SUMMARY', 'SCHEDULE']:
+                logger.info("Reading section {}".format(firstword))
             if firstword in ['EFOR', 'EFORM', 'HFOR', 'HFORM']:
                 column_names = line.split()[1:]
             elif firstword == 'ETAB':

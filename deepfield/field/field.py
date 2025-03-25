@@ -58,6 +58,14 @@ SECTIONS_DICT = {
               ('ISGL', 'rock'), ('ISWL', 'rock'), ('ISOGCR', 'rock'), ('ISOWCR', 'rock')]
 }
 
+SUMMARY_KW = ['WLPR', 'WOPR', 'WGPR', 'WWPR', 'WWIR', 'WGIR', 'WBHP',
+              'EXCEL', 'RPTONLY', 'SEPARATE']
+
+META_KW = ['ARRA', 'ARRAY', 'DATES', 'TITLE', 'START', 'METRIC', 'FIELD',
+           'HUNI', 'HUNITS', 'OIL', 'GAS', 'WATER', 'DISGAS', 'VAPOIL', 'RES',
+           'RESTARTDATE', 'RESTART'] + SUMMARY_KW
+
+
 #pylint: disable=protected-access
 class FieldState:
     """State holder."""
@@ -100,6 +108,8 @@ class Field:
                       'START': pd.to_datetime(''),
                       'DATES': pd.to_datetime([]),
                       'FLUIDS': [],
+                      'SUMMARY': [],
+                      'MODEL_TYPE': '',
                       'HUNITS': DEFAULT_HUNITS['METRIC']}
         self._state = FieldState(self)
 
@@ -370,20 +380,15 @@ class Field:
         """
         name = os.path.basename(self._path)
         fmt = os.path.splitext(name)[1].strip('.')
+
         if fmt.upper() == 'HDF5':
             self._load_hdf5(raise_errors=raise_errors)
         elif fmt.upper() in ['DATA', 'DAT']:
             self._load_data(raise_errors=raise_errors, include_binary=include_binary)
         else:
             raise NotImplementedError('Format {} is not supported.'.format(fmt))
-        if 'grid' in self.components:
-            self.grid = specify_grid(self.grid)
 
-        loaded = self._collect_loaded_attrs()
-        if 'WELLS' in loaded and ('COMPDAT' in loaded['WELLS'] or 'COMPDATL' in loaded['WELLS']):
-            self.meta['MODEL_TYPE'] = 'ECL'
-        else:
-            self.meta['MODEL_TYPE'] = 'TN'
+        self._collect_loaded_attrs()
         return self
 
     def _load_hdf5(self, raise_errors):
@@ -420,9 +425,7 @@ class Field:
 
     def _get_loaders(self, config):
         loaders = {}
-        for k in ['ARRA', 'ARRAY', 'DATES', 'TITLE', 'START', 'METRIC', 'FIELD',
-                  'HUNI', 'HUNITS', 'OIL', 'GAS', 'WATER', 'DISGAS', 'VAPOIL', 'RES',
-                  'RESTARTDATE', 'RESTART']:
+        for k in META_KW:
             loaders[k] = partial(self._read_buffer, attr=k, logger=self._logger)
 
         loaders['COPY'] = partial(load_copy, self, logger=self._logger)
@@ -495,7 +498,7 @@ class Field:
         if include_binary:
             self._load_binary(components=('grid',),
                               raise_errors=raise_errors)
-            if 'ACTNUM' in self.grid.attributes:
+            if 'ACTNUM' in self.grid.state.binary_attributes:
                 self._load_binary(components=('rock',), raise_errors=raise_errors)
 
         loaders = self._get_loaders(self._config)
@@ -517,15 +520,26 @@ class Field:
         self._load_results(raise_errors, include_binary)
         self._check_vapoil()
 
-        if 'wells' in self.components and 'grid' in self.components:
+        if 'wells' in self.components:
             self.wells.add_welltrack()
+            for well in self.wells:
+                if 'COMPDAT' in well or 'COMPDATL' in well:
+                    self.meta['MODEL_TYPE'] = 'ECL'
+                    break
+            else:
+                self.meta['MODEL_TYPE'] = 'TN'
+            self._logger.info('Model type is determined as {}.'.format(self.meta['MODEL_TYPE']))
 
-        if ('grid' in self.components and
-            self._config['grid']['kwargs'].get('apply_mapaxes', False)):
+
+        if self._config['grid']['kwargs'].get('apply_mapaxes', False):
             self.grid.map_grid()
-            self._logger.info(
-                ''.join(('Grid pillars (`COORD`) are mapped to new axis ',
-                         'with respect to `MAPAXES`.')))
+            self._logger.info('Grid pillars `COORD` are mapped to new axis with respect to `MAPAXES`.')
+
+        if 'states' in self.components:
+            if not self.states.state.binary_attributes and self.states.attributes:
+                self.states.dates = pd.to_datetime([self.meta['START']])
+                self._logger.info('States dates are set to start date {}.'.format(self.meta['START']))
+
         return self
 
     def _read_buffer(self, buffer, attr, logger):
@@ -544,6 +558,8 @@ class Field:
             self._read_hunits(next(buffer))
         elif attr in ['OIL', 'GAS', 'WATER', 'DISGAS', 'VAPOIL']:
             self.meta['FLUIDS'].append(attr)
+        elif attr in SUMMARY_KW:
+            self.meta['SUMMARY'].append(attr)
         else:
             raise NotImplementedError("Keyword {} is not supported.".format(attr))
         return self
@@ -647,7 +663,7 @@ class Field:
             raise NotImplementedError('Format {} is not supported.'.format(fmt))
         return self
 
-    def _dump_hdf5(self, path, mode='a', only_active=False, reduce_floats=True, **kwargs):
+    def _dump_hdf5(self, path, mode='w', only_active=False, reduce_floats=True, **kwargs):
         """Dump model into HDF5 file.
 
         Parameters
@@ -660,7 +676,7 @@ class Field:
             the same name would be deleted).
             'a': append, an existing file is opened for reading and writing,
             and if the file does not exist it is created.
-            Default to 'a'.
+            Default to 'w'.
         only_active : bool
             Keep state values in active cells only. Default to False.
         reduce_floats : bool
