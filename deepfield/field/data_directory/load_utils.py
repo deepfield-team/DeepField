@@ -11,7 +11,7 @@ def _load_string(keyword, buf):
     line = next(buf)
     split = line.split('/')
     val = split[0].strip(' \t\n\'\""')
-    if len(split) == 0:
+    if len(split) == 1:
         line = next(buf)
         if not line.startswith('/'):
             raise ValueError(f'Data for keyword {keyword} was not properly terminated.')
@@ -22,7 +22,7 @@ def _load_vector(keyword, buf):
     split = line.split('/')
     dtype = DTYPES[keyword] if keyword in DTYPES else float
     vector = np.fromstring(split[0], sep=' ', dtype=dtype)
-    if len(split) == 0:
+    if len(split) == 1:
         line = next(buf)
         if not line.startswith('/'):
             raise ValueError(f'Data for keyword {keyword} was not properly terminated.')
@@ -31,7 +31,7 @@ def _load_vector(keyword, buf):
 
 
 
-_LOADERS = {
+LOADERS = {
     None: lambda keyword, buf: None,
     **{t: lambda keyword, buf: None for t in DataTypes},
     DataTypes.STRING: _load_string,
@@ -157,7 +157,7 @@ def load(path, logger=None, encoding=None):
                 continue
             if firstword in DATA_DIRECTORY[cur_section]:
                 logger.info(f'Reading keyword {firstword}.')
-                data = _LOADERS[DATA_DIRECTORY[cur_section][firstword]](firstword, lines)
+                data = LOADERS[DATA_DIRECTORY[cur_section][firstword]](firstword, lines)
                 res[cur_section].append((firstword, data))
             else:
                 logger.warning('Keyword {firstword} in section {cur_section} is not supported.')
