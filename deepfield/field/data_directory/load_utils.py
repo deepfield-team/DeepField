@@ -1,4 +1,7 @@
+from ast import keyword
+from contextlib import ExitStack
 import logging
+import pathlib
 import uuid
 import re
 
@@ -161,6 +164,7 @@ class StringIteratorIO:
         self._f = None
         self._buffer = ''
         self._last_line = None
+        self._include = None
         self._on_last = False
         self._proposed_encodings = DEFAULT_ENCODINGS.copy()
 
@@ -173,18 +177,35 @@ class StringIteratorIO:
         return self
 
     def __next__(self):
+        if self._include is not None:
+            try:
+                return next(self._include)
+            except StopIteration:
+                self._include = None
+
         if self._on_last:
             self._on_last = False
             return self._last_line
         try:
-            line = next(self._f).split('--')[0]
+            line = next(self._f).split('--')[0].strip()
         except UnicodeDecodeError:
             return self._better_decoding()
         self._line_number += 1
-        if line.strip():
+        if line:
+            if line == 'INCLUDE':
+                path = LOADERS[DataTypes.STRING](keyword, self)
+                self.include_file(path)
+                return next(self)
             self._last_line = line
+            print(line)
             return line
         return next(self)
+
+    def include_file(self, path):
+        path = self._path.parent.joinpath(path)
+        with self._stack as stack:
+            self._include = stack.enter_context(StringIteratorIO(path, self._encoding))
+            self._stack = stack.pop_all()
 
     def _better_decoding(self):
         """Last chance to read line with default encodings."""
@@ -208,12 +229,14 @@ class StringIteratorIO:
         return self
 
     def __enter__(self):
-        self._f = open(self._path, 'r', encoding=self._encoding) #pylint: disable=consider-using-with
+        with ExitStack() as stack:
+            self._f = stack.enter_context(open(self._path, 'r', encoding=self._encoding)) #pylint: disable=consider-u
+            self._stack = stack.pop_all()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         _ = exc_type, exc_val, exc_tb
-        self._f.close()
+        self._stack.close()
 
     def read(self, n=None):
         """Read n characters."""
