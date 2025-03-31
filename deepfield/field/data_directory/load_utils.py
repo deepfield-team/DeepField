@@ -1,9 +1,11 @@
 import logging
 import uuid
+import re
 
 import numpy as np
+import pandas as pd
 
-from .data_directory import DATA_DIRECTORY, DataTypes, DTYPES
+from .data_directory import DATA_DIRECTORY, TABLE_INFO, DataTypes, DTYPES
 
 
 DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
@@ -28,6 +30,108 @@ def _load_vector(keyword, buf):
             raise ValueError(f'Data for keyword {keyword} was not properly terminated.')
     return vector
 
+def _load_table(keyword, buf):
+    table_info = TABLE_INFO[keyword]
+    n_attrs = len(table_info['attrs'])
+    data = _read_numerical_table_data(buf, 1, float)
+    tables = []
+    for region_table_data in data:
+        if region_table_data.size < n_attrs:
+            tmp = np.empty(n_attrs - region_table_data.size)
+            tmp[:] = np.nan
+            region_table_data = np.concatenate((region_table_data, tmp))
+        data_tmp = region_table_data.reshape(-1, n_attrs)
+        table = pd.DataFrame(data_tmp, columns=table_info['attrs'])
+        if 'domain' in table_info and table_info['domain'] is not None:
+            if len(table_info['domain'])==1:
+                domain = table_info['attrs'][table_info['domain'][0]]
+            else:
+                raise ValueError('Single attribute should be specified for table index.')
+            table = table.set_index(domain)
+        tables.append(table)
+    return tables
+
+
+def _read_numerical_table_data(buffer, depth, dtype):
+    """Read numerical data for table.
+
+    Parameters
+    ----------
+    buffer : StringIteratorIO
+        String buffer to read.
+    depth : _type_
+        Depth of the table nesting (2 for multiindex table, 1 for normal table)
+    dtype : _type_
+        Data dtype.
+
+    Returns
+    -------
+    List[np.ndarray] or List[List[np.ndarray]]
+        List of numpy arrays (1 array for each region), if `depth==1`.
+        List of lists of numpy array (1 array for each subtable, list of arrays
+        for each region), if depth==2
+
+    Raises
+    ------
+    ValueError
+        If table block is not properly closed
+    """
+    data = []
+    for _ in range(depth):
+        data = list(data)
+    ind = [0] * depth
+    group_end = True
+    expr = re.compile(r'(\d*)\*')
+
+    def _repl(match):
+        num = match.groups()[0]
+        num = int(num) if num else 1
+        return ' '.join(['nan']*num)
+
+    for line in buffer:
+        line = line.strip()
+        split = line.split("/")
+        line = split[0]
+        if len(line) > 0:
+            cur_item = data
+            line = expr.sub(_repl, line)
+            for i in reversed(ind):
+                if len(cur_item) == i:
+                    cur_item.append([])
+                cur_item = cur_item[i]
+            if not (line[0].isdigit() or line[0]=='.' or line[:3]=='nan'): # line can start from `.`, e.g `.123`
+                buffer.prev()
+                break
+            numbers = np.fromstring(line, dtype=dtype, sep=' ')
+            cur_item.append(numbers)
+            group_end = False
+        if len(split) > 1:
+            if group_end:
+                try:
+                    ind[1] += 1
+                except IndexError:
+                    data.append([])
+                    buffer.prev()
+                    break
+                ind[0] = 0
+            else:
+                ind[0] += 1
+            group_end = True
+    if data[-1] and (len(data[-1][0])):
+        if ind[-1] == len(data)-1:
+            raise ValueError('Table block was not properly closed.')
+    else:
+        del data[-1]
+        ind[-1] -= 1
+
+    if depth == 1:
+        tmp_iter = [data]
+    else:
+        tmp_iter = data
+    for d in (tmp_iter):
+        for i, vals in enumerate(d):
+            d[i] = np.hstack(vals)
+    return data
 
 
 
@@ -36,6 +140,7 @@ LOADERS = {
     **{t: lambda keyword, buf: None for t in DataTypes},
     DataTypes.STRING: _load_string,
     DataTypes.VECTOR: _load_vector,
+    DataTypes.TABLE_SET: _load_table,
 }
 class StringIteratorIO:
     """String iterator for text files."""
@@ -163,9 +268,3 @@ def load(path, logger=None, encoding=None):
                 logger.warning('Keyword {firstword} in section {cur_section} is not supported.')
 
     return res
-
-
-
-
-
-
