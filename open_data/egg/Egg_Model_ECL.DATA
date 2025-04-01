@@ -8,6 +8,7 @@ NOECHO
 RUNSPEC
 TITLE
 Egg_Model
+/
 
 -- ascii formatted output
 --FMTOUT

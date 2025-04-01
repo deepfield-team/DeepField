@@ -1,4 +1,3 @@
-from ast import keyword
 from contextlib import ExitStack
 import logging
 import pathlib
@@ -136,7 +135,79 @@ def _read_numerical_table_data(buffer, depth, dtype):
             d[i] = np.hstack(vals)
     return data
 
+def _load_array(keyword, buf):
+    kwargs = {}
+    if keyword in DTYPES:
+        kwargs['dtype'] = DTYPES[keyword]
+    data = read_array(buf, **kwargs)
+    return data
 
+def read_array(buffer, dtype=None, compressed=True, **kwargs):
+    """Read array data from a string buffer before first occurrence of '/' symbol.
+
+    Parameters
+    ----------
+    buffer : buffer
+        String buffer to read.
+    dtype : dtype or None
+        Defines dtype of an output array. If not specified, float array is returned.
+    compressed : bool
+        If True, A*B will be interpreted as B repeated A times.
+
+    Returns
+    -------
+    arr : ndarray
+        Parsed array.
+    """
+    _ = kwargs
+    arr = []
+    last_line = False
+    if dtype is None:
+        dtype = float
+    for line in buffer:
+        if '/' in line:
+            last_line = True
+            line = line.split('/')[0]
+        if compressed:
+            x = decompress_array(line, dtype=dtype)
+        else:
+            x = np.fromstring(line.strip(), dtype=dtype, sep=' ')
+        if x.size:
+            arr.append(x)
+        if last_line:
+            break
+    return np.hstack(arr)
+
+def decompress_array(s, dtype=None):
+    """Extracts compressed numerical array from ASCII string.
+    Interprets A*B as B repeated A times."""
+    if dtype is None:
+        dtype = float
+    nums = []
+    for x in s.split():
+        try:
+            val = [dtype(float(x))]
+        except ValueError:
+            k, val = x.split('*')
+            val = [dtype(val)] * int(k)
+        nums.extend(val)
+    return np.array(nums)
+
+def _load_parameters(keyword, buf):
+    res = {}
+    for line in buf:
+        split = line.split('/')
+        words = split[0].split()
+        for word in words:
+            if '=' in word:
+                key, val = word.split('=')
+                res[key] = val
+            else:
+                res[word] = None
+
+        if len(split) > 1:
+            break
+    return res
 
 LOADERS = {
     None: lambda keyword, buf: None,
@@ -144,7 +215,10 @@ LOADERS = {
     DataTypes.STRING: _load_string,
     DataTypes.VECTOR: _load_vector,
     DataTypes.TABLE_SET: _load_table,
+    DataTypes.ARRAY: _load_array,
+    DataTypes.PARAMETERS: _load_parameters
 }
+
 class StringIteratorIO:
     """String iterator for text files."""
     def __init__(self, path, encoding=None):
@@ -193,7 +267,7 @@ class StringIteratorIO:
         self._line_number += 1
         if line:
             if line == 'INCLUDE':
-                path = LOADERS[DataTypes.STRING](keyword, self)
+                path = LOADERS[DataTypes.STRING]('INCLUDE', self)
                 self.include_file(path)
                 return next(self)
             self._last_line = line

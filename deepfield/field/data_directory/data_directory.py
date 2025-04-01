@@ -78,6 +78,7 @@ TABLE_COLUMNS = {
 
 DTYPES = {
     'DIMENS': int,
+    'ACTNUM': bool,
 }
 
 @dataclass
