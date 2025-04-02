@@ -116,6 +116,68 @@ TEST_DATA = {
                 )
             )
         )
+    ],
+    DataTypes.PARAMETERS: [
+        (
+            '\n'.join((
+                'RPTSOL',
+                'RESTART=2 /'
+                'abc'
+            )),
+            (
+                'RPTSOL',
+                {
+                    'RESTART': '2',
+                }
+            )
+        ),
+        (
+            '\n'.join((
+                'RPTSOL',
+                'RESTART=2',
+                '/'
+                'abc'
+            )),
+            (
+                'RPTSOL',
+                {
+                    'RESTART': '2',
+                }
+            )
+        ),
+        (
+            '\n'.join((
+                'RPTSCHED',
+                'FIP WELSPECS WELLS /',
+                'abc'
+            )),
+            (
+                'RPTSCHED',
+                {
+                    'FIP': None,
+                    'WELSPECS': None,
+                    'WELLS': None,
+                }
+            )
+        ),
+        (
+            '\n'.join((
+                'RPTSCHED',
+                'FIP',
+                'WELSPECS',
+                'WELLS',
+                '/',
+                'abc'
+            )),
+            (
+                'RPTSCHED',
+                {
+                    'FIP': None,
+                    'WELSPECS': None,
+                    'WELLS': None,
+                }
+            )
+        )
     ]
 }
 
@@ -144,9 +206,3 @@ def test_load(data_type, input, expected):
                 pd.testing.assert_frame_equal(r, e)
             else:
                 assert (keyword, res) == (expected[0], expected_res)
-
-
-
-
-
-
