@@ -3,7 +3,7 @@ from typing import Sequence
 import pytest
 import numpy as np
 import pandas as pd
-from deepfield.field.data_directory.load_utils import LOADERS, TABLE_INFO
+from deepfield.field.data_directory.load_utils import LOADERS, TABLE_INFO, decompress_array
 
 from deepfield.field.data_directory.data_directory import DataTypes
 
@@ -178,8 +178,23 @@ TEST_DATA = {
                 }
             )
         )
+    ],
+    DataTypes.ARRAY: [
+        (
+            '\n'.join((
+                'ACTNUM',
+                '3*0 2*1',
+                '5*0',
+                '/'
+            )),
+            (
+                'ACTNUM',
+                np.array([False]*3 + [True]*2 + [False]*5)
+            )
+        )
     ]
 }
+
 
 @pytest.mark.parametrize(
     "data_type, input, expected",
@@ -206,3 +221,27 @@ def test_load(data_type, input, expected):
                 pd.testing.assert_frame_equal(r, e)
             else:
                 assert (keyword, res) == (expected[0], expected_res)
+
+DECOMPRESS_TEST_DATA = [
+    (
+        ('3*1 2*0 1', bool),
+        np.array([True]*3 + [False]*2 +[True])
+    ),
+    (
+        ('3*1 2*0 1', int),
+        np.array([1]*3 + [0]*2 +[1])
+    ),
+    (
+        ('3*1 2*0 1', float),
+        np.array([1.0]*3 + [0.0]*2 +[1.0])
+    ),
+]
+
+@pytest.mark.parametrize(
+    "inp, dtype, expected",
+    [(inp, dtype, exp) for ((inp, dtype), exp) in DECOMPRESS_TEST_DATA]
+)
+def test_decompress(inp, dtype, expected):
+    res = decompress_array(inp, dtype)
+    np.testing.assert_equal(res, expected)
+

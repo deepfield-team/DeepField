@@ -189,7 +189,7 @@ def decompress_array(s, dtype=None):
             val = [dtype(float(x))]
         except ValueError:
             k, val = x.split('*')
-            val = [dtype(val)] * int(k)
+            val = [dtype(float(val))] * int(k)
         nums.extend(val)
     return np.array(nums)
 
