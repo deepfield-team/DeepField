@@ -6,6 +6,7 @@ import pandas as pd
 from deepfield.field.data_directory.load_utils import LOADERS, TABLE_INFO, decompress_array
 
 from deepfield.field.data_directory.data_directory import DataTypes
+from deepfield.field.parse_utils.ascii import INT_NAN
 
 TEST_DATA = {
     DataTypes.STRING: [
@@ -114,6 +115,24 @@ TEST_DATA = {
                         TABLE_INFO['SWOF']['attrs'][TABLE_INFO['SWOF']['domain'][0]]
                     )
                 )
+            )
+        ),
+        (
+            '\n'.join((
+                'TABDIMS',
+                '2 4 2* 3',
+                '/'
+            )),
+            (
+                'TABDIMS',
+                [
+                    pd.DataFrame(
+                        np.array([
+                            [2, 4] + 2*[INT_NAN] + [3] + 11*[INT_NAN]
+                        ]),
+                        columns=TABLE_INFO['TABDIMS']['attrs']
+                    )
+                ]
             )
         )
     ],

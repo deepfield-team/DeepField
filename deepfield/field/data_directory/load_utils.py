@@ -42,8 +42,13 @@ def _load_table(keyword, buf):
     tables = []
     for region_table_data in data:
         if region_table_data.size < n_attrs:
-            tmp = np.empty(n_attrs - region_table_data.size)
-            tmp[:] = np.nan
+            tmp = np.empty(n_attrs - region_table_data.size, dtype=dtype)
+            if dtype == float:
+                tmp[:] = np.nan
+            elif dtype == int:
+                tmp[:] = INT_NAN
+            else:
+                tmp[:] = None
             region_table_data = np.concatenate((region_table_data, tmp))
         data_tmp = region_table_data.reshape(-1, n_attrs)
         table = pd.DataFrame(data_tmp, columns=table_info['attrs'])
