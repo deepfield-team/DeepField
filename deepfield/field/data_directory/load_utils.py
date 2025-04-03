@@ -1,13 +1,15 @@
 from contextlib import ExitStack
+import copy
 import logging
 import pathlib
+import shlex
 import uuid
 import re
 
 import numpy as np
 import pandas as pd
 
-from .data_directory import DATA_DIRECTORY, TABLE_INFO, DataTypes, DTYPES
+from .data_directory import DATA_DIRECTORY, INT_NAN, STATEMENT_LIST_INFO, TABLE_INFO, DataTypes, DTYPES
 
 
 DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
@@ -35,7 +37,8 @@ def _load_vector(keyword, buf):
 def _load_table(keyword, buf):
     table_info = TABLE_INFO[keyword]
     n_attrs = len(table_info['attrs'])
-    data = _read_numerical_table_data(buf, 1, float)
+    dtype = table_info['dtype'] if 'dtype' in table_info else float
+    data = _read_numerical_table_data(buf, 1, dtype)
     tables = []
     for region_table_data in data:
         if region_table_data.size < n_attrs:
@@ -104,6 +107,7 @@ def _read_numerical_table_data(buffer, depth, dtype):
             if not (line[0].isdigit() or line[0]=='.' or line[:3]=='nan'): # line can start from `.`, e.g `.123`
                 buffer.prev()
                 break
+            line = line.replace('nan', str(INT_NAN))
             numbers = np.fromstring(line, dtype=dtype, sep=' ')
             cur_item.append(numbers)
             group_end = False
@@ -209,6 +213,71 @@ def _load_parameters(keyword, buf):
             break
     return res
 
+def parse_vals(columns, shift, full, vals):
+    """Parse values (unpack asterisk terms)."""
+    full = copy.deepcopy(full)
+    for i, v in enumerate(vals):
+        if i + shift >= len(columns):
+            break
+        if '*' in v:
+            v = v.strip('\'\"')
+            if v == '*':
+                continue
+            try:
+                shift += int(v.strip('*')) - 1
+            except ValueError:
+                full[i+shift] = v
+        else:
+            full[i+shift] = v
+    return full
+
+def _load_statement_list(keyword, buf):
+    """Parse Eclipse keyword data to dataframe.
+
+    Parameters
+    ----------
+    buffer : StringIteratorIO
+        Buffer to read data from.
+    columns : list
+        Keyword columns.
+    column_types : dict
+        Types of values in corrsponding columns.
+    defaults : dict, optional
+        Dictionary with default values, by default None.
+    date : datetime, optional
+        Date to be included in the output DataFrame.
+
+    Returns
+    -------
+    pd.Dataframe
+        Loaded keyword dataframe.
+    """
+    columns = STATEMENT_LIST_INFO[keyword]['columns']
+    column_types = STATEMENT_LIST_INFO[keyword]['dtypes']
+    df = pd.DataFrame(columns=columns)
+    for line in buf:
+        if '/' not in line:
+            break
+        line = line.split('/')[0].strip()
+        if not line:
+            break
+        vals = line.split()[:len(columns)]
+        full = [None] * len(columns)
+        full = parse_vals(columns, 0, full, vals)
+        df = pd.concat([df, pd.DataFrame(dict(zip(columns, full)), index=[0])], ignore_index=True)
+
+    if 'text' in column_types:
+        text_columns = [col for col, dt in zip(columns, column_types) if dt=='text']
+        df[text_columns] = df[text_columns].map(
+            lambda x: x.strip('\'\"') if x is not None else x)
+    if 'float' in column_types:
+        float_columns = [col for col, dt in zip(columns, column_types) if dt=='float']
+        df[float_columns] = df[float_columns].astype(float )
+    if 'int' in column_types:
+        int_columns = [col for col, dt in zip(columns, column_types) if dt=='int']
+        df[int_columns] = df[int_columns].fillna(INT_NAN).astype(int)
+    return df
+
 LOADERS = {
     None: lambda keyword, buf: None,
     **{t: lambda keyword, buf: None for t in DataTypes},
@@ -216,7 +285,8 @@ LOADERS = {
     DataTypes.VECTOR: _load_vector,
     DataTypes.TABLE_SET: _load_table,
     DataTypes.ARRAY: _load_array,
-    DataTypes.PARAMETERS: _load_parameters
+    DataTypes.PARAMETERS: _load_parameters,
+    DataTypes.STATEMENT_LIST: _load_statement_list
 }
 
 class StringIteratorIO:

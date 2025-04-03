@@ -8,6 +8,8 @@ import numpy as np
 
 MAX_STRLEN = 40
 
+INT_NAN = -99999999
+
 FLUID_KEYWORDS = ('OIL', 'GAS', 'WATER')
 ORTHOGONAL_GRID_KEYWORDS = ('DX', 'DY', 'DZ', 'TOPS', 'ACTNUM')
 ROCK_GRID_KEYWORDS = ('PORO', 'PERMX', 'PERMY', 'PERMZ', 'NTG')
@@ -54,8 +56,14 @@ TABLE_INFO = {
                     defaults=[(600, 37.457),  (999.014, 62.366), (1, 0.062428)]),
 
     'EQUIL': dict(attrs=['DEPTH', 'PRES', 'WOC_DEPTH', 'WOC_PC', 'GOC_DEPTH', 'GOC_PC', 'RSVD_PBVD_TABLE',
-                         'RVVD_PDVD_TABLE'], domain=None)
+                         'RVVD_PDVD_TABLE'], domain=None),
 
+    'TABDIMS': dict(attrs=['SAT_REGIONS_NUM', 'PVT_REGIONS_NUM', 'SAT_NODES_NUM', 'PVT_NODES_NUM',
+                           'FIP_REGIONS_NUM', 'OIL_VAP_NODES_NUM', 'OGR_NODES_NUM', 'SAT_END_POINT_NUM',
+                           'EOS_REGIONS_NUM', 'EOS_SURFACE_REGIONS_NUM', 'FLUX_REGIONS_NUM', 'THERMAL_REGIONS_NUM',
+                           'ROCK_TABLES_NUM', 'PRESSURE_MAINTAINACE_REGIONS_NUM', 'TEMPERATURE_NODES_NUM',
+                           'TRANSPORT_COEFFICIENTS_NUM'
+                           ], domain=None, dtype=int)
 }
 
 
@@ -103,9 +111,7 @@ DATA_DIRECTORY = {
         *[DirectoryEntrySpecification(keyword, DataTypes.ARRAY) for keyword in ORTHOGONAL_GRID_KEYWORDS],
         *[DirectoryEntrySpecification( keyword, DataTypes.ARRAY) for keyword in ROCK_GRID_KEYWORDS]
     ],
-    "PROPS": [
-        *[DirectoryEntrySpecification(keyword, DataTypes.TABLE_SET) for keyword in TABLES_KEYWORDS]
-    ],
+    "PROPS": [ *[DirectoryEntrySpecification(keyword, DataTypes.TABLE_SET) for keyword in TABLES_KEYWORDS] ],
     "REGIONS": [
     ],
     "SOLUTION": [
@@ -127,16 +133,57 @@ DATA_DIRECTORY = {
     ]
 }
 
+STATEMENT_LIST_INFO = {
+    'RUNCTRL': {
+        'columns': ['PARAMETER', 'VALUE'],
+        'dtypes': ['text', 'text']
+    },
+    'WELSPECS': {
+        'columns': [
+            'NAME', 'GROUP', 'IW', 'JW', 'REF_DEPTH', 'PHASE', 'DRAINAGE_RADIUS', 'INFLOW_EQUATION_FLAG',
+            'SHUT_OR_STOP', 'CROSFLOW_ABILITY_FLAG', 'PRESSURE_TABLE_NUMBER', 'DENSITY_CALCULATION_TYPE',
+            'PRESSURE_RETRIEVING'
+        ],
+        'dtypes': [
+            'text', 'text', 'int', 'int', 'float', 'text', 'float', 'text', 'text', 'text', 'int', 'text', 'text',
+            'text'
+        ]
+    },
+    'COMPDAT': {
+        'columns': [
+            'WELL', 'IW', 'JW', 'K1', 'K2', 'STATUS', 'SAT_TABLE_NUM', 'CF', 'DIAMETER', 'KH_EFF', 'SKIN',
+            'D_FACTOR', 'DIRECTION', 'RADIUS_EFF'
+        ],
+        'dtypes': [
+            'text', 'int', 'int', 'int', 'int', 'text', 'int', 'float', 'float', 'float', 'float', 'float', 'text',
+            'float'
+        ]
+    },
+    'WCONINJE': {
+        'columns': [
+            'WELL', 'FLUID', 'MODE', 'CONTROL', 'SURFACE_RATE', 'RESERVOIR_RATE', 'BHP', 'THP', 'VFP_TABLE_NUM',
+            'OIL_GAS_CONCETRATION', '', 'SURFACE_OIL_PROPORTION', 'SURFACE_WATER_PROPORTION',
+            'SURFACE_GAS_CONCETRATION'
+        ],
+        'dtypes': [
+            'text', 'text', 'text', 'text', 'float', 'float', 'float', 'float', 'int', 'float',
+            'text', 'float', 'float', 'float'
+        ]
+    }
+}
 
 DATA_DIRECTORY = {
     "RUNSPEC": {
         'TITLE': DataTypes.STRING,
         'MULTOUT': None,
         'MULTOUTS': None,
+        'UNIFOUT': None,
         'START': DataTypes.STRING,
         'METRIC': None,
         **{fluid: None for fluid in FLUID_KEYWORDS},
         'DIMENS': DataTypes.VECTOR,
+        'NUMRES': DataTypes.VECTOR,
+        'TABDIMS': DataTypes.TABLE_SET,
         'RUNCTRL': DataTypes.STATEMENT_LIST,
         'TNAVCTRL': DataTypes.STATEMENT_LIST
     },
