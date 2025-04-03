@@ -191,6 +191,18 @@ TEST_DATA = {
                 'ACTNUM',
                 np.array([False]*3 + [True]*2 + [False]*5)
             )
+        ),
+        (
+            '\n'.join((
+                'PERMX',
+                '3*0 2*1',
+                '5*0.5 6',
+                '/'
+            )),
+            (
+                'PERMX',
+                np.array([0]*3 + [1]*2 + [0.5]*5 + [6])
+            )
         )
     ]
 }
