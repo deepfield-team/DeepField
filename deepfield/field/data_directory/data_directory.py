@@ -113,49 +113,6 @@ DTYPES = {
     'ACTNUM': bool,
 }
 
-@dataclass
-class DirectoryEntrySpecification:
-    keyword: str
-    data_type: Optional[DataTypes]
-
-DATA_DIRECTORY = {
-    "RUNSPEC": [
-        DirectoryEntrySpecification('TITLE', DataTypes.STRING),
-        DirectoryEntrySpecification('MULTOUT', None),
-        DirectoryEntrySpecification('MULTOUTS', None),
-        DirectoryEntrySpecification('START', DataTypes.STRING),
-        DirectoryEntrySpecification('METRIC', None),
-        *[DirectoryEntrySpecification( fluid, None) for fluid in FLUID_KEYWORDS],
-        DirectoryEntrySpecification('DIMENS', DataTypes.VECTOR),
-        DirectoryEntrySpecification('RUNCTRL', DataTypes.STATEMENT_LIST),
-        DirectoryEntrySpecification('TNAVCTRL', DataTypes.STATEMENT_LIST)
-    ],
-    "GRID": [
-        DirectoryEntrySpecification('MAPAXES', DataTypes.VECTOR),
-        *[DirectoryEntrySpecification(keyword, DataTypes.ARRAY) for keyword in ORTHOGONAL_GRID_KEYWORDS],
-        *[DirectoryEntrySpecification( keyword, DataTypes.ARRAY) for keyword in ROCK_GRID_KEYWORDS]
-    ],
-    "PROPS": [ *[DirectoryEntrySpecification(keyword, DataTypes.TABLE_SET) for keyword in TABLES_KEYWORDS] ],
-    "REGIONS": [
-    ],
-    "SOLUTION": [
-        DirectoryEntrySpecification('EQUIL', DataTypes.TABLE_SET),
-        DirectoryEntrySpecification('RPTSOL', DataTypes.PARAMETERS)
-    ],
-    "SUMMARY": [
-        *[DirectoryEntrySpecification(keyword, None) for keyword in FIELD_SUMMARY_KETWORDS],
-        *[DirectoryEntrySpecification(keyword, DataTypes.OBJECT_LIST) for keyword in WELL_SUMMARY_KEYWORDS],
-        *[DirectoryEntrySpecification(keyword, None) for keyword in TOTAL_SUMMARY_KEYWORDS],
-        DirectoryEntrySpecification('EXCEL', None),
-        DirectoryEntrySpecification('RPTONLY', None)
-    ],
-    'SCHEDULE': [
-        DirectoryEntrySpecification('RPTSCHED', DataTypes.PARAMETERS),
-        DirectoryEntrySpecification('RPTRST', DataTypes.PARAMETERS),
-        DirectoryEntrySpecification('WELSPECS', DataTypes.STATEMENT_LIST),
-        *[DirectoryEntrySpecification(keyword, DataTypes.STATEMENT_LIST) for keyword in SCHEDULE_KEYWORDS]
-    ]
-}
 
 STATEMENT_LIST_INFO = {
     'RUNCTRL': {
