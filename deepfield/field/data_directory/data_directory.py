@@ -18,6 +18,8 @@ FIELD_SUMMARY_KETWORDS = ('FOPR', 'FWPR', 'FWIR')
 WELL_SUMMARY_KEYWORDS = ('WOPR', 'WWPR', 'WWIR', 'WLPR', 'WBHP')
 TOTAL_SUMMARY_KEYWORDS = ('FOPT', 'FWPT', 'FWIT')
 SCHEDULE_KEYWORDS = ('WELSPECS','COMPDAT', 'WCONPOD', 'WCONINJE')
+DIMS_KEYWORDS = ('TABDIMS', 'EQLDIMS', 'REGDIMS', 'WELLDIMS', 'VFPPDIMS', 'VFPIDIMS',
+                 'AQUDIMS')
 
 _ATM_TO_PSI = 14.69
 
@@ -63,7 +65,29 @@ TABLE_INFO = {
                            'EOS_REGIONS_NUM', 'EOS_SURFACE_REGIONS_NUM', 'FLUX_REGIONS_NUM', 'THERMAL_REGIONS_NUM',
                            'ROCK_TABLES_NUM', 'PRESSURE_MAINTAINACE_REGIONS_NUM', 'TEMPERATURE_NODES_NUM',
                            'TRANSPORT_COEFFICIENTS_NUM'
-                           ], domain=None, dtype=int)
+                           ], domain=None, dtype=int),
+
+    'EQLDIMS': dict(attrs=['EQL_NUM', 'EQL_NODE_NUM', 'DEPTH_NODE_MAX_NUM', 'INIT_TRAC_CONC_NUM',
+                           'INIT_TRAC_CONC_NODE_NUM'],
+                    domain=None, dtype=int),
+
+    'REGDIMS': dict(attrs=['FIP_REGIONS_NUM', 'FIP_FAMILIES_NUM', 'RESERVOIR_REGIONS_NUM',
+                           'FLUX_REGIONS_NUM', 'TRACK_REGIONS_NUM', 'COAL_REG_NUM', 'OPER_REGIONS_NUM',
+                           'WORK_NUM', 'IWORK_NUM', 'PLMIX_REGIONS_NUM'], domain=None, dtype=int),
+
+    'WELLDIMS': dict(attrs=['WELL_NUM', 'CONN_NUM', 'GROUP_NUM', 'WELL_IN_GROUP_NUM', 'SEP_STAGES_NUM',
+                            'WELL_STREAM_NUM', 'MIXTURE_NUM', 'SEP_NUM', 'MIXTURE_ITEMS_NUM', 'CON_GROUP_NUM',
+                            'WELL_LIST_NUM', 'DYN_WELL_LIST_NUM'], domain=None, dtype=int),
+
+    'VFPPDIMS': dict(attrs=['FLOW_VAL_NUM', 'TUB_HEAD_PRES_VAL_NUM', 'WFR_NUM', 'GFR_NUM', 'ALQ_NUM', 'VFP_TAB_NUM'],
+                     domain=None, dtype=int),
+
+    'VFPIDIMS': dict(attrs=['FLOW_VAL_NUM', 'THP_VAL_NUN', 'VFP_TAB_NUM'], domain=None, dtype=int),
+
+    'AQUDIMS': dict(attrs=['AQUNUM_LINES_NUM', 'AQUCON_LINES_NUM', 'AQUTAB_LINES_NUM', 'AQUCT_INF_TABLE_ROW_NUM',
+                           'AQU_ANALYTIC_NUM', 'AQU_AN_GRID_BLOCKS_NUM', 'AQU_LIST_NUM', 'AQU_IN_LIST_NUM'],
+                    domain=None, dtype=int)
+
 }
 
 
@@ -183,7 +207,7 @@ DATA_DIRECTORY = {
         **{fluid: None for fluid in FLUID_KEYWORDS},
         'DIMENS': DataTypes.VECTOR,
         'NUMRES': DataTypes.VECTOR,
-        'TABDIMS': DataTypes.TABLE_SET,
+        **{kw: DataTypes.TABLE_SET for kw in DIMS_KEYWORDS},
         'RUNCTRL': DataTypes.STATEMENT_LIST,
         'TNAVCTRL': DataTypes.STATEMENT_LIST
     },
@@ -239,7 +263,7 @@ _DUMP_ROUTINES = {
     DataTypes.STATEMENT_LIST: lambda keyword, val, buf, _: buf.write('\n'.join([keyword] +
        ['\t'.join([str(value) for value in row[1].values.tolist() + ['/']]) for row in val.iterrows()] +
         ['/\n']
-    )),
+)),
     DataTypes.VECTOR: lambda keyword, val, buf, _: buf.write('\n'.join([keyword, '\t'.join(map(str, val)), '/\n'])),
     DataTypes.ARRAY: _dump_array,
     DataTypes.TABLE_SET: lambda keyword, val, buf, _: _dump_table(keyword, val, buf),
