@@ -59,35 +59,6 @@ TABLE_INFO = {
 
     'EQUIL': dict(attrs=['DEPTH', 'PRES', 'WOC_DEPTH', 'WOC_PC', 'GOC_DEPTH', 'GOC_PC', 'RSVD_PBVD_TABLE',
                          'RVVD_PDVD_TABLE'], domain=None),
-
-    'TABDIMS': dict(attrs=['SAT_REGIONS_NUM', 'PVT_REGIONS_NUM', 'SAT_NODES_NUM', 'PVT_NODES_NUM',
-                           'FIP_REGIONS_NUM', 'OIL_VAP_NODES_NUM', 'OGR_NODES_NUM', 'SAT_END_POINT_NUM',
-                           'EOS_REGIONS_NUM', 'EOS_SURFACE_REGIONS_NUM', 'FLUX_REGIONS_NUM', 'THERMAL_REGIONS_NUM',
-                           'ROCK_TABLES_NUM', 'PRESSURE_MAINTAINACE_REGIONS_NUM', 'TEMPERATURE_NODES_NUM',
-                           'TRANSPORT_COEFFICIENTS_NUM'
-                           ], domain=None, dtype=int),
-
-    'EQLDIMS': dict(attrs=['EQL_NUM', 'EQL_NODE_NUM', 'DEPTH_NODE_MAX_NUM', 'INIT_TRAC_CONC_NUM',
-                           'INIT_TRAC_CONC_NODE_NUM'],
-                    domain=None, dtype=int),
-
-    'REGDIMS': dict(attrs=['FIP_REGIONS_NUM', 'FIP_FAMILIES_NUM', 'RESERVOIR_REGIONS_NUM',
-                           'FLUX_REGIONS_NUM', 'TRACK_REGIONS_NUM', 'COAL_REG_NUM', 'OPER_REGIONS_NUM',
-                           'WORK_NUM', 'IWORK_NUM', 'PLMIX_REGIONS_NUM'], domain=None, dtype=int),
-
-    'WELLDIMS': dict(attrs=['WELL_NUM', 'CONN_NUM', 'GROUP_NUM', 'WELL_IN_GROUP_NUM', 'SEP_STAGES_NUM',
-                            'WELL_STREAM_NUM', 'MIXTURE_NUM', 'SEP_NUM', 'MIXTURE_ITEMS_NUM', 'CON_GROUP_NUM',
-                            'WELL_LIST_NUM', 'DYN_WELL_LIST_NUM'], domain=None, dtype=int),
-
-    'VFPPDIMS': dict(attrs=['FLOW_VAL_NUM', 'TUB_HEAD_PRES_VAL_NUM', 'WFR_NUM', 'GFR_NUM', 'ALQ_NUM', 'VFP_TAB_NUM'],
-                     domain=None, dtype=int),
-
-    'VFPIDIMS': dict(attrs=['FLOW_VAL_NUM', 'THP_VAL_NUN', 'VFP_TAB_NUM'], domain=None, dtype=int),
-
-    'AQUDIMS': dict(attrs=['AQUNUM_LINES_NUM', 'AQUCON_LINES_NUM', 'AQUTAB_LINES_NUM', 'AQUCT_INF_TABLE_ROW_NUM',
-                           'AQU_ANALYTIC_NUM', 'AQU_AN_GRID_BLOCKS_NUM', 'AQU_LIST_NUM', 'AQU_IN_LIST_NUM'],
-                    domain=None, dtype=int)
-
 }
 
 
@@ -169,8 +140,38 @@ STATEMENT_LIST_INFO = {
     'MAPAXES': {
         'columns': ['X1', 'Y1', 'X0', 'Y0', 'X2', 'Y2'],
         'dtypes': ['float'] * 6,
-    }
+    },
 
+    'TABDIMS': {'columns': ['SAT_REGIONS_NUM', 'PVT_REGIONS_NUM', 'SAT_NODES_NUM', 'PVT_NODES_NUM',
+                           'FIP_REGIONS_NUM', 'OIL_VAP_NODES_NUM', 'OGR_NODES_NUM', 'SAT_END_POINT_NUM',
+                           'EOS_REGIONS_NUM', 'EOS_SURFACE_REGIONS_NUM', 'FLUX_REGIONS_NUM', 'THERMAL_REGIONS_NUM',
+                           'ROCK_TABLES_NUM', 'PRESSURE_MAINTAINACE_REGIONS_NUM', 'TEMPERATURE_NODES_NUM',
+                           'TRANSPORT_COEFFICIENTS_NUM'],
+                'dtypes': ['int'] * 16},
+
+    'EQLDIMS': {'columns': ['EQL_NUM', 'EQL_NODE_NUM', 'DEPTH_NODE_MAX_NUM', 'INIT_TRAC_CONC_NUM',
+                           'INIT_TRAC_CONC_NODE_NUM'],
+                'dtypes': ['int'] * 5},
+
+    'REGDIMS': {'columns': ['FIP_REGIONS_NUM', 'FIP_FAMILIES_NUM', 'RESERVOIR_REGIONS_NUM',
+                           'FLUX_REGIONS_NUM', 'TRACK_REGIONS_NUM', 'COAL_REG_NUM', 'OPER_REGIONS_NUM',
+                           'WORK_NUM', 'IWORK_NUM', 'PLMIX_REGIONS_NUM'],
+                'dtypes': ['int'] * 10},
+
+    'WELLDIMS': {'columns': ['WELL_NUM', 'CONN_NUM', 'GROUP_NUM', 'WELL_IN_GROUP_NUM', 'SEP_STAGES_NUM',
+                            'WELL_STREAM_NUM', 'MIXTURE_NUM', 'SEP_NUM', 'MIXTURE_ITEMS_NUM', 'CON_GROUP_NUM',
+                            'WELL_LIST_NUM', 'DYN_WELL_LIST_NUM'],
+                 'dtypes': ['int'] * 12},
+
+    'VFPPDIMS': {'columns': ['FLOW_VAL_NUM', 'TUB_HEAD_PRES_VAL_NUM', 'WFR_NUM', 'GFR_NUM', 'ALQ_NUM', 'VFP_TAB_NUM'],
+                 'dtypes': ['int'] * 6},
+
+    'VFPIDIMS': {'columns': ['FLOW_VAL_NUM', 'THP_VAL_NUN', 'VFP_TAB_NUM'],
+                 'dtypes': ['int']*3},
+
+    'AQUDIMS': {'columns': ['AQUNUM_LINES_NUM', 'AQUCON_LINES_NUM', 'AQUTAB_LINES_NUM', 'AQUCT_INF_TABLE_ROW_NUM',
+                           'AQU_ANALYTIC_NUM', 'AQU_AN_GRID_BLOCKS_NUM', 'AQU_LIST_NUM', 'AQU_IN_LIST_NUM'],
+                'dtypes': ['int'] * 8}
 }
 
 DATA_DIRECTORY = {
@@ -184,7 +185,7 @@ DATA_DIRECTORY = {
         **{fluid: None for fluid in FLUID_KEYWORDS},
         'DIMENS': DataTypes.SINGLE_STATEMENT,
         'NUMRES': DataTypes.SINGLE_STATEMENT,
-        **{kw: DataTypes.TABLE_SET for kw in DIMS_KEYWORDS},
+        **{kw: DataTypes.SINGLE_STATEMENT for kw in DIMS_KEYWORDS},
         'NSTACK': DataTypes.SINGLE_STATEMENT,
         'RUNCTRL': DataTypes.STATEMENT_LIST,
         'TNAVCTRL': DataTypes.STATEMENT_LIST
