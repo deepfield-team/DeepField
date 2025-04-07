@@ -470,21 +470,22 @@ def load(path, logger=None, encoding=None):
     filename = path.name
 
     logger.info(f'Start reading {filename}')
-    cur_section = None
+    cur_section = ''
     with StringIteratorIO(path, encoding=encoding) as lines:
         for line in lines:
+            if not line:
+                continue
             firstword = line.split(maxsplit=1)[0].upper()
             if firstword in sections:
                 cur_section = firstword
                 if cur_section not in res:
                     res[cur_section] = []
                 continue
-            if cur_section is None:
-                logger.warning(f'{firstword} is not a section name.')
-                continue
             if firstword in DATA_DIRECTORY[cur_section]:
                 logger.info(f'Reading keyword {firstword}.')
                 data = LOADERS[DATA_DIRECTORY[cur_section][firstword]](firstword, lines)
+                if cur_section not in res:
+                    res[cur_section] = []
                 res[cur_section].append((firstword, data))
             else:
                 logger.warning('Keyword {firstword} in section {cur_section} is not supported.')

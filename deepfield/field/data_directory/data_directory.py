@@ -185,6 +185,7 @@ STATEMENT_LIST_INFO = {
 }
 
 DATA_DIRECTORY = {
+    '': {},
     "RUNSPEC": {
         'TITLE': DataTypes.STRING,
         'MULTOUT': None,
@@ -234,6 +235,8 @@ DATA_DIRECTORY = {
 }
 
 GLOBAL_KEYWORDS_DIRECTORY = {
+    'NOECHO': None,
+    'ECHO': None,
     'END': None
 }
 
