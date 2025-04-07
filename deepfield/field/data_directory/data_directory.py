@@ -94,8 +94,8 @@ TABLE_INFO = {
 class DataTypes(Enum):
     STRING = auto()
     DATE = auto()
-    VECTOR = auto()
     NUMBER = auto()
+    SINGLE_STATEMENT = auto()
     STATEMENT_LIST = auto()
     ARRAY = auto()
     TABLE_SET = auto()
@@ -111,6 +111,7 @@ TABLE_COLUMNS = {
 DTYPES = {
     'DIMENS': int,
     'ACTNUM': bool,
+    'NSTACK': int,
 }
 
 
@@ -150,7 +151,26 @@ STATEMENT_LIST_INFO = {
             'text', 'text', 'text', 'text', 'float', 'float', 'float', 'float', 'int', 'float',
             'text', 'float', 'float', 'float'
         ]
+    },
+    'DIMENS': {
+        'columns': [
+            'NX', 'NY', 'NZ'
+        ],
+        'dtypes': ['int', 'int', 'int'],
+    },
+    'NUMRES': {
+        'columns': ['NRES'],
+        'dtypes': ['int']
+    },
+    'NSTACK': {
+        'columns': ['NSTACK'],
+        'dtypes': ['int']
+    },
+    'MAPAXES': {
+        'columns': ['X1', 'Y1', 'X0', 'Y0', 'X2', 'Y2'],
+        'dtypes': ['float'] * 6,
     }
+
 }
 
 DATA_DIRECTORY = {
@@ -162,14 +182,15 @@ DATA_DIRECTORY = {
         'START': DataTypes.STRING,
         'METRIC': None,
         **{fluid: None for fluid in FLUID_KEYWORDS},
-        'DIMENS': DataTypes.VECTOR,
-        'NUMRES': DataTypes.VECTOR,
+        'DIMENS': DataTypes.SINGLE_STATEMENT,
+        'NUMRES': DataTypes.SINGLE_STATEMENT,
         **{kw: DataTypes.TABLE_SET for kw in DIMS_KEYWORDS},
+        'NSTACK': DataTypes.SINGLE_STATEMENT,
         'RUNCTRL': DataTypes.STATEMENT_LIST,
         'TNAVCTRL': DataTypes.STATEMENT_LIST
     },
     "GRID": {
-        'MAPAXES': DataTypes.VECTOR,
+        'MAPAXES': DataTypes.SINGLE_STATEMENT,
         **{keyword: DataTypes.ARRAY for keyword in ORTHOGONAL_GRID_KEYWORDS},
         **{keyword: DataTypes.ARRAY for keyword in ROCK_GRID_KEYWORDS}
     },
@@ -221,7 +242,6 @@ _DUMP_ROUTINES = {
        ['\t'.join([str(value) for value in row[1].values.tolist() + ['/']]) for row in val.iterrows()] +
         ['/\n']
 )),
-    DataTypes.VECTOR: lambda keyword, val, buf, _: buf.write('\n'.join([keyword, '\t'.join(map(str, val)), '/\n'])),
     DataTypes.ARRAY: _dump_array,
     DataTypes.TABLE_SET: lambda keyword, val, buf, _: _dump_table(keyword, val, buf),
     None: lambda keyword, _, buf, ___: buf.write(f'{keyword}\n')

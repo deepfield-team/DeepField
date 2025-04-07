@@ -61,6 +61,32 @@ def _load_table(keyword, buf):
         tables.append(table)
     return tables
 
+def _load_single_statement(keyword, buffer):
+    columns = STATEMENT_LIST_INFO[keyword]['columns']
+    column_types = STATEMENT_LIST_INFO[keyword]['dtypes']
+    line = next(buffer)
+    split = line.split('/')
+    line = split[0].strip()
+    vals = line.split()[:len(columns)]
+    full = [None] * len(columns)
+    full = parse_vals(columns, 0, full, vals)
+    df = pd.DataFrame(dict(zip(columns, full)), index=[0])
+    if len(split) == 1:
+        line = next(buffer)
+        if not line.startswith('/'):
+            raise ValueError(f'Data for keyword {keyword} was not properly terminated.')
+    if 'text' in column_types:
+        text_columns = [col for col, dt in zip(columns, column_types) if dt=='text']
+        df[text_columns] = df[text_columns].map(
+            lambda x: x.strip('\'\"') if x is not None else x)
+    if 'float' in column_types:
+        float_columns = [col for col, dt in zip(columns, column_types) if dt=='float']
+        df[float_columns] = df[float_columns].astype(float )
+    if 'int' in column_types:
+        int_columns = [col for col, dt in zip(columns, column_types) if dt=='int']
+        df[int_columns] = df[int_columns].fillna(INT_NAN).astype(int)
+    return df
+
 
 def _read_numerical_table_data(buffer, depth, dtype):
     """Read numerical data for table.
@@ -287,10 +313,10 @@ LOADERS = {
     None: lambda keyword, buf: None,
     **{t: lambda keyword, buf: None for t in DataTypes},
     DataTypes.STRING: _load_string,
-    DataTypes.VECTOR: _load_vector,
     DataTypes.TABLE_SET: _load_table,
     DataTypes.ARRAY: _load_array,
     DataTypes.PARAMETERS: _load_parameters,
+    DataTypes.SINGLE_STATEMENT: _load_single_statement,
     DataTypes.STATEMENT_LIST: _load_statement_list
 }
 
