@@ -171,7 +171,18 @@ STATEMENT_LIST_INFO = {
 
     'AQUDIMS': {'columns': ['AQUNUM_LINES_NUM', 'AQUCON_LINES_NUM', 'AQUTAB_LINES_NUM', 'AQUCT_INF_TABLE_ROW_NUM',
                            'AQU_ANALYTIC_NUM', 'AQU_AN_GRID_BLOCKS_NUM', 'AQU_LIST_NUM', 'AQU_IN_LIST_NUM'],
-                'dtypes': ['int'] * 8}
+                'dtypes': ['int'] * 8},
+
+    'SPECGRID': {'columns': ['NX', 'NY', 'NZ', 'NRES', 'COORDINATE_SYSTEM'],
+                 'dtypes': ['int'] * 4 + ['text']},
+
+    'COPY': {'columns': ['SOURCE', 'DEST', 'IMIN', 'IMAX', 'JMIN', 'JMAX', 'KMIN', 'KMAX'],
+             'dtypes': ['text'] * 2 + ['int'] * 6},
+
+    'MULTIPLY': {
+        'columns': ['ARR', 'MULTIPLYER', 'IMIN', 'IMAX', 'JMIN', 'JMAX', 'KMIN', 'KMAX'],
+        'dtypes': ['text', 'float'] + ['int'] * 6
+    }
 }
 
 DATA_DIRECTORY = {
@@ -191,9 +202,12 @@ DATA_DIRECTORY = {
         'TNAVCTRL': DataTypes.STATEMENT_LIST
     },
     "GRID": {
+        'SPECGRID': DataTypes.SINGLE_STATEMENT,
         'MAPAXES': DataTypes.SINGLE_STATEMENT,
         **{keyword: DataTypes.ARRAY for keyword in ORTHOGONAL_GRID_KEYWORDS},
-        **{keyword: DataTypes.ARRAY for keyword in ROCK_GRID_KEYWORDS}
+        **{keyword: DataTypes.ARRAY for keyword in ROCK_GRID_KEYWORDS},
+        'MULTIPLY': DataTypes.STATEMENT_LIST,
+        'COPY': DataTypes.STATEMENT_LIST
     },
     "PROPS": {
         **{keyword: DataTypes.TABLE_SET for keyword in TABLES_KEYWORDS}
@@ -218,6 +232,7 @@ DATA_DIRECTORY = {
         **{keyword: DataTypes.STATEMENT_LIST for keyword in SCHEDULE_KEYWORDS}
     }
 }
+
 def dump_keyword(spec, val, buf, include_path):
     _DUMP_ROUTINES[spec.data_type](spec.keyword, val, buf, include_path)
     buf.write('\n')
