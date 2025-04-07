@@ -239,6 +239,52 @@ TEST_DATA = {
                 np.array([0]*3 + [1]*2 + [0.5]*5 + [6])
             )
         )
+    ],
+    DataTypes.OBJECT_LIST: [
+        (
+            '\n'.join((
+                'WOPR',
+                "'PROD1'",
+                'PROD2',
+                '/'
+            )),
+            (
+                'WOPR',
+                ['PROD1', 'PROD2'],
+            )
+        ),
+        (
+            '\n'.join((
+                'WOPR',
+                "'PROD1'",
+                'PROD2/',
+                ''
+            )),
+            (
+                'WOPR',
+                ['PROD1', 'PROD2'],
+            )
+        ),
+        (
+            '\n'.join((
+                'WOPR',
+                "'PROD1'",
+                'PROD2',
+                ''
+            )),
+            ValueError(),
+        ),
+        (
+            '\n'.join((
+                'WOPR',
+                "'PROD1'",
+                "",
+                'PROD2',
+                '/'
+            )),
+            ValueError(),
+        )
+
     ]
 }
 
