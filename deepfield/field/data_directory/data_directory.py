@@ -80,9 +80,8 @@ TABLE_COLUMNS = {
 }
 
 DTYPES = {
-    'DIMENS': int,
     'ACTNUM': bool,
-    'NSTACK': int,
+    'TSTEP': int,
 }
 
 
@@ -229,6 +228,7 @@ DATA_DIRECTORY = {
         'RPTSCHED': DataTypes.PARAMETERS,
         'RPTRST': DataTypes.PARAMETERS,
         'WELSPECS': DataTypes.STATEMENT_LIST,
+        'TSTEP': DataTypes.ARRAY,
         **{keyword: DataTypes.STATEMENT_LIST for keyword in SCHEDULE_KEYWORDS}
     }
 }
