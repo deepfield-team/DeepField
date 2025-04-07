@@ -34,6 +34,22 @@ def _load_vector(keyword, buf):
             raise ValueError(f'Data for keyword {keyword} was not properly terminated.')
     return vector
 
+def _load_object_list(keyword, buf):
+    res = []
+    while True:
+        line = _get_expected_line(buf)
+        split = line.split('/')
+        val = split[0].strip(' \t\n\'\""')
+        if val:
+            res.append(val)
+        else:
+            if len(split) == 1:
+                raise ValueError("Object specification expected.")
+        if len(split) > 1:
+            break
+    return res
+
+
 def _load_table(keyword, buf):
     table_info = TABLE_INFO[keyword]
     n_attrs = len(table_info['attrs'])
@@ -313,6 +329,7 @@ LOADERS = {
     None: lambda keyword, buf: None,
     **{t: lambda keyword, buf: None for t in DataTypes},
     DataTypes.STRING: _load_string,
+    DataTypes.OBJECT_LIST: _load_object_list,
     DataTypes.TABLE_SET: _load_table,
     DataTypes.ARRAY: _load_array,
     DataTypes.PARAMETERS: _load_parameters,
