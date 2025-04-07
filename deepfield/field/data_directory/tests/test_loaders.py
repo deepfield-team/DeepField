@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from deepfield.field.data_directory.load_utils import LOADERS, TABLE_INFO, decompress_array
 
-from deepfield.field.data_directory.data_directory import DataTypes
+from deepfield.field.data_directory.data_directory import STATEMENT_LIST_INFO, DataTypes
 from deepfield.field.parse_utils.ascii import INT_NAN
 
 TEST_DATA = {
@@ -22,20 +22,6 @@ TEST_DATA = {
             '\n'.join(('TITLE', 'abc', '', '')),
             ValueError()
         )
-    ],
-    DataTypes.VECTOR: [
-        (
-            '\n'.join(('DIMENS', '1 1 1/', '')),
-            ('DIMENS', np.array([1, 1, 1], dtype=int))
-        ),
-        (
-            '\n'.join(('DIMENS', '1 1 1', '/', '')),
-            ('DIMENS', np.array([1, 1, 1], dtype=int))
-        ),
-        (
-            '\n'.join(('DIMENS', '1 1 1', '', '')),
-            ValueError()
-        ),
     ],
     DataTypes.TABLE_SET: [
         (
@@ -117,6 +103,8 @@ TEST_DATA = {
                 )
             )
         ),
+    ],
+    DataTypes.SINGLE_STATEMENT: [
         (
             '\n'.join((
                 'TABDIMS',
@@ -125,15 +113,43 @@ TEST_DATA = {
             )),
             (
                 'TABDIMS',
-                [
-                    pd.DataFrame(
-                        np.array([
-                            [2, 4] + 2*[INT_NAN] + [3] + 11*[INT_NAN]
-                        ]),
-                        columns=TABLE_INFO['TABDIMS']['attrs']
-                    )
-                ]
+                pd.DataFrame(
+                    np.array([
+                        [2, 4] + 2*[INT_NAN] + [3] + 11*[INT_NAN]
+                    ]),
+                    columns=STATEMENT_LIST_INFO['TABDIMS']['columns']
+                )
             )
+        ),
+        (
+            '\n'.join((
+                'TABDIMS',
+                '2 4 2* 3/',
+            )),
+            (
+                'TABDIMS',
+                pd.DataFrame(
+                    np.array([
+                        [2, 4] + 2*[INT_NAN] + [3] + 11*[INT_NAN]
+                    ]),
+                    columns=STATEMENT_LIST_INFO['TABDIMS']['columns']
+                )
+            )
+        ),
+        (
+            '\n'.join((
+                'TABDIMS',
+                '2 4 2* 3',
+            )),
+            ValueError()
+        ),
+        (
+            '\n'.join((
+                'TABDIMS',
+                '2 4 2* 3',
+                'abc'
+            )),
+            ValueError()
         )
     ],
     DataTypes.PARAMETERS: [

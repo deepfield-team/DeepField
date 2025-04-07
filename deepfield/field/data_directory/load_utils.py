@@ -64,7 +64,7 @@ def _load_table(keyword, buf):
 def _load_single_statement(keyword, buffer):
     columns = STATEMENT_LIST_INFO[keyword]['columns']
     column_types = STATEMENT_LIST_INFO[keyword]['dtypes']
-    line = next(buffer)
+    line = _get_expected_line(buffer)
     split = line.split('/')
     line = split[0].strip()
     vals = line.split()[:len(columns)]
@@ -72,7 +72,7 @@ def _load_single_statement(keyword, buffer):
     full = parse_vals(columns, 0, full, vals)
     df = pd.DataFrame(dict(zip(columns, full)), index=[0])
     if len(split) == 1:
-        line = next(buffer)
+        line = _get_expected_line(buffer)
         if not line.startswith('/'):
             raise ValueError(f'Data for keyword {keyword} was not properly terminated.')
     if 'text' in column_types:
@@ -432,6 +432,13 @@ class StringIteratorIO:
         for line in self:
             if re.match(stop_pattern, line.strip(), *args):
                 return
+
+def _get_expected_line(buf):
+    try:
+        line = next(buf)
+    except StopIteration as e:
+        raise ValueError('Buffer has ended earlier then expected.')
+    return line
 
 def load(path, logger=None, encoding=None):
 
