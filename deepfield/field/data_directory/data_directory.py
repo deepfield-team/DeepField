@@ -233,6 +233,13 @@ DATA_DIRECTORY = {
     }
 }
 
+GLOBAL_KEYWORDS_DIRECTORY = {
+    'END': None
+}
+
+for key, val in DATA_DIRECTORY.items():
+    DATA_DIRECTORY[key] = dict(**val, **GLOBAL_KEYWORDS_DIRECTORY)
+
 def dump_keyword(spec, val, buf, include_path):
     _DUMP_ROUTINES[spec.data_type](spec.keyword, val, buf, include_path)
     buf.write('\n')
