@@ -1,6 +1,7 @@
 from contextlib import ExitStack
 import copy
 import logging
+from os import wait
 import pathlib
 import shlex
 import uuid
@@ -9,7 +10,7 @@ import re
 import numpy as np
 import pandas as pd
 
-from .data_directory import DATA_DIRECTORY, INT_NAN, STATEMENT_LIST_INFO, TABLE_INFO, DataTypes, DTYPES
+from .data_directory import DATA_DIRECTORY, INT_NAN, RECORDS_INFO, STATEMENT_LIST_INFO, TABLE_INFO, DataTypes, DTYPES
 
 
 DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
@@ -77,9 +78,11 @@ def _load_table(keyword, buf):
         tables.append(table)
     return tables
 
-def _load_single_statement(keyword, buffer):
-    columns = STATEMENT_LIST_INFO[keyword]['columns']
-    column_types = STATEMENT_LIST_INFO[keyword]['dtypes']
+def _load_single_statement(keyword, buffer, columns=None, column_types=None, oneline=None):
+    if columns is None:
+        columns = STATEMENT_LIST_INFO[keyword]['columns']
+    if column_types is None:
+        column_types = STATEMENT_LIST_INFO[keyword]['dtypes']
     line = _get_expected_line(buffer)
     split = line.split('/')
     line = split[0].strip()
@@ -88,8 +91,12 @@ def _load_single_statement(keyword, buffer):
     full = parse_vals(columns, 0, full, vals)
     df = pd.DataFrame(dict(zip(columns, full)), index=[0])
     if len(split) == 1:
-        line = _get_expected_line(buffer)
-        if not line.startswith('/'):
+        err = True
+        if not oneline:
+            line = _get_expected_line(buffer)
+            if line.startswith('/'):
+                err = False
+        if err:
             raise ValueError(f'Data for keyword {keyword} was not properly terminated.')
     if 'text' in column_types:
         text_columns = [col for col, dt in zip(columns, column_types) if dt=='text']
@@ -102,6 +109,12 @@ def _load_single_statement(keyword, buffer):
         int_columns = [col for col, dt in zip(columns, column_types) if dt=='int']
         df[int_columns] = df[int_columns].fillna(INT_NAN).astype(int)
     return df
+
+def _load_records(keyword, buffer):
+    info = RECORDS_INFO[keyword]
+    res = [_load_single_statement(keyword, buffer, columns=rec['columns'], column_types=rec['dtypes']) for rec in info]
+    return res
+
 
 
 def _read_numerical_table_data(buffer, depth, dtype):
@@ -334,7 +347,8 @@ LOADERS = {
     DataTypes.ARRAY: _load_array,
     DataTypes.PARAMETERS: _load_parameters,
     DataTypes.SINGLE_STATEMENT: _load_single_statement,
-    DataTypes.STATEMENT_LIST: _load_statement_list
+    DataTypes.STATEMENT_LIST: _load_statement_list,
+    DataTypes.RECORDS: _load_records
 }
 
 class StringIteratorIO:

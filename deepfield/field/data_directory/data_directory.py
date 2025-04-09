@@ -17,7 +17,7 @@ TABLES_KEYWORDS = ('DENSITY', 'PVCDO', 'PVTW', 'ROCK', 'SWOF')
 FIELD_SUMMARY_KETWORDS = ('FOPR', 'FWPR', 'FWIR')
 WELL_SUMMARY_KEYWORDS = ('WOPR', 'WWPR', 'WWIR', 'WLPR', 'WBHP')
 TOTAL_SUMMARY_KEYWORDS = ('FOPT', 'FWPT', 'FWIT')
-SCHEDULE_KEYWORDS = ('WELSPECS','COMPDAT', 'WCONPOD', 'WCONINJE')
+SCHEDULE_KEYWORDS = ('WELSPECS','COMPDAT', 'WCONPROD', 'WCONINJE')
 DIMS_KEYWORDS = ('TABDIMS', 'EQLDIMS', 'REGDIMS', 'WELLDIMS', 'VFPPDIMS', 'VFPIDIMS',
                  'AQUDIMS')
 
@@ -72,6 +72,7 @@ class DataTypes(Enum):
     TABLE_SET = auto()
     PARAMETERS = auto()
     OBJECT_LIST = auto()
+    RECORDS = auto()
 
 TABLE_COLUMNS = {
     'RUNCTRL': ('Parameter', 'Value'),
@@ -121,6 +122,15 @@ STATEMENT_LIST_INFO = {
             'text', 'text', 'text', 'text', 'float', 'float', 'float', 'float', 'int', 'float',
             'text', 'float', 'float', 'float'
         ]
+    },
+    'WCONPROD': {
+        'columns': [
+            'WELL', 'MODE', 'CONTROL', 'OIL_RATE', 'WATER_RATE', 'GAS_RATE', 'SURFACE_LIQUID_RATE',
+            'RESERVOIR_LIQUID_RATE', 'BHP', 'THP', 'VFP_TABLE_NUM', 'ALQ', 'WET_GAS_PRODUCTION_RATE',
+            'TOTAL_MOLAR_RATE', 'STEAM_PRODUCTION', 'PRESSURE_OFFSET', 'TEMPERATURE_OFFSET', 
+            'CALORIFIC_RATE', 'LINEARLY_COMBINED_RATE_TARGET', 'NGL_RATE' 
+        ],
+        'dtypes': ['text'] * 3 + ['float'] * 7 + ['int'] + ['float'] * 9
     },
     'DIMENS': {
         'columns': [
@@ -184,6 +194,26 @@ STATEMENT_LIST_INFO = {
     }
 }
 
+RECORDS_INFO = {
+    'TUNING': [
+        {
+            'columns': ['TSINIT', 'TSMAXZ', 'TSMINZ', 'TSMCHP', 'TSFMAX', 'TSFMIN', 'TSFCNV', 'TFDIFF', 'TFRUPT',
+                        'TMAXWC'],
+            'dtypes': ['float']*10
+        },
+        {
+            'columns': ['TRGTTE', 'TRGCNV', 'TRGMBE', 'TRGLCV', 'XXXTTE', 'XXXCNV', 'XXXMBE', 'XXXLCV', 'XXXWFL',
+                        'TRGFIP', 'TRGSFT', 'THIONX', 'TRWGHT'],
+            'dtypes': ['float']*12 + ['int']
+        },
+        {
+            'columns': ['NEWTMX', 'NEWTMN', 'LITMAX', 'LITMIN', 'MXWSIT', 'MXWPIT', 'DDPLIM', 'DDSLIM', 'TRGDPR',
+                        'XXXDPR'],
+            'dtypes': ['int']*6 + ['float'] * 4,
+        }
+    ]
+}
+
 DATA_DIRECTORY = {
     '': {},
     "RUNSPEC": {
@@ -199,7 +229,8 @@ DATA_DIRECTORY = {
         **{kw: DataTypes.SINGLE_STATEMENT for kw in DIMS_KEYWORDS},
         'NSTACK': DataTypes.SINGLE_STATEMENT,
         'RUNCTRL': DataTypes.STATEMENT_LIST,
-        'TNAVCTRL': DataTypes.STATEMENT_LIST
+        'TNAVCTRL': DataTypes.STATEMENT_LIST,
+        'TUNING': DataTypes.RECORDS
     },
     "GRID": {
         'SPECGRID': DataTypes.SINGLE_STATEMENT,
@@ -230,9 +261,11 @@ DATA_DIRECTORY = {
         'RPTRST': DataTypes.PARAMETERS,
         'WELSPECS': DataTypes.STATEMENT_LIST,
         'TSTEP': DataTypes.ARRAY,
-        **{keyword: DataTypes.STATEMENT_LIST for keyword in SCHEDULE_KEYWORDS}
+        **{keyword: DataTypes.STATEMENT_LIST for keyword in SCHEDULE_KEYWORDS},
+        'TUNING': DataTypes.RECORDS
     }
 }
+
 
 GLOBAL_KEYWORDS_DIRECTORY = {
     'NOECHO': None,
