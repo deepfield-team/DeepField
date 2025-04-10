@@ -3,9 +3,9 @@ from typing import Sequence
 import pytest
 import numpy as np
 import pandas as pd
-from deepfield.field.data_directory.load_utils import LOADERS, TABLE_INFO, decompress_array
+from deepfield.field.data_directory.load_utils import LOADERS, TABLE_INFO, decompress_array, parse_vals
 
-from deepfield.field.data_directory.data_directory import STATEMENT_LIST_INFO, DataTypes
+from deepfield.field.data_directory.data_directory import RECORDS_INFO, STATEMENT_LIST_INFO, DataTypes
 from deepfield.field.parse_utils.ascii import INT_NAN
 
 TEST_DATA = {
@@ -284,8 +284,47 @@ TEST_DATA = {
             )),
             ValueError(),
         )
-
+    ],
+    DataTypes.RECORDS: [
+        (
+            '\n'.join((
+                'TUNING',
+                '1 365 0.1 0.15 3 0.3 0.1 1.25 0.75 /',
+                '0.1 0.001 1E-7 0.0001',
+                '10 0.01 1E-6 0.001 0.001 /',
+                '12 1 25 1 8 8 4*1E6 /'
+            )),
+            (
+                'TUNING',
+                (
+                    pd.DataFrame(
+                        {key: value for key, value in zip(RECORDS_INFO['TUNING'][0]['columns'],
+                                                          [1.0, 365.0, 0.1, 0.15, 3.0, 0.3, 0.1, 1.25, 0.75,
+                                                           np.NaN])}, index=[0]
+                    ),
+                    pd.DataFrame(
+                        {key: value for key, value in zip(RECORDS_INFO['TUNING'][1]['columns'],
+                                                          [0.1, 0.001, 1e-7, 0.0001, 10.0, 0.01, 1e-6,
+                                                           0.001, 0.001] + [np.NaN] * 3 + [INT_NAN])}, index=[0]
+                    ),
+                    pd.DataFrame(
+                        {key: value for key, value in zip(RECORDS_INFO['TUNING'][2]['columns'],
+                                                          [12, 1, 25, 1, 8, 8] + [1e6]*4)}, index=[0]
+                    )
+                )
+            )
+        ),
+        (
+            '\n'.join((
+                'TUNING',
+                '1 365 0.1 0.15 3 0.3 0.1 1.25 0.75 /',
+                '0.1 0.001 1E-7 0.0001',
+                '10 0.01 1E-6 0.001 0.001 /',
+            )),
+            ValueError()
+        )
     ]
+
 }
 
 
@@ -338,3 +377,20 @@ def test_decompress(inp, dtype, expected):
     res = decompress_array(inp, dtype)
     np.testing.assert_equal(res, expected)
 
+PARSE_VALS_TEST_DATA = [
+    (
+        ([None] * 10, 2, ['1', '2*5', '*', '3*']),
+        ([None] * 2 + ['1'] + ['5']*2 + [None] * 5, 9)
+    )
+]
+
+@pytest.mark.parametrize(
+    'inp, expected',
+    [value for value in PARSE_VALS_TEST_DATA]
+)
+def test_parse_vals(inp, expected):
+    full, shift, vals = inp
+    exp, exp_shift = expected
+    res, res_shift = parse_vals(full, shift, vals)
+    assert res == exp
+    assert res_shift == exp_shift
