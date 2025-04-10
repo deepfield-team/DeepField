@@ -78,26 +78,22 @@ def _load_table(keyword, buf):
         tables.append(table)
     return tables
 
-def _load_single_statement(keyword, buffer, columns=None, column_types=None, oneline=None):
+def _load_single_statement(keyword, buffer, columns=None, column_types=None):
     if columns is None:
         columns = STATEMENT_LIST_INFO[keyword]['columns']
     if column_types is None:
         column_types = STATEMENT_LIST_INFO[keyword]['dtypes']
-    line = _get_expected_line(buffer)
-    split = line.split('/')
-    line = split[0].strip()
-    vals = line.split()[:len(columns)]
+    shift = 0
     full = [None] * len(columns)
-    full = parse_vals(columns, 0, full, vals)
+    while True:
+        line = _get_expected_line(buffer)
+        split = line.split('/')
+        line = split[0].strip()
+        vals = line.split()
+        full, shift = parse_vals(full, shift, vals)
+        if len(split) > 1:
+            break
     df = pd.DataFrame(dict(zip(columns, full)), index=[0])
-    if len(split) == 1:
-        err = True
-        if not oneline:
-            line = _get_expected_line(buffer)
-            if line.startswith('/'):
-                err = False
-        if err:
-            raise ValueError(f'Data for keyword {keyword} was not properly terminated.')
     if 'text' in column_types:
         text_columns = [col for col, dt in zip(columns, column_types) if dt=='text']
         df[text_columns] = df[text_columns].map(
@@ -273,23 +269,23 @@ def _load_parameters(keyword, buf):
             break
     return res
 
-def parse_vals(columns, shift, full, vals):
+def parse_vals(full, shift, vals):
     """Parse values (unpack asterisk terms)."""
     full = copy.deepcopy(full)
+    i = -1
     for i, v in enumerate(vals):
-        if i + shift >= len(columns):
-            break
         if '*' in v:
             v = v.strip('\'\"')
             if v == '*':
                 continue
-            try:
-                shift += int(v.strip('*')) - 1
-            except ValueError:
-                full[i+shift] = v
+            n = int(v.split('*')[0])
+            shift += n - 1
+            if v.endswith('*'):
+                continue
+            full[i+shift-n+1:i+shift+1] = [v.split('*')[1]] * n
         else:
             full[i+shift] = v
-    return full
+    return full, i + shift + 1
 
 def _load_statement_list(keyword, buf):
     """Parse Eclipse keyword data to dataframe.
@@ -323,7 +319,7 @@ def _load_statement_list(keyword, buf):
             break
         vals = line.split()[:len(columns)]
         full = [None] * len(columns)
-        full = parse_vals(columns, 0, full, vals)
+        full = parse_vals(full, 0, vals)
         df = pd.concat([df, pd.DataFrame(dict(zip(columns, full)), index=[0])], ignore_index=True)
 
     if 'text' in column_types:
