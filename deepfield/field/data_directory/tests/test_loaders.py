@@ -323,6 +323,34 @@ TEST_DATA = {
             )),
             ValueError()
         )
+    ],
+    DataTypes.STATEMENT_LIST: [
+        (
+            '\n'.join((
+                'WCONPROD',
+                '1043 OPEN LRAT 18.19 0 0 18.99 2* /',
+                '1054 OPEN ORAT 16.38 1.765 0 18.14 1* 50 /',
+                '/'
+            )),
+            (
+                'WCONPROD',
+                pd.DataFrame({key: (value, value2) for key, value, value2 in zip(
+                    STATEMENT_LIST_INFO['WCONPROD']['columns'],
+                    ['1043', 'OPEN', 'LRAT', 18.19, 0.0, 0.0, 18.99, np.NaN, np.NaN, np.NaN, INT_NAN] +
+                        [np.NaN] * 9,
+                    ['1054', 'OPEN', 'ORAT', 16.38, 1.765, 0.0, 18.14, np.NaN, 50.0, np.NaN, INT_NAN] +
+                        [np.NaN] * 9
+                )}),
+            )
+        ),
+        (
+            '\n'.join((
+                'WCONPROD',
+                '1043 OPEN LRAT 18.19 0 0 18.99 2* /',
+                '1054 OPEN ORAT 16.38 1.765 0 18.14 1* 50 /',
+            )),
+            ValueError()
+        )
     ]
 
 }
@@ -333,7 +361,25 @@ TEST_DATA = {
     itertools.chain(*([(key, val, exp) for (val,  exp) in data] for (key, data) in TEST_DATA.items()))
 )
 def test_load(data_type, input, expected):
+    class IterPrev:
+        def __init__(self, buf):
+            self._buf = buf
+            self._last = None
+        def __iter__(self):
+            return self
+        def __next__(self):
+            self._last = next(self._buf)
+            return self._last
+        def prev(self):
+            if self._last is not(None):
+                self._buf = itertools.chain((self._last,), self._buf)
+                self._last = None
+            else:
+                raise ValueError('Can not get previous line.')
     buf = iter(input.splitlines())
+
+    buf = IterPrev(buf)
+
     keyword = next(buf)
     if isinstance(expected, Exception):
         with pytest.raises(type(expected)):

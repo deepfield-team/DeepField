@@ -313,7 +313,7 @@ def _load_statement_list(keyword, buf):
     column_types = STATEMENT_LIST_INFO[keyword]['dtypes']
     statements = []
     while True:
-        line = next(buf)
+        line = _get_expected_line(buf)
         if line.startswith('/'):
             buf.prev()
             break
@@ -321,7 +321,7 @@ def _load_statement_list(keyword, buf):
         statement = _load_single_statement(keyword, buf)
         statements.append(statement)
 
-    df = pd.concat(statements, ignore_index=False)
+    df = pd.concat(statements, ignore_index=True)
     return df
 
 LOADERS = {
