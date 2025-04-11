@@ -1,5 +1,6 @@
 from contextlib import ExitStack
 import copy
+import itertools
 import logging
 from os import wait
 import pathlib
@@ -310,28 +311,17 @@ def _load_statement_list(keyword, buf):
     """
     columns = STATEMENT_LIST_INFO[keyword]['columns']
     column_types = STATEMENT_LIST_INFO[keyword]['dtypes']
-    df = pd.DataFrame(columns=columns)
-    for line in buf:
-        if '/' not in line:
+    statements = []
+    while True:
+        line = next(buf)
+        if line.startswith('/'):
+            buf.prev()
             break
-        line = line.split('/')[0].strip()
-        if not line:
-            break
-        vals = line.split()[:len(columns)]
-        full = [None] * len(columns)
-        full = parse_vals(full, 0, vals)
-        df = pd.concat([df, pd.DataFrame(dict(zip(columns, full)), index=[0])], ignore_index=True)
+        buf.prev()
+        statement = _load_single_statement(keyword, buf)
+        statements.append(statement)
 
-    if 'text' in column_types:
-        text_columns = [col for col, dt in zip(columns, column_types) if dt=='text']
-        df[text_columns] = df[text_columns].map(
-            lambda x: x.strip('\'\"') if x is not None else x)
-    if 'float' in column_types:
-        float_columns = [col for col, dt in zip(columns, column_types) if dt=='float']
-        df[float_columns] = df[float_columns].astype(float )
-    if 'int' in column_types:
-        int_columns = [col for col, dt in zip(columns, column_types) if dt=='int']
-        df[int_columns] = df[int_columns].fillna(INT_NAN).astype(int)
+    df = pd.concat(statements, ignore_index=False)
     return df
 
 LOADERS = {
@@ -425,6 +415,9 @@ class StringIteratorIO:
 
     def prev(self):
         """Set current position to previous line."""
+        if self._include is not None:
+            self._include.prev()
+            return self
         if self._on_last:
             raise ValueError("Maximum cache depth is reached.")
         self._on_last = True
@@ -498,6 +491,6 @@ def load(path, logger=None, encoding=None):
                     res[cur_section] = []
                 res[cur_section].append((firstword, data))
             else:
-                logger.warning('Keyword {firstword} in section {cur_section} is not supported.')
+                logger.warning(f'Keyword {firstword} in section {cur_section} is not supported.')
 
     return res
