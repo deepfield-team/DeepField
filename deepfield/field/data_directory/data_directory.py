@@ -234,6 +234,7 @@ DATA_DIRECTORY = {
     },
     "GRID": {
         'SPECGRID': DataTypes.SINGLE_STATEMENT,
+        'INIT': None,
         'MAPAXES': DataTypes.SINGLE_STATEMENT,
         **{keyword: DataTypes.ARRAY for keyword in ORTHOGONAL_GRID_KEYWORDS},
         **{keyword: DataTypes.ARRAY for keyword in ROCK_GRID_KEYWORDS},

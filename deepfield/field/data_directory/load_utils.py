@@ -339,7 +339,7 @@ LOADERS = {
 
 class StringIteratorIO:
     """String iterator for text files."""
-    def __init__(self, path, encoding=None):
+    def __init__(self, path, encoding=None, logger=None):
         self._path = path
         if (encoding is not None) and encoding.startswith('auto'):
             encoding = encoding.split(':')
@@ -347,6 +347,7 @@ class StringIteratorIO:
                 n_bytes = int(encoding[1])
             else:
                 n_bytes = 5000
+
             with open(self._path, 'rb') as file:
                 raw = file.read(n_bytes)
                 self._encoding = chardet.detect(raw)['encoding']
@@ -358,12 +359,25 @@ class StringIteratorIO:
         self._last_line = None
         self._include = None
         self._on_last = False
+        if logger is None:
+            logger = logging.getLogger(str(uuid.uuid4()))
+            logger.addHandler(logging.NullHandler())
+            logger.propagate = False
+        self._logger = logger
         self._proposed_encodings = DEFAULT_ENCODINGS.copy()
 
     @property
     def line_number(self):
         """Number of lines read."""
+        if self._include is not None:
+            return self._include.line_number
         return self._line_number
+
+    @property
+    def current_file(self):
+        if self._include is not None:
+            return self.include.current_file
+        return self._path
 
     def __iter__(self):
         return self
@@ -374,6 +388,7 @@ class StringIteratorIO:
                 return next(self._include)
             except StopIteration:
                 self._include = None
+                self._logger.info(f'Continue reading {self.current_file}.')
 
         if self._on_last:
             self._on_last = False
@@ -382,6 +397,9 @@ class StringIteratorIO:
             line = next(self._f).split('--')[0].strip()
         except UnicodeDecodeError:
             return self._better_decoding()
+        except StopIteration as e:
+            self._logger.info(f'Finish reading {self.current_file}.')
+            raise e
         self._line_number += 1
         if line:
             if line == 'INCLUDE':
@@ -389,14 +407,14 @@ class StringIteratorIO:
                 self.include_file(path)
                 return next(self)
             self._last_line = line
-            print(line)
             return line
         return next(self)
 
     def include_file(self, path):
         path = self._path.parent.joinpath(path)
         with self._stack as stack:
-            self._include = stack.enter_context(StringIteratorIO(path, self._encoding))
+            self._logger.info('INCLUDE keyword found.')
+            self._include = stack.enter_context(StringIteratorIO(path, self._encoding, logger=self._logger))
             self._stack = stack.pop_all()
 
     def _better_decoding(self):
@@ -425,6 +443,7 @@ class StringIteratorIO:
 
     def __enter__(self):
         with ExitStack() as stack:
+            self._logger.info(f'Start reading {self._path}.')
             self._f = stack.enter_context(open(self._path, 'r', encoding=self._encoding)) #pylint: disable=consider-u
             self._stack = stack.pop_all()
         return self
@@ -474,23 +493,29 @@ def load(path, logger=None, encoding=None):
 
     logger.info(f'Start reading {filename}')
     cur_section = ''
-    with StringIteratorIO(path, encoding=encoding) as lines:
+    with StringIteratorIO(path, encoding=encoding, logger=logger) as lines:
         for line in lines:
             if not line:
                 continue
             firstword = line.split(maxsplit=1)[0].upper()
             if firstword in sections:
                 cur_section = firstword
+                logger.info(f'Start {cur_section} section: line {lines.line_number}.')
                 if cur_section not in res:
                     res[cur_section] = []
                 continue
             if firstword in DATA_DIRECTORY[cur_section]:
-                logger.info(f'Reading keyword {firstword}.')
+
+                logger.info(f'Start reading keyword {firstword}: line {lines.line_number}.')
                 data = LOADERS[DATA_DIRECTORY[cur_section][firstword]](firstword, lines)
                 if cur_section not in res:
                     res[cur_section] = []
                 res[cur_section].append((firstword, data))
+                logger.info(f'Finish reading keyword {firstword}: line {lines.line_number}.')
+            elif firstword.startswith('/'):
+                logger.info(f'Unnecessary "/" (skipping): line: {lines.line_number}.')
             else:
-                logger.warning(f'Keyword {firstword} in section {cur_section} is not supported.')
+                logger.warning(f'Keyword {firstword} in section {cur_section} ' +
+                    'is not supported (skipping): line {line.line_number}')
 
     return res
