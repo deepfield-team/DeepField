@@ -376,7 +376,7 @@ class StringIteratorIO:
     @property
     def current_file(self):
         if self._include is not None:
-            return self.include.current_file
+            return self._include.current_file
         return self._path
 
     def __iter__(self):
