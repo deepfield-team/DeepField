@@ -25,6 +25,26 @@ DUMP_ROUTINES_TEST_DATA = {
                 '/\n'
             ))
         )
+    ],
+    DataTypes.STATEMENT_LIST: [
+        (
+            (
+                'WCONPROD',
+                pd.DataFrame({key: (value, value2) for key, value, value2 in zip(
+                    STATEMENT_LIST_INFO['WCONPROD']['columns'],
+                    ['1043', 'OPEN', 'LRAT', 18.19, 0.0, 0.0, 18.99, np.NaN, np.NaN, np.NaN, INT_NAN] +
+                        [np.NaN] * 9,
+                    ['1054', 'OPEN', 'ORAT', 16.38, 1.765, 0.0, 18.14, np.NaN, 50.0, np.NaN, INT_NAN] +
+                        [np.NaN] * 9
+                )}),
+            ),
+            '\n'.join((
+                'WCONPROD',
+                '1043\tOPEN\tLRAT\t18.19\t0.0\t0.0\t18.99/',
+                '1054\tOPEN\tORAT\t16.38\t1.765\t0.0\t18.14\t*\t50.0/',
+                '/'
+            ))
+        )
     ]
 }
 

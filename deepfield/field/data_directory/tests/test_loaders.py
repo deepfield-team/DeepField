@@ -385,7 +385,6 @@ def test_load(data_type, input, expected):
         with pytest.raises(type(expected)):
             LOADERS[data_type](keyword, buf)
     else:
-        print(keyword)
         res = LOADERS[data_type](keyword, buf)
         if not isinstance(expected[1], tuple | list):
             expected_res = [expected[1]]

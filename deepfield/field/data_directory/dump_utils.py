@@ -1,4 +1,5 @@
 import copy
+import numbers
 import numpy as np
 from .data_directory import INT_NAN, DataTypes, DATA_DIRECTORY
 
@@ -26,12 +27,16 @@ def _dump_single_statement(keyword, val, buf):
     _dump_statement(val, buf, closing_slash=False)
     buf.write('/\n')
 
+def _dump_statement_list(keyword, val, buf):
+    buf.write(keyword + '\n')
+    for _, row in val.iterrows():
+        _dump_statement(row, buf, closing_slash=True)
+    buf.write('/')
+
+
 DUMP_ROUTINES = {
     DataTypes.STRING: lambda keyword, val, buf, _: buf.write('\n'.join([keyword, val, '/\n'])),
-    DataTypes.STATEMENT_LIST: lambda keyword, val, buf, _: buf.write('\n'.join([keyword] +
-       ['\t'.join([str(value) for value in row[1].values.tolist() + ['/']]) for row in val.iterrows()] +
-        ['/\n']
-)),
+    DataTypes.STATEMENT_LIST: _dump_statement_list,
     DataTypes.ARRAY: _dump_array,
     DataTypes.TABLE_SET: lambda keyword, val, buf, _: _dump_table(keyword, val, buf),
     None: lambda keyword, _, buf, ___: buf.write(f'{keyword}\n'),
@@ -40,12 +45,11 @@ DUMP_ROUTINES = {
 
 def _dump_statement(val, buf, closing_slash=True):
     vals = val.values
-    if vals.shape[0] != 1:
+    if vals.ndim > 1 and vals.shape[0] != 1:
         raise ValueError('Val shoud have exactly one row.')
     vals = vals.reshape(-1)
 
     vals = [nan_to_none(v) for v in vals]
-    print(vals)
     str_representaions = [str(v) if v is not None else '' for v in vals]
     str_representaions = _replace_empty_vals(str_representaions)
     result = '\t'.join(str_representaions)
@@ -54,7 +58,6 @@ def _dump_statement(val, buf, closing_slash=True):
 
 def _replace_empty_vals(vals):
     vals = copy.copy(vals)
-    print(vals)
     while True:
         start = None
         end = None
@@ -84,7 +87,7 @@ def _replace_empty_vals(vals):
     return vals
 
 def nan_to_none(val):
-    if val == np.NaN:
+    if isinstance(val, numbers.Number) and np.isnan(val):
         return None
     if val == INT_NAN:
         return None
