@@ -31,8 +31,12 @@ def _dump_statement_list(keyword, val, buf):
     buf.write(keyword + '\n')
     for _, row in val.iterrows():
         _dump_statement(row, buf, closing_slash=True)
-    buf.write('/')
+    buf.write('/\n')
 
+def _dump_records(keyword, val, buf):
+    buf.write(keyword + '\n')
+    for v in val:
+        _dump_statement(v, buf, closing_slash=True)
 
 DUMP_ROUTINES = {
     DataTypes.STRING: lambda keyword, val, buf, _: buf.write('\n'.join([keyword, val, '/\n'])),
@@ -40,7 +44,8 @@ DUMP_ROUTINES = {
     DataTypes.ARRAY: _dump_array,
     DataTypes.TABLE_SET: lambda keyword, val, buf, _: _dump_table(keyword, val, buf),
     None: lambda keyword, _, buf, ___: buf.write(f'{keyword}\n'),
-    DataTypes.SINGLE_STATEMENT: _dump_single_statement
+    DataTypes.SINGLE_STATEMENT: _dump_single_statement,
+    DataTypes.RECORDS: _dump_records
 }
 
 def _dump_statement(val, buf, closing_slash=True):
@@ -50,11 +55,23 @@ def _dump_statement(val, buf, closing_slash=True):
     vals = vals.reshape(-1)
 
     vals = [nan_to_none(v) for v in vals]
-    str_representaions = [str(v) if v is not None else '' for v in vals]
+    str_representaions = [_string_representation(v) if v is not None else '' for v in vals]
     str_representaions = _replace_empty_vals(str_representaions)
     result = '\t'.join(str_representaions)
     result += '\n' if not closing_slash else '/\n'
     buf.write(result)
+
+def _string_representation(v):
+    if v is None:
+        return ''
+    if isinstance(v, numbers.Number):
+        r = str(v)
+        if 'e' in r:
+            print(r)
+            return np.format_float_scientific(v, unique=True, trim='-', exp_digits=1).upper()
+        return r
+    return str(v)
+
 
 def _replace_empty_vals(vals):
     vals = copy.copy(vals)
