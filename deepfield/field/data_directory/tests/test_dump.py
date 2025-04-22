@@ -4,10 +4,70 @@ import pandas as pd
 import numpy as np
 import pytest
 
-from deepfield.field.data_directory.data_directory import INT_NAN, STATEMENT_LIST_INFO, DataTypes, RECORDS_INFO
+from deepfield.field.data_directory.data_directory import (INT_NAN, STATEMENT_LIST_INFO, DataTypes, RECORDS_INFO,
+                                                           TABLE_INFO)
 from deepfield.field.data_directory.dump_utils import DUMP_ROUTINES
 
 DUMP_ROUTINES_TEST_DATA = {
+    DataTypes.TABLE_SET: [
+        (
+            (
+                'SWOF',
+                (
+                    pd.DataFrame(np.array([
+                        [0.42, 0, 0.737, 0],
+                        [0.48728, 0.000225, 0.610213, 0],
+                        [0.55456, 0.00438, 0.310527, 0],
+                        [0.62184, 0.023012, 0.072027, 0],
+                        [0.68912, 0.069122, 0.003178, 0],
+                        [0.7564, 0.151, 0, 0],
+                        [0.82368, 0.267672, 0, 0],
+                        [0.89096, 0.408671, 0, 0],
+                        [0.95824, 0.557237, 0, 0],
+                        [1, 0.645099, 0, 0],
+                    ]
+                    ), columns=TABLE_INFO['SWOF']['attrs']).set_index(
+                        TABLE_INFO['SWOF']['attrs'][TABLE_INFO['SWOF']['domain'][0]]
+                    ),
+
+                    pd.DataFrame(np.array([
+                        [0, 0, 1, 0],
+                        [0.3, 0.002, 0.81, 0],
+                        [0.4, 0.018, 0.49, 0],
+                        [0.5, 0.05, 0.25, 0],
+                        [0.6, 0.098, 0.09, 0],
+                        [0.7, 0.162, 0.01, 0],
+                        [1, 0.2, 0, 0],
+                    ]
+                    ), columns=TABLE_INFO['SWOF']['attrs']).set_index(
+                        TABLE_INFO['SWOF']['attrs'][TABLE_INFO['SWOF']['domain'][0]]
+                    )
+                )
+            ),
+            '\n'.join((
+                'SWOF',
+                '0.42\t0.0\t0.737\t0.0',
+                '0.48728\t0.000225\t0.610213\t0.0',
+                '0.55456\t0.00438\t0.310527\t0.0',
+                '0.62184\t0.023012\t0.072027\t0.0',
+                '0.68912\t0.069122\t0.003178\t0.0',
+                '0.7564\t0.151\t0.0\t0.0',
+                '0.82368\t0.267672\t0.0\t0.0',
+                '0.89096\t0.408671\t0.0\t0.0',
+                '0.95824\t0.557237\t0.0\t0.0',
+                '1.0\t0.645099\t0.0\t0.0',
+                '/',
+                '0.0\t0.0\t1.0\t0.0',
+                '0.3\t0.002\t0.81\t0.0',
+                '0.4\t0.018\t0.49\t0.0',
+                '0.5\t0.05\t0.25\t0.0',
+                '0.6\t0.098\t0.09\t0.0',
+                '0.7\t0.162\t0.01\t0.0',
+                '1.0\t0.2\t0.0\t0.0',
+                '/\n'
+            )),
+        ),
+    ],
     DataTypes.SINGLE_STATEMENT: [
         (
             (

@@ -1,4 +1,5 @@
 import copy
+import itertools
 import numbers
 import numpy as np
 from .data_directory import INT_NAN, DataTypes, DATA_DIRECTORY
@@ -18,8 +19,8 @@ def _dump_array(keyword, val, buf, include_dir):
 def _dump_table(keyword, val, buf):
     buf.write(keyword + '\n')
     for table in val:
-        for _, row in table.iterrows():
-            buf.write('\t'.join([str(v) for v in row.values] + ['\n']))
+        for ind, row in table.iterrows():
+            buf.write('\t'.join([str(v) for v in itertools.chain([ind], row.values)]) + '\n')
         buf.write('/\n')
 
 def _dump_single_statement(keyword, val, buf):
@@ -42,7 +43,7 @@ DUMP_ROUTINES = {
     DataTypes.STRING: lambda keyword, val, buf, _: buf.write('\n'.join([keyword, val, '/\n'])),
     DataTypes.STATEMENT_LIST: _dump_statement_list,
     DataTypes.ARRAY: _dump_array,
-    DataTypes.TABLE_SET: lambda keyword, val, buf, _: _dump_table(keyword, val, buf),
+    DataTypes.TABLE_SET: lambda keyword, val, buf, _=None: _dump_table(keyword, val, buf),
     None: lambda keyword, _, buf, ___: buf.write(f'{keyword}\n'),
     DataTypes.SINGLE_STATEMENT: _dump_single_statement,
     DataTypes.RECORDS: _dump_records
