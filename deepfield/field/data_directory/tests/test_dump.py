@@ -148,9 +148,23 @@ DUMP_ROUTINES_TEST_DATA = {
                     'INCLUDE\t$include_dir/ACTNUM.inc',
                     '/\n'
                 )),
-                ('0 0 0 1 1 5*0\n')
+                '0 0 0 1 1 5*0\n'
             )
         ),
+    ],
+    DataTypes.OBJECT_LIST: [
+        (
+            (
+                'WOPR',
+                ['PROD1', 'PROD2']
+            ),
+            '\n'.join((
+                'WOPR',
+                'PROD1',
+                'PROD2',
+                '/'
+            ))
+        )
     ]
 
 }

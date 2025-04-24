@@ -45,7 +45,14 @@ def _dump_records(keyword, val, buf):
     for v in val:
         _dump_statement(v, buf, closing_slash=True)
 
+def _dump_object_list(keyword, val, buf):
+    buf.write(keyword + '\n')
+    for o in val:
+        buf.write(f'{o}\n')
+    buf.write('/')
+
 DUMP_ROUTINES = {
+    DataTypes.OBJECT_LIST: lambda keyword, val, buf, _: _dump_object_list(keyword, val, buf),
     DataTypes.STRING: lambda keyword, val, buf, _: buf.write('\n'.join([keyword, val, '/\n'])),
     DataTypes.STATEMENT_LIST: lambda keyword, val, buf, _: _dump_statement_list(keyword, val, buf),
     DataTypes.ARRAY: _dump_array,
