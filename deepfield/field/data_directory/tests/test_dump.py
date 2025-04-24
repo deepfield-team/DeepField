@@ -1,5 +1,6 @@
 import io
 import itertools
+from string import Template
 import pandas as pd
 import numpy as np
 import pytest
@@ -134,15 +135,41 @@ DUMP_ROUTINES_TEST_DATA = {
                 '12.0\t1.0\t25.0\t1.0\t8.0\t8.0\t1000000.0\t1000000.0\t1000000.0\t1000000.0/\n'
             )),
         )
+    ],
+    DataTypes.ARRAY: [
+        (
+            (
+                'ACTNUM',
+                np.array([False]*3 + [True]*2 + [False]*5)
+            ),
+            (
+                '\n'.join((
+                    'ACTNUM',
+                    'INCLUDE\t$include_dir/ACTNUM.inc',
+                    '/\n'
+                )),
+                ('0 0 0 1 1 5*0\n')
+            )
+        ),
     ]
+
 }
 
 @pytest.mark.parametrize(
     'data_type, input, expected',
     itertools.chain(*([(key, val, exp) for (val,  exp) in data] for (key, data) in DUMP_ROUTINES_TEST_DATA.items()))
 )
-def test_dump_keyword(data_type, input, expected):
+def test_dump_keyword(data_type, input, expected, tmp_path):
     with io.StringIO() as buf:
-        DUMP_ROUTINES[data_type](input[0], input[1], buf)
+        DUMP_ROUTINES[data_type](input[0], input[1], buf, tmp_path)
         result = buf.getvalue()
+        if data_type == DataTypes.ARRAY:
+            exp_buf = Template(expected[0]).safe_substitute(include_dir=tmp_path.name)
+            assert result == exp_buf
+            with open(tmp_path / f'{input[0]}.inc', 'r') as f:
+                inc_res = f.read()
+            assert inc_res == expected[1]
+            return
+
         assert result == expected
+

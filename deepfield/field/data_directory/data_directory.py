@@ -6,7 +6,6 @@ from typing import Callable, Optional
 import pandas as pd
 import numpy as np
 
-MAX_STRLEN = 40
 
 INT_NAN = -99999999
 

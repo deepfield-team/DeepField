@@ -2,7 +2,9 @@ import copy
 import itertools
 import numbers
 import numpy as np
-from .data_directory import INT_NAN, DataTypes, DATA_DIRECTORY
+from .data_directory import INT_NAN, DataTypes, DATA_DIRECTORY, DTYPES
+
+MAX_STRLEN = 40
 
 def dump_keyword(keyword, val, section,  buf, include_path):
     DUMP_ROUTINES[DATA_DIRECTORY[section][keyword]](keyword, val, buf, include_path)
@@ -11,9 +13,13 @@ def dump_keyword(keyword, val, section,  buf, include_path):
 
 def _dump_array(keyword, val, buf, include_dir):
     buf.write(keyword+'\n')
-    with open(os.path.join(include_dir, f'{keyword}.inc'), 'w') as inc_buf:
-        _dump_array_ascii(inc_buf, val.reshape(-1), fmt='%.3f')
-    buf.write('\t'.join(('INCLUDE', f'"{os.path.join(os.path.split(include_dir)[1], f"{keyword}.inc")}"')))
+    if keyword in DTYPES and DTYPES[keyword] in (bool, int):
+        fmt = '%d'
+    else:
+        fmt = '%f'
+    with open(include_dir/f'{keyword}.inc', 'w') as inc_buf:
+        _dump_array_ascii(inc_buf, val.reshape(-1), fmt=fmt)
+    buf.write('\t'.join(('INCLUDE', '/'.join((include_dir.name, f"{keyword}.inc")))))
     buf.write('\n/\n')
 
 def _dump_table(keyword, val, buf):
@@ -41,12 +47,12 @@ def _dump_records(keyword, val, buf):
 
 DUMP_ROUTINES = {
     DataTypes.STRING: lambda keyword, val, buf, _: buf.write('\n'.join([keyword, val, '/\n'])),
-    DataTypes.STATEMENT_LIST: _dump_statement_list,
+    DataTypes.STATEMENT_LIST: lambda keyword, val, buf, _: _dump_statement_list(keyword, val, buf),
     DataTypes.ARRAY: _dump_array,
     DataTypes.TABLE_SET: lambda keyword, val, buf, _=None: _dump_table(keyword, val, buf),
     None: lambda keyword, _, buf, ___: buf.write(f'{keyword}\n'),
-    DataTypes.SINGLE_STATEMENT: _dump_single_statement,
-    DataTypes.RECORDS: _dump_records
+    DataTypes.SINGLE_STATEMENT: lambda keyword, val, buf, _: _dump_single_statement(keyword, val, buf),
+    DataTypes.RECORDS: lambda keyword, val, buf, _: _dump_records(keyword, val, buf),
 }
 
 def _dump_statement(val, buf, closing_slash=True):
@@ -148,7 +154,7 @@ def _dump_array_ascii(buffer, array, header=None, fmt='%f', compressed=True):
             if items_written > MAX_STRLEN:
                 buffer.write('\n')
                 items_written = 0
-            else:
+            elif i < len(array):
                 buffer.write(' ')
         buffer.write('\n')
     else:
