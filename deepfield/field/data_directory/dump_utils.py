@@ -67,7 +67,7 @@ DUMP_ROUTINES = {
     DataTypes.PARAMETERS: lambda keyword, val, buf, _: dump_parameters(keyword, val, buf),
     DataTypes.ARRAY: _dump_array,
     DataTypes.TABLE_SET: lambda keyword, val, buf, _=None: _dump_table(keyword, val, buf),
-    None: lambda keyword, _, buf, ___: buf.write(f'{keyword}\n'),
+    None: lambda keyword, _, buf, ___: buf.write(f'{keyword}'),
     DataTypes.SINGLE_STATEMENT: lambda keyword, val, buf, _: _dump_single_statement(keyword, val, buf),
     DataTypes.RECORDS: lambda keyword, val, buf, _: _dump_records(keyword, val, buf),
 }

@@ -209,6 +209,15 @@ DUMP_ROUTINES_TEST_DATA = {
             ))
         )
 
+    ],
+    None: [
+        (
+            (
+                'MULTOUT',
+                None
+            ),
+            'MULTOUT'
+        )
     ]
 }
 
