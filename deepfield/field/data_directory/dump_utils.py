@@ -51,10 +51,20 @@ def _dump_object_list(keyword, val, buf):
         buf.write(f'{o}\n')
     buf.write('/')
 
+def dump_parameters(keyword, val, buf):
+    buf.write(keyword + '\n')
+    res = ' '.join(
+        [f'{k}' if v is None else f'{k}={v}' for k, v in val.items()]
+    )
+    buf.write(res)
+    buf.write('\n/')
+
+
 DUMP_ROUTINES = {
     DataTypes.OBJECT_LIST: lambda keyword, val, buf, _: _dump_object_list(keyword, val, buf),
-    DataTypes.STRING: lambda keyword, val, buf, _: buf.write('\n'.join([keyword, val, '/\n'])),
+    DataTypes.STRING: lambda keyword, val, buf, _: buf.write('\n'.join([keyword, val, '/'])),
     DataTypes.STATEMENT_LIST: lambda keyword, val, buf, _: _dump_statement_list(keyword, val, buf),
+    DataTypes.PARAMETERS: lambda keyword, val, buf, _: dump_parameters(keyword, val, buf),
     DataTypes.ARRAY: _dump_array,
     DataTypes.TABLE_SET: lambda keyword, val, buf, _=None: _dump_table(keyword, val, buf),
     None: lambda keyword, _, buf, ___: buf.write(f'{keyword}\n'),

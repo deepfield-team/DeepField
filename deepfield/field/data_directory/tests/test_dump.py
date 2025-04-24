@@ -165,8 +165,51 @@ DUMP_ROUTINES_TEST_DATA = {
                 '/'
             ))
         )
-    ]
+    ],
+    DataTypes.PARAMETERS: [
+        (
+            (
+                'RPTSCHED',
+                {
+                    'FIP': None,
+                    'WELSPECS': None,
+                    'WELLS': None
+                },
+            ),
+            '\n'.join((
+                'RPTSCHED',
+                'FIP WELSPECS WELLS',
+                '/'
+            ))
+        ),
+        (
+            (
+                'RPTSOL',
+                {
+                    'RESTART': '2'
+                },
+            ),
+            '\n'.join((
+                'RPTSOL',
+                'RESTART=2',
+                '/'
+            ))
+        )
+    ],
+    DataTypes.STRING: [
+        (
+            (
+                'TITLE',
+                'abc'
+            ),
+            '\n'.join((
+                'TITLE',
+                'abc',
+                '/'
+            ))
+        )
 
+    ]
 }
 
 @pytest.mark.parametrize(
@@ -184,6 +227,5 @@ def test_dump_keyword(data_type, input, expected, tmp_path):
                 inc_res = f.read()
             assert inc_res == expected[1]
             return
-
         assert result == expected
 
