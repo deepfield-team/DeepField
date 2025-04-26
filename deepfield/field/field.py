@@ -1013,11 +1013,6 @@ class Field:
                                      'should be 3 or 4 dimensional array to be dumped.')
                 array.SetName('_'.join((comp_name.upper(), attr)))
                 dataset.GetCellData().AddArray(array)
-        ind_i, ind_j, ind_k = np.indices(grid.dimens)
-        for name, val in zip(('I', 'J', 'K'), (ind_i, ind_j, ind_k)):
-            array = numpy_to_vtk(val[grid.actnum])
-            array.SetName(name)
-            dataset.GetCellData().AddArray(array)
         grid._vtk_grid = vtk_grid_old
         return dataset
 
