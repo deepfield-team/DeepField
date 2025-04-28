@@ -65,9 +65,34 @@ DUMP_ROUTINES_TEST_DATA = {
                 '0.6\t0.098\t0.09\t0.0',
                 '0.7\t0.162\t0.01\t0.0',
                 '1.0\t0.2\t0.0\t0.0',
-                '/\n'
+                '/'
             )),
         ),
+        (
+            (
+                'EQUIL',
+                (
+                    pd.DataFrame(np.array([
+                        [2300, 200, 2500, 0.1, 2300, 0.001, np.NaN, np.NaN],
+                    ]), columns=TABLE_INFO['EQUIL']['attrs']),
+                    pd.DataFrame(np.array([
+                        [2310, 205, 2520, 0.05, 2310, 0.0, np.NaN, np.NaN],
+                    ]), columns=TABLE_INFO['EQUIL']['attrs']),
+                    pd.DataFrame(np.array([
+                        [2305, 210, 2510, np.NaN, 2305, np.NaN, np.NaN, np.NaN],
+                    ]), columns=TABLE_INFO['EQUIL']['attrs'])
+                )
+            ),
+            '\n'.join((
+                'EQUIL',
+                '2300.0\t200.0\t2500.0\t0.1\t2300.0\t0.001',
+                '/',
+                '2310.0\t205.0\t2520.0\t0.05\t2310.0\t0.0',
+                '/',
+                '2305.0\t210.0\t2510.0\t*\t2305.0',
+                '/'
+            )),
+        )
     ],
     DataTypes.SINGLE_STATEMENT: [
         (
@@ -83,7 +108,7 @@ DUMP_ROUTINES_TEST_DATA = {
             '\n'.join((
                 'TABDIMS',
                 '2\t4\t2*\t3',
-                '/\n'
+                '/'
             ))
         )
     ],
@@ -103,7 +128,7 @@ DUMP_ROUTINES_TEST_DATA = {
                 'WCONPROD',
                 '1043\tOPEN\tLRAT\t18.19\t0.0\t0.0\t18.99/',
                 '1054\tOPEN\tORAT\t16.38\t1.765\t0.0\t18.14\t*\t50.0/',
-                '/\n'
+                '/'
             ))
         )
     ],

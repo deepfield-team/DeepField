@@ -2,7 +2,7 @@ import copy
 import itertools
 import numbers
 import numpy as np
-from .data_directory import INT_NAN, DataTypes, DATA_DIRECTORY, DTYPES
+from .data_directory import INT_NAN, TABLE_INFO, DataTypes, DATA_DIRECTORY, DTYPES
 
 MAX_STRLEN = 40
 
@@ -23,22 +23,29 @@ def _dump_array(keyword, val, buf, include_dir):
     buf.write('\n/\n')
 
 def _dump_table(keyword, val, buf):
-    buf.write(keyword + '\n')
+    buf.write(keyword)
     for table in val:
+        buf.write('\n')
         for ind, row in table.iterrows():
-            buf.write('\t'.join([str(v) for v in itertools.chain([ind], row.values)]) + '\n')
-        buf.write('/\n')
+            vals = row.values
+            if TABLE_INFO[keyword]['domain'] is not None:
+                vals = [ind] + vals.tolist()
+            vals = [nan_to_none(v) for v in vals]
+            str_representaions = [_string_representation(v) if v is not None else '' for v in vals]
+            str_representaions = _replace_empty_vals(str_representaions)
+            buf.write('\t'.join([v for v in str_representaions]) + '\n')
+        buf.write('/')
 
 def _dump_single_statement(keyword, val, buf):
     buf.write(keyword + '\n')
     _dump_statement(val, buf, closing_slash=False)
-    buf.write('/\n')
+    buf.write('/')
 
 def _dump_statement_list(keyword, val, buf):
     buf.write(keyword + '\n')
     for _, row in val.iterrows():
         _dump_statement(row, buf, closing_slash=True)
-    buf.write('/\n')
+    buf.write('/')
 
 def _dump_records(keyword, val, buf):
     buf.write(keyword + '\n')
@@ -91,7 +98,6 @@ def _string_representation(v):
     if isinstance(v, numbers.Number):
         r = str(v)
         if 'e' in r:
-            print(r)
             return np.format_float_scientific(v, unique=True, trim='-', exp_digits=1).upper()
         return r
     return str(v)
@@ -135,6 +141,32 @@ def nan_to_none(val):
     if val == '':
         return None
     return val
+
+def dump(data, path, filename=None):
+    if not path.exists:
+        path.mkdir()
+
+    include_dir = path / 'include'
+
+    if not include_dir.exists():
+        include_dir.makedirs()
+    
+    if filename is None:
+        for key, val in data['RUNSPEC']:
+            if key=='TITLE':
+                filename = f'{val}.data'
+
+    if filename is None:
+        raise ValueError('Filename is not specified and no TITLE keyword in RUNSPEC section.')
+
+    with open(path / filename, 'w') as buf:
+        for section in ('', 'RUNSPEC', 'GRID', 'PROPS', 'REGIONS', 'SOLUTION', 'SUMMARY', 'SCHEDULE'):
+            if section in data:
+                if section != '':
+                    buf.write(f'{section}\n\n')
+                for (key, val) in data[section]:
+                    DUMP_ROUTINES[DATA_DIRECTORY[section][key]](key, val, buf, include_dir)
+                    buf.write('\n\n')
 
 def _dump_array_ascii(buffer, array, header=None, fmt='%f', compressed=True):
     """Writes array-like data into an ASCII buffer.
