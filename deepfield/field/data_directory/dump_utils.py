@@ -1,10 +1,11 @@
 import copy
-import itertools
 import numbers
 import numpy as np
 from .data_directory import INT_NAN, TABLE_INFO, DataTypes, DATA_DIRECTORY, DTYPES
 
 MAX_STRLEN = 40
+
+INPLACE_ARRAYS = ['TSTEP']
 
 def dump_keyword(keyword, val, section,  buf, include_path):
     DUMP_ROUTINES[DATA_DIRECTORY[section][keyword]](keyword, val, buf, include_path)
@@ -13,14 +14,22 @@ def dump_keyword(keyword, val, section,  buf, include_path):
 
 def _dump_array(keyword, val, buf, include_dir):
     buf.write(keyword+'\n')
+    if keyword in INPLACE_ARRAYS:
+        inplace = True
+    else:
+        inplace = False
     if keyword in DTYPES and DTYPES[keyword] in (bool, int):
         fmt = '%d'
     else:
         fmt = '%f'
+    if inplace:
+        _dump_array_ascii(buf, val.reshape(-1), fmt=fmt)
+        buf.write('/')
+        return
     with open(include_dir/f'{keyword}.inc', 'w') as inc_buf:
         _dump_array_ascii(inc_buf, val.reshape(-1), fmt=fmt)
     buf.write('\t'.join(('INCLUDE', '/'.join((include_dir.name, f"{keyword}.inc")))))
-    buf.write('\n/\n')
+    buf.write('\n/')
 
 def _dump_table(keyword, val, buf):
     buf.write(keyword)
