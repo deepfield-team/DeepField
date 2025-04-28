@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 import copy
 import numbers
 import numpy as np
@@ -153,7 +154,7 @@ def nan_to_none(val):
         return None
     return val
 
-def dump(data, path, filename=None):
+def dump(data, path, inplace_scedule=False, filename=None):
     if not path.exists:
         path.mkdir()
 
@@ -170,14 +171,23 @@ def dump(data, path, filename=None):
     if filename is None:
         raise ValueError('Filename is not specified and no TITLE keyword in RUNSPEC section.')
 
-    with open(path / filename, 'w') as buf:
+    with ExitStack() as stack:
+        buf = stack.enter_context(open(path / filename, 'w'))
         for section in ('', 'RUNSPEC', 'GRID', 'PROPS', 'REGIONS', 'SOLUTION', 'SUMMARY', 'SCHEDULE'):
             if section in data:
                 if section != '':
                     buf.write(f'{section}\n\n')
+                if section == 'SCHEDULE' and not inplace_scedule:
+                    schedule_path = include_dir / 'schedule.inc'
+                    buf.write('INCLUDE\t')
+                    buf.write(str(schedule_path.relative_to(path)))
+                    buf.write('\n/\n\n')
+                    buf_tmp = stack.enter_context(open(schedule_path, 'w'))
+                else:
+                    buf_tmp = buf
                 for (key, val) in data[section]:
-                    DUMP_ROUTINES[DATA_DIRECTORY[section][key]](key, val, buf, include_dir)
-                    buf.write('\n\n')
+                    DUMP_ROUTINES[DATA_DIRECTORY[section][key]](key, val, buf_tmp, include_dir)
+                    buf_tmp.write('\n\n')
 
 def _dump_array_ascii(buffer, array, header=None, fmt='%f', compressed=True):
     """Writes array-like data into an ASCII buffer.
