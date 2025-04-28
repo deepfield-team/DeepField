@@ -88,6 +88,8 @@ def _dump_statement(val, buf, closing_slash=True):
     vals = [nan_to_none(v) for v in vals]
     str_representaions = [_string_representation(v) if v is not None else '' for v in vals]
     str_representaions = _replace_empty_vals(str_representaions)
+    if len(str_representaions) == 0:
+        str_representaions.append('*')
     result = '\t'.join(str_representaions)
     result += '\n' if not closing_slash else '/\n'
     buf.write(result)
