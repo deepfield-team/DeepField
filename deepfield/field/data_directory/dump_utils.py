@@ -2,6 +2,7 @@ from contextlib import ExitStack
 import copy
 import numbers
 import numpy as np
+import pandas as pd
 from .data_directory import INT_NAN, TABLE_INFO, DataTypes, DATA_DIRECTORY, DTYPES
 
 MAX_STRLEN = 40
@@ -14,7 +15,6 @@ def dump_keyword(keyword, val, section,  buf, include_path):
     return buf
 
 def _dump_array(keyword, val, buf, include_dir):
-    buf.write(keyword+'\n')
     if keyword in INPLACE_ARRAYS:
         inplace = True
     else:
@@ -24,12 +24,13 @@ def _dump_array(keyword, val, buf, include_dir):
     else:
         fmt = '%f'
     if inplace:
-        _dump_array_ascii(buf, val.reshape(-1), fmt=fmt)
+        _dump_array_ascii(buf, val.reshape(-1), header=keyword, fmt=fmt)
         buf.write('/')
         return
     with open(include_dir/f'{keyword}.inc', 'w') as inc_buf:
-        _dump_array_ascii(inc_buf, val.reshape(-1), fmt=fmt)
-    buf.write('\t'.join(('INCLUDE', '/'.join((include_dir.name, f"{keyword}.inc")))))
+        _dump_array_ascii(inc_buf, val.reshape(-1), fmt=fmt, header=keyword)
+        inc_buf.write('/')
+    buf.write('\n'.join(('INCLUDE', '"' + '/'.join((include_dir.name, f'{keyword}.inc')) + '"')))
     buf.write('\n/')
 
 def _dump_table(keyword, val, buf):
@@ -53,12 +54,13 @@ def _dump_single_statement(keyword, val, buf):
 
 def _dump_statement_list(keyword, val, buf):
     buf.write(keyword + '\n')
-    for _, row in val.iterrows():
+    for row in val.itertuples(index=False):
         _dump_statement(row, buf, closing_slash=True)
     buf.write('/')
 
 def _dump_records(keyword, val, buf):
     buf.write(keyword + '\n')
+    import pdb; pdb.set_trace()
     for v in val:
         _dump_statement(v, buf, closing_slash=True)
 
@@ -90,11 +92,14 @@ DUMP_ROUTINES = {
 }
 
 def _dump_statement(val, buf, closing_slash=True):
-    vals = val.values
-    if vals.ndim > 1 and vals.shape[0] != 1:
-        raise ValueError('Val shoud have exactly one row.')
-    vals = vals.reshape(-1)
-
+    if isinstance(val, pd.DataFrame):
+        if val.shape[0] != 1:
+            raise ValueError('Val shoud have exactly one row.')
+        vals = [val[col][0] for col in val.columns]
+    elif isinstance(val, pd.Series):
+        vals = val.values
+    else:
+        vals = val
     vals = [nan_to_none(v) for v in vals]
     str_representaions = [_string_representation(v) if v is not None else '' for v in vals]
     str_representaions = _replace_empty_vals(str_representaions)
@@ -155,13 +160,13 @@ def nan_to_none(val):
     return val
 
 def dump(data, path, inplace_scedule=False, filename=None):
-    if not path.exists:
+    if not path.exists():
         path.mkdir()
 
     include_dir = path / 'include'
 
     if not include_dir.exists():
-        include_dir.makedirs()
+        include_dir.mkdir()
     
     if filename is None:
         for key, val in data['RUNSPEC']:
@@ -179,8 +184,8 @@ def dump(data, path, inplace_scedule=False, filename=None):
                     buf.write(f'{section}\n\n')
                 if section == 'SCHEDULE' and not inplace_scedule:
                     schedule_path = include_dir / 'schedule.inc'
-                    buf.write('INCLUDE\t')
-                    buf.write(str(schedule_path.relative_to(path)))
+                    buf.write('INCLUDE\n')
+                    buf.write(('"' + str(schedule_path.relative_to(path))) + '"')
                     buf.write('\n/\n\n')
                     buf_tmp = stack.enter_context(open(schedule_path, 'w'))
                 else:

@@ -4,6 +4,7 @@ import itertools
 import logging
 from os import wait
 import pathlib
+import pdb
 import shlex
 import uuid
 import re
@@ -17,13 +18,28 @@ from .data_directory import DATA_DIRECTORY, INT_NAN, RECORDS_INFO, STATEMENT_LIS
 DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
 def _load_string(keyword, buf):
     line = next(buf)
-    split = line.split('/')
-    val = split[0].strip(' \t\n\'\""')
-    if len(split) == 1:
+    if "'" in line:
+        split = re.split(r"'(.*)'", line)
+    elif '"' in line:
+        split = re.split(r'"(.*)"', line)
+    else:
+        split = line.split('/')
+        if len(split) > 1:
+            split = ['', split[0], *['/' + s for s in split[1:]] ]
+        else:
+            split = ['', split[0], '']
+
+    if split[0]:
+        raise ValueError('Quoted string should start with quotes.')
+    if split[2]:
+        if split[2].startswith('/'):
+            return split[1].strip()
+        raise ValueError('Quoted string shold not have not quoted parts.')
+    else:
         line = next(buf)
         if not line.startswith('/'):
             raise ValueError(f'Data for keyword {keyword} was not properly terminated.')
-    return val
+    return split[1].strip()
 
 def _load_vector(keyword, buf):
     line = next(buf)
@@ -111,8 +127,6 @@ def _load_records(keyword, buffer):
     info = RECORDS_INFO[keyword]
     res = [_load_single_statement(keyword, buffer, columns=rec['columns'], column_types=rec['dtypes']) for rec in info]
     return res
-
-
 
 def _read_numerical_table_data(buffer, depth, dtype):
     """Read numerical data for table.
