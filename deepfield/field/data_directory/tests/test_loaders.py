@@ -370,6 +370,14 @@ TEST_DATA = {
                 '1054 OPEN ORAT 16.38 1.765 0 18.14 1* 50 /',
             )),
             ValueError()
+        ),
+        (
+            '\n'.join((
+                'WCONPROD',
+                '1043 OPEN LRAT 18.19 0 0 18.99 2* /',
+                '1054 OPEN ORAT 16.38 1.765 0 18.14 1* 50 /',
+                '')),
+            ValueError()
         )
     ]
 

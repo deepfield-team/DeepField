@@ -319,7 +319,6 @@ def _load_statement_list(keyword, buf):
     while True:
         line = _get_expected_line(buf)
         if line.startswith('/'):
-            buf.prev()
             break
         buf.prev()
         statement = _load_single_statement(keyword, buf)
