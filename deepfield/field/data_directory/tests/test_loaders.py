@@ -21,6 +21,26 @@ TEST_DATA = {
         (
             '\n'.join(('TITLE', 'abc', '', '')),
             ValueError()
+        ),
+        (
+            '\n'.join(('INCLUDE', '"abc/abc"', '/')),
+            ('INCLUDE', 'abc/abc')
+        ),
+        (
+            '\n'.join(('INCLUDE', '"abc/abc" /')),
+            ('INCLUDE', 'abc/abc')
+        ),
+        (
+            '\n'.join(('INCLUDE', "'abc/abc'", '/')),
+            ('INCLUDE', 'abc/abc')
+        ),
+        (
+            '\n'.join(('INCLUDE', "a'abc/abc'", '/')),
+            ValueError()
+        ),
+        (
+            '\n'.join(('INCLUDE', "'abc/abc'a", '/')),
+            ValueError()
         )
     ],
     DataTypes.TABLE_SET: [

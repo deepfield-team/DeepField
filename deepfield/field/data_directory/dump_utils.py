@@ -60,7 +60,6 @@ def _dump_statement_list(keyword, val, buf):
 
 def _dump_records(keyword, val, buf):
     buf.write(keyword + '\n')
-    import pdb; pdb.set_trace()
     for v in val:
         _dump_statement(v, buf, closing_slash=True)
 

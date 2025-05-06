@@ -32,7 +32,7 @@ def _load_string(keyword, buf):
     if split[0]:
         raise ValueError('Quoted string should start with quotes.')
     if split[2]:
-        if split[2].startswith('/'):
+        if split[2].strip().startswith('/'):
             return split[1].strip()
         raise ValueError('Quoted string shold not have not quoted parts.')
     else:
@@ -41,18 +41,8 @@ def _load_string(keyword, buf):
             raise ValueError(f'Data for keyword {keyword} was not properly terminated.')
     return split[1].strip()
 
-def _load_vector(keyword, buf):
-    line = next(buf)
-    split = line.split('/')
-    dtype = DTYPES[keyword] if keyword in DTYPES else float
-    vector = np.fromstring(split[0], sep=' ', dtype=dtype)
-    if len(split) == 1:
-        line = next(buf)
-        if not line.startswith('/'):
-            raise ValueError(f'Data for keyword {keyword} was not properly terminated.')
-    return vector
-
 def _load_object_list(keyword, buf):
+    _ = keyword
     res = []
     while True:
         line = _get_expected_line(buf)
