@@ -1,5 +1,6 @@
 import io
 import itertools
+import pathlib
 from string import Template
 import pandas as pd
 import numpy as np
@@ -7,7 +8,8 @@ import pytest
 
 from deepfield.field.data_directory.data_directory import (INT_NAN, STATEMENT_LIST_INFO, DataTypes, RECORDS_INFO,
                                                            TABLE_INFO)
-from deepfield.field.data_directory.dump_utils import DUMP_ROUTINES
+from deepfield.field.data_directory.dump_utils import DUMP_ROUTINES, dump
+from deepfield.field.data_directory.load_utils import load
 
 DUMP_ROUTINES_TEST_DATA = {
     DataTypes.TABLE_SET: [
@@ -170,8 +172,9 @@ DUMP_ROUTINES_TEST_DATA = {
             (
                 '\n'.join((
                     'ACTNUM',
-                    'INCLUDE\t$include_dir/ACTNUM.inc',
-                    '/\n'
+                    'INCLUDE',
+                    '"$include_dir/ACTNUM.inc"',
+                    '/'
                 )),
                 '0 0 0 1 1 5*0\n'
             )
@@ -262,4 +265,30 @@ def test_dump_keyword(data_type, input, expected, tmp_path):
             assert inc_res == expected[1]
             return
         assert result == expected
+
+def test_dump_load(tmp_path):
+    egg_model_path = pathlib.Path('open_data/egg/Egg_Model_ECL.DATA')
+    path = tmp_path/ 'egg_test'
+    filename = 'Egg.data'
+    data0 = load(egg_model_path)
+
+    dump(data0, path=path, filename=filename)
+
+    data1 = load(path / filename)
+    for section in data0:
+        for r, e in zip(data1[section], data0[section], strict=True):
+            assert r[0] == e[0]
+            if not isinstance(e[1], tuple | list):
+                expected_res = [e[1]]
+                res = [r[1]]
+            else:
+                expected_res = e[1]
+                res = r[1]
+            for r, e in zip(res, expected_res):
+                if isinstance(e, np.ndarray):
+                    np.testing.assert_equal(r, e)
+                elif isinstance(e, pd.DataFrame):
+                    pd.testing.assert_frame_equal(r, e)
+                else:
+                    assert  res == expected_res
 
