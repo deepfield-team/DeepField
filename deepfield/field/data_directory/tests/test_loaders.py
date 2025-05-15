@@ -3,9 +3,9 @@ from typing import Sequence
 import pytest
 import numpy as np
 import pandas as pd
-from deepfield.field.data_directory.load_utils import LOADERS, TABLE_INFO, decompress_array, parse_vals
+from deepfield.field.data_directory.load_utils import LOADERS, decompress_array, parse_vals
 
-from deepfield.field.data_directory.data_directory import RECORDS_INFO, STATEMENT_LIST_INFO, DataTypes
+from deepfield.field.data_directory.data_directory import DataTypes, DATA_DIRECTORY
 from deepfield.field.parse_utils.ascii import INT_NAN
 
 TEST_DATA = {
@@ -56,13 +56,13 @@ TEST_DATA = {
                 (
                     pd.DataFrame(np.array([
                         [2300, 200, 2500, 0.1, 2300, 0.001, np.NaN, np.NaN],
-                    ]), columns=TABLE_INFO['EQUIL']['attrs']),
+                    ]), columns=DATA_DIRECTORY['EQUIL'].specification.columns),
                     pd.DataFrame(np.array([
                         [2310, 205, 2520, 0.05, 2310, 0.0, np.NaN, np.NaN],
-                    ]), columns=TABLE_INFO['EQUIL']['attrs']),
+                    ]), columns=DATA_DIRECTORY['EQUIL'].specification.columns),
                     pd.DataFrame(np.array([
                         [2305, 210, 2510, np.NaN, 2305, np.NaN, np.NaN, np.NaN],
-                    ]), columns=TABLE_INFO['EQUIL']['attrs'])
+                    ]), columns=DATA_DIRECTORY['EQUIL'].specification.columns)
                 )
             )
         ),
@@ -104,10 +104,9 @@ TEST_DATA = {
                         [0.95824, 0.557237, 0, 0],
                         [1, 0.645099, 0, 0],
                     ]
-                    ), columns=TABLE_INFO['SWOF']['attrs']).set_index(
-                        TABLE_INFO['SWOF']['attrs'][TABLE_INFO['SWOF']['domain'][0]]
+                    ), columns=DATA_DIRECTORY['SWOF'].specification.columns).set_index(
+                        DATA_DIRECTORY['SWOF'].specification.columns[DATA_DIRECTORY['SWOF'].specification.domain[0]]
                     ),
-
                     pd.DataFrame(np.array([
                         [0, 0, 1, 0],
                         [0.3, 0.002, 0.81, 0],
@@ -117,8 +116,8 @@ TEST_DATA = {
                         [0.7, 0.162, 0.01, 0],
                         [1, 0.2, 0, 0],
                     ]
-                    ), columns=TABLE_INFO['SWOF']['attrs']).set_index(
-                        TABLE_INFO['SWOF']['attrs'][TABLE_INFO['SWOF']['domain'][0]]
+                    ), columns=DATA_DIRECTORY['SWOF'].specification.columns).set_index(
+                        DATA_DIRECTORY['SWOF'].specification.columns[DATA_DIRECTORY['SWOF'].specification.domain[0]]
                     )
                 )
             )
@@ -137,7 +136,7 @@ TEST_DATA = {
                     np.array([
                         [2, 4] + 2*[INT_NAN] + [3] + 11*[INT_NAN]
                     ]),
-                    columns=STATEMENT_LIST_INFO['TABDIMS']['columns']
+                    columns=DATA_DIRECTORY['TABDIMS'].specification.columns
                 )
             )
         ),
@@ -152,7 +151,7 @@ TEST_DATA = {
                     np.array([
                         [2, 4] + 2*[INT_NAN] + [3] + 11*[INT_NAN]
                     ]),
-                    columns=STATEMENT_LIST_INFO['TABDIMS']['columns']
+                    columns=DATA_DIRECTORY['TABDIMS'].specification.columns
                 )
             )
         ),
@@ -318,17 +317,17 @@ TEST_DATA = {
                 'TUNING',
                 (
                     pd.DataFrame(
-                        {key: value for key, value in zip(RECORDS_INFO['TUNING'][0]['columns'],
+                        {key: value for key, value in zip(DATA_DIRECTORY['TUNING'].specification.specifications[0].columns,
                                                           [1.0, 365.0, 0.1, 0.15, 3.0, 0.3, 0.1, 1.25, 0.75,
                                                            np.NaN])}, index=[0]
                     ),
                     pd.DataFrame(
-                        {key: value for key, value in zip(RECORDS_INFO['TUNING'][1]['columns'],
+                        {key: value for key, value in zip(DATA_DIRECTORY['TUNING'].specification.specifications[1].columns,
                                                           [0.1, 0.001, 1e-7, 0.0001, 10.0, 0.01, 1e-6,
                                                            0.001, 0.001] + [np.NaN] * 3 + [INT_NAN])}, index=[0]
                     ),
                     pd.DataFrame(
-                        {key: value for key, value in zip(RECORDS_INFO['TUNING'][2]['columns'],
+                        {key: value for key, value in zip(DATA_DIRECTORY['TUNING'].specification.specifications[2].columns,
                                                           [12, 1, 25, 1, 8, 8] + [1e6]*4)}, index=[0]
                     )
                 )
@@ -355,7 +354,7 @@ TEST_DATA = {
             (
                 'WCONPROD',
                 pd.DataFrame({key: (value, value2) for key, value, value2 in zip(
-                    STATEMENT_LIST_INFO['WCONPROD']['columns'],
+                    DATA_DIRECTORY['WCONPROD'].specification.columns,
                     ['1043', 'OPEN', 'LRAT', 18.19, 0.0, 0.0, 18.99, np.NaN, np.NaN, np.NaN, INT_NAN] +
                         [np.NaN] * 9,
                     ['1054', 'OPEN', 'ORAT', 16.38, 1.765, 0.0, 18.14, np.NaN, 50.0, np.NaN, INT_NAN] +
@@ -380,7 +379,6 @@ TEST_DATA = {
             ValueError()
         )
     ]
-
 }
 
 
@@ -411,9 +409,9 @@ def test_load(data_type, input, expected):
     keyword = next(buf)
     if isinstance(expected, Exception):
         with pytest.raises(type(expected)):
-            LOADERS[data_type](keyword, buf)
+            LOADERS[data_type](DATA_DIRECTORY[keyword].specification, buf)
     else:
-        res = LOADERS[data_type](keyword, buf)
+        res = LOADERS[data_type](DATA_DIRECTORY[keyword].specification, buf)
         if not isinstance(expected[1], tuple | list):
             expected_res = [expected[1]]
             res = [res]

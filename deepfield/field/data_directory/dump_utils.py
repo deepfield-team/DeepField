@@ -3,7 +3,7 @@ import copy
 import numbers
 import numpy as np
 import pandas as pd
-from .data_directory import INT_NAN, TABLE_INFO, DataTypes, DATA_DIRECTORY, DTYPES
+from .data_directory import INT_NAN, DataTypes, DATA_DIRECTORY
 
 MAX_STRLEN = 40
 
@@ -14,32 +14,32 @@ def dump_keyword(keyword, val, section,  buf, include_path):
     buf.write('\n')
     return buf
 
-def _dump_array(keyword, val, buf, include_dir):
-    if keyword in INPLACE_ARRAYS:
+def _dump_array(keyword_spec, val, buf, include_dir):
+    if keyword_spec.keyword in INPLACE_ARRAYS:
         inplace = True
     else:
         inplace = False
-    if keyword in DTYPES and DTYPES[keyword] in (bool, int):
+    if keyword_spec.specification.dtype in (bool, int):
         fmt = '%d'
     else:
         fmt = '%f'
     if inplace:
-        _dump_array_ascii(buf, val.reshape(-1), header=keyword, fmt=fmt)
+        _dump_array_ascii(buf, val.reshape(-1), header=keyword_spec.keyword, fmt=fmt)
         buf.write('/')
         return
-    with open(include_dir/f'{keyword}.inc', 'w') as inc_buf:
-        _dump_array_ascii(inc_buf, val.reshape(-1), fmt=fmt, header=keyword)
+    with open(include_dir/f'{keyword_spec.keyword}.inc', 'w') as inc_buf:
+        _dump_array_ascii(inc_buf, val.reshape(-1), fmt=fmt, header=keyword_spec.keyword)
         inc_buf.write('/')
-    buf.write('\n'.join(('INCLUDE', '"' + '/'.join((include_dir.name, f'{keyword}.inc')) + '"')))
+    buf.write('\n'.join(('INCLUDE', '"' + '/'.join((include_dir.name, f'{keyword_spec.keyword}.inc')) + '"')))
     buf.write('\n/')
 
-def _dump_table(keyword, val, buf):
-    buf.write(keyword)
+def _dump_table(keyword_spec, val, buf):
+    buf.write(keyword_spec.keyword)
     for table in val:
         buf.write('\n')
         for ind, row in table.iterrows():
             vals = row.values
-            if TABLE_INFO[keyword]['domain'] is not None:
+            if keyword_spec.specification.domain is not None:
                 vals = [ind] + vals.tolist()
             vals = [nan_to_none(v) for v in vals]
             str_representaions = [_string_representation(v) if v is not None else '' for v in vals]
@@ -47,47 +47,46 @@ def _dump_table(keyword, val, buf):
             buf.write('\t'.join([v for v in str_representaions]) + '\n')
         buf.write('/')
 
-def _dump_single_statement(keyword, val, buf):
-    buf.write(keyword + '\n')
+def _dump_single_statement(keyword_spec, val, buf):
+    buf.write(keyword_spec.keyword + '\n')
     _dump_statement(val, buf, closing_slash=False)
     buf.write('/')
 
-def _dump_statement_list(keyword, val, buf):
-    buf.write(keyword + '\n')
+def _dump_statement_list(keyword_spec, val, buf):
+    buf.write(keyword_spec.keyword + '\n')
     for row in val.itertuples(index=False):
         _dump_statement(row, buf, closing_slash=True)
     buf.write('/')
 
-def _dump_records(keyword, val, buf):
-    buf.write(keyword + '\n')
+def _dump_records(keyword_spec, val, buf):
+    buf.write(keyword_spec.keyword + '\n')
     for v in val:
         _dump_statement(v, buf, closing_slash=True)
 
-def _dump_object_list(keyword, val, buf):
-    buf.write(keyword + '\n')
+def _dump_object_list(keyword_spec, val, buf):
+    buf.write(keyword_spec.keyword + '\n')
     for o in val:
         buf.write(f'{o}\n')
     buf.write('/')
 
-def dump_parameters(keyword, val, buf):
-    buf.write(keyword + '\n')
+def dump_parameters(keyword_spec, val, buf):
+    buf.write(keyword_spec.keyword + '\n')
     res = ' '.join(
         [f'{k}' if v is None else f'{k}={v}' for k, v in val.items()]
     )
     buf.write(res)
     buf.write('\n/')
 
-
 DUMP_ROUTINES = {
-    DataTypes.OBJECT_LIST: lambda keyword, val, buf, _: _dump_object_list(keyword, val, buf),
-    DataTypes.STRING: lambda keyword, val, buf, _: buf.write('\n'.join([keyword, val, '/'])),
-    DataTypes.STATEMENT_LIST: lambda keyword, val, buf, _: _dump_statement_list(keyword, val, buf),
-    DataTypes.PARAMETERS: lambda keyword, val, buf, _: dump_parameters(keyword, val, buf),
+    DataTypes.OBJECT_LIST: lambda keyword_spec, val, buf, _: _dump_object_list(keyword_spec, val, buf),
+    DataTypes.STRING: lambda keyword_spec, val, buf, _: buf.write('\n'.join([keyword_spec.keyword, val, '/'])),
+    DataTypes.STATEMENT_LIST: lambda keyword_spec, val, buf, _: _dump_statement_list(keyword_spec, val, buf),
+    DataTypes.PARAMETERS: lambda keyword_spec, val, buf, _: dump_parameters(keyword_spec, val, buf),
     DataTypes.ARRAY: _dump_array,
-    DataTypes.TABLE_SET: lambda keyword, val, buf, _=None: _dump_table(keyword, val, buf),
-    None: lambda keyword, _, buf, ___: buf.write(f'{keyword}'),
-    DataTypes.SINGLE_STATEMENT: lambda keyword, val, buf, _: _dump_single_statement(keyword, val, buf),
-    DataTypes.RECORDS: lambda keyword, val, buf, _: _dump_records(keyword, val, buf),
+    DataTypes.TABLE_SET: lambda keyword_spec, val, buf, _=None: _dump_table(keyword_spec, val, buf),
+    None: lambda keyword_spec, _, buf, ___: buf.write(f'{keyword_spec.keyword}'),
+    DataTypes.SINGLE_STATEMENT: lambda keyword_spec, val, buf, _: _dump_single_statement(keyword_spec, val, buf),
+    DataTypes.RECORDS: lambda keyword_spec, val, buf, _: _dump_records(keyword_spec, val, buf),
 }
 
 def _dump_statement(val, buf, closing_slash=True):
@@ -190,7 +189,7 @@ def dump(data, path, inplace_scedule=False, filename=None):
                 else:
                     buf_tmp = buf
                 for (key, val) in data[section]:
-                    DUMP_ROUTINES[DATA_DIRECTORY[section][key]](key, val, buf_tmp, include_dir)
+                    DUMP_ROUTINES[DATA_DIRECTORY[key].type](DATA_DIRECTORY[key], val, buf_tmp, include_dir)
                     buf_tmp.write('\n\n')
 
 def _dump_array_ascii(buffer, array, header=None, fmt='%f', compressed=True):

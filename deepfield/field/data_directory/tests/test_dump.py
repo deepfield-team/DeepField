@@ -6,8 +6,7 @@ import pandas as pd
 import numpy as np
 import pytest
 
-from deepfield.field.data_directory.data_directory import (INT_NAN, STATEMENT_LIST_INFO, DataTypes, RECORDS_INFO,
-                                                           TABLE_INFO)
+from deepfield.field.data_directory.data_directory import (DATA_DIRECTORY, INT_NAN, DataTypes,)
 from deepfield.field.data_directory.dump_utils import DUMP_ROUTINES, dump
 from deepfield.field.data_directory.load_utils import load
 
@@ -29,8 +28,8 @@ DUMP_ROUTINES_TEST_DATA = {
                         [0.95824, 0.557237, 0, 0],
                         [1, 0.645099, 0, 0],
                     ]
-                    ), columns=TABLE_INFO['SWOF']['attrs']).set_index(
-                        TABLE_INFO['SWOF']['attrs'][TABLE_INFO['SWOF']['domain'][0]]
+                    ), columns=DATA_DIRECTORY['SWOF'].specification.columns).set_index(
+                        DATA_DIRECTORY['SWOF'].specification.columns[DATA_DIRECTORY['SWOF'].specification.domain[0]]
                     ),
 
                     pd.DataFrame(np.array([
@@ -42,8 +41,8 @@ DUMP_ROUTINES_TEST_DATA = {
                         [0.7, 0.162, 0.01, 0],
                         [1, 0.2, 0, 0],
                     ]
-                    ), columns=TABLE_INFO['SWOF']['attrs']).set_index(
-                        TABLE_INFO['SWOF']['attrs'][TABLE_INFO['SWOF']['domain'][0]]
+                    ), columns=DATA_DIRECTORY['SWOF'].specification.columns).set_index(
+                        DATA_DIRECTORY['SWOF'].specification.columns[DATA_DIRECTORY['SWOF'].specification.domain[0]]
                     )
                 )
             ),
@@ -76,13 +75,13 @@ DUMP_ROUTINES_TEST_DATA = {
                 (
                     pd.DataFrame(np.array([
                         [2300, 200, 2500, 0.1, 2300, 0.001, np.NaN, np.NaN],
-                    ]), columns=TABLE_INFO['EQUIL']['attrs']),
+                    ]), columns=DATA_DIRECTORY['EQUIL'].specification.columns),
                     pd.DataFrame(np.array([
                         [2310, 205, 2520, 0.05, 2310, 0.0, np.NaN, np.NaN],
-                    ]), columns=TABLE_INFO['EQUIL']['attrs']),
+                    ]), columns=DATA_DIRECTORY['EQUIL'].specification.columns),
                     pd.DataFrame(np.array([
                         [2305, 210, 2510, np.NaN, 2305, np.NaN, np.NaN, np.NaN],
-                    ]), columns=TABLE_INFO['EQUIL']['attrs'])
+                    ]), columns=DATA_DIRECTORY['EQUIL'].specification.columns)
                 )
             ),
             '\n'.join((
@@ -104,7 +103,7 @@ DUMP_ROUTINES_TEST_DATA = {
                     np.array([
                         [2, 4] + 2*[INT_NAN] + [3] + 11*[INT_NAN]
                     ]),
-                    columns=STATEMENT_LIST_INFO['TABDIMS']['columns']
+                    columns=DATA_DIRECTORY['TABDIMS'].specification.columns
                 )
             ),
             '\n'.join((
@@ -119,7 +118,7 @@ DUMP_ROUTINES_TEST_DATA = {
             (
                 'WCONPROD',
                 pd.DataFrame({key: (value, value2) for key, value, value2 in zip(
-                    STATEMENT_LIST_INFO['WCONPROD']['columns'],
+                    DATA_DIRECTORY['WCONPROD'].specification.columns,
                     ['1043', 'OPEN', 'LRAT', 18.19, 0.0, 0.0, 18.99, np.NaN, np.NaN, np.NaN, INT_NAN] +
                         [np.NaN] * 9,
                     ['1054', 'OPEN', 'ORAT', 16.38, 1.765, 0.0, 18.14, np.NaN, 50.0, np.NaN, INT_NAN] +
@@ -140,17 +139,17 @@ DUMP_ROUTINES_TEST_DATA = {
                 'TUNING',
                 (
                     pd.DataFrame(
-                        {key: value for key, value in zip(RECORDS_INFO['TUNING'][0]['columns'],
+                        {key: value for key, value in zip(DATA_DIRECTORY['TUNING'].specification.specifications[0].columns,
                                                           [1.0, 365.0, 0.1, 0.15, 3.0, 0.3, 0.1, 1.25, 0.75,
                                                            np.NaN])}, index=[0]
                     ),
                     pd.DataFrame(
-                        {key: value for key, value in zip(RECORDS_INFO['TUNING'][1]['columns'],
+                        {key: value for key, value in zip(DATA_DIRECTORY['TUNING'].specification.specifications[1].columns,
                                                           [0.1, 0.001, 1e-7, 0.0001, 10.0, 0.01, 1e-6,
                                                            0.001, 0.001] + [np.NaN] * 3 + [INT_NAN])}, index=[0]
                     ),
                     pd.DataFrame(
-                        {key: value for key, value in zip(RECORDS_INFO['TUNING'][2]['columns'],
+                        {key: value for key, value in zip(DATA_DIRECTORY['TUNING'].specification.specifications[2].columns,
                                                           [12, 1, 25, 1, 8, 8] + [1e6]*4)}, index=[0]
                     )
                 )
@@ -258,7 +257,7 @@ DUMP_ROUTINES_TEST_DATA = {
 )
 def test_dump_keyword(data_type, input, expected, tmp_path):
     with io.StringIO() as buf:
-        DUMP_ROUTINES[data_type](input[0], input[1], buf, tmp_path)
+        DUMP_ROUTINES[data_type](DATA_DIRECTORY[input[0]], input[1], buf, tmp_path)
         result = buf.getvalue()
         if data_type == DataTypes.ARRAY:
             exp_buf = Template(expected[0]).safe_substitute(include_dir=tmp_path.name)

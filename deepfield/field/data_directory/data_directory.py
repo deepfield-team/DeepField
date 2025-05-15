@@ -1,19 +1,23 @@
+from ast import keyword
+from collections import namedtuple
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum, auto
 import os
-from typing import Callable, Optional
+from typing import Any, Callable, NamedTuple, Optional
 
 import pandas as pd
 import numpy as np
+from pandas.errors import SpecificationError
 
 
 INT_NAN = -99999999
 
-FLUID_KEYWORDS = ('OIL', 'GAS', 'WATER')
+FLUID_KEYWORDS = ('OIL', 'GAS', 'WATER', 'DISGAS')
 ORTHOGONAL_GRID_KEYWORDS = ('DX', 'DY', 'DZ', 'TOPS', 'ACTNUM')
 ROCK_GRID_KEYWORDS = ('PORO', 'PERMX', 'PERMY', 'PERMZ', 'NTG')
 TABLES_KEYWORDS = ('DENSITY', 'PVCDO', 'PVTW', 'ROCK', 'SWOF')
-FIELD_SUMMARY_KETWORDS = ('FOPR', 'FWPR', 'FWIR')
+FIELD_SUMMARY_KEYWORDS = ('FOPR', 'FWPR', 'FWIR')
 WELL_SUMMARY_KEYWORDS = ('WOPR', 'WWPR', 'WWIR', 'WLPR', 'WBHP')
 TOTAL_SUMMARY_KEYWORDS = ('FOPT', 'FWPT', 'FWIT')
 SCHEDULE_KEYWORDS = ('WELSPECS','COMPDAT', 'WCONPROD', 'WCONINJE')
@@ -73,6 +77,16 @@ class DataTypes(Enum):
     OBJECT_LIST = auto()
     RECORDS = auto()
 
+class SECTIONS(Enum):
+    RUNSPEC = 'RUNSPEC'
+    NONE = ''
+    GRID = 'GRID'
+    SCHEDULE = 'SCHEDULE'
+    PROPS = 'PROPS'
+    SOLUTION = 'SOLUTION'
+    SUMMARY = 'SUMMARY'
+    REGIONS = 'REGIONS'
+
 TABLE_COLUMNS = {
     'RUNCTRL': ('Parameter', 'Value'),
     'TNAVCTRL': ('Parameter', 'Value'),
@@ -84,6 +98,27 @@ DTYPES = {
     'TSTEP': int,
 }
 
+class TableSpecification(NamedTuple):
+    columns: Sequence[str]
+    domain: Sequence[int] | None
+    dtype: type=float
+
+class StatementSpecification(NamedTuple):
+    columns: Sequence[str]
+    dtypes: Sequence[str]
+
+class RecordsSpecification(NamedTuple):
+    specifications: Sequence[StatementSpecification]
+
+class ArraySpecification(NamedTuple):
+    dtype: type
+
+class KeywordSpecification(NamedTuple):
+    keyword: str
+    type: DataTypes | None
+    specification: (StatementSpecification |
+        RecordsSpecification | None | ArraySpecification | TableSpecification)
+    sections: Sequence[SECTIONS]
 
 STATEMENT_LIST_INFO = {
     'RUNCTRL': {
@@ -126,8 +161,8 @@ STATEMENT_LIST_INFO = {
         'columns': [
             'WELL', 'MODE', 'CONTROL', 'OIL_RATE', 'WATER_RATE', 'GAS_RATE', 'SURFACE_LIQUID_RATE',
             'RESERVOIR_LIQUID_RATE', 'BHP', 'THP', 'VFP_TABLE_NUM', 'ALQ', 'WET_GAS_PRODUCTION_RATE',
-            'TOTAL_MOLAR_RATE', 'STEAM_PRODUCTION', 'PRESSURE_OFFSET', 'TEMPERATURE_OFFSET', 
-            'CALORIFIC_RATE', 'LINEARLY_COMBINED_RATE_TARGET', 'NGL_RATE' 
+            'TOTAL_MOLAR_RATE', 'STEAM_PRODUCTION', 'PRESSURE_OFFSET', 'TEMPERATURE_OFFSET',
+            'CALORIFIC_RATE', 'LINEARLY_COMBINED_RATE_TARGET', 'NGL_RATE'
         ],
         'dtypes': ['text'] * 3 + ['float'] * 7 + ['int'] + ['float'] * 9
     },
@@ -250,7 +285,7 @@ DATA_DIRECTORY = {
         'RPTSOL': DataTypes.PARAMETERS
     },
     "SUMMARY": {
-        **{keyword: None for keyword in FIELD_SUMMARY_KETWORDS},
+        **{keyword: None for keyword in FIELD_SUMMARY_KEYWORDS},
         **{keyword: DataTypes.OBJECT_LIST for keyword in WELL_SUMMARY_KEYWORDS},
         **{keyword: None for keyword in TOTAL_SUMMARY_KEYWORDS},
         'EXCEL': None,
@@ -267,14 +302,63 @@ DATA_DIRECTORY = {
 }
 
 
-GLOBAL_KEYWORDS_DIRECTORY = {
-    'NOECHO': None,
-    'ECHO': None,
-    'END': None
-}
+DATA_DIRECTORY = {
+    'TITLE': KeywordSpecification('TITLE', DataTypes.STRING, None, (SECTIONS.RUNSPEC,)),
+    **{kw: KeywordSpecification(kw, None, None, (SECTIONS.RUNSPEC,)) for kw in [
+        'MULTOUT', 'MULTOUTS', 'UNIFOUT', 'METRIC'
+    ]},
+    'START': KeywordSpecification('START', DataTypes.STRING, None, (SECTIONS.RUNSPEC,)),
+    **{kw: KeywordSpecification(kw, None, None, (SECTIONS.RUNSPEC,)) for kw in FLUID_KEYWORDS},
+    **{kw: KeywordSpecification(kw, DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        STATEMENT_LIST_INFO[kw]['columns'], STATEMENT_LIST_INFO[kw]['dtypes']),
+                                (SECTIONS.RUNSPEC,)) for kw in ['DIMENS', 'NUMRES', 'NSTACK'] + list(DIMS_KEYWORDS)
+    },
+    **{kw: KeywordSpecification(kw, DataTypes.STATEMENT_LIST, StatementSpecification(
+        STATEMENT_LIST_INFO[kw]['columns'], STATEMENT_LIST_INFO[kw]['dtypes']
+    ), (SECTIONS.RUNSPEC,)) for kw in ('RUNCTRL',)},
+    'TUNING': KeywordSpecification('TUNING', DataTypes.RECORDS, RecordsSpecification([StatementSpecification(
+        r['columns'], r['dtypes']) for r in RECORDS_INFO['TUNING']]), (SECTIONS.RUNSPEC, SECTIONS.SCHEDULE)),
+    'SPECGRID': KeywordSpecification(
+        'SPECGRID', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+            STATEMENT_LIST_INFO['SPECGRID']['columns'], STATEMENT_LIST_INFO['SPECGRID']['dtypes']
+        ), (SECTIONS.GRID,)
+    ),
+    'INIT': KeywordSpecification('INIT', None, None, (SECTIONS.GRID,)),
+    'MAPAXES': KeywordSpecification('MAPAXES', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        STATEMENT_LIST_INFO['MAPAXES']['columns'], STATEMENT_LIST_INFO['MAPAXES']['dtypes']
+    ), (SECTIONS.GRID,)),
+    **{kw: KeywordSpecification(kw, DataTypes.ARRAY,
+                                ArraySpecification(DTYPES[kw] if kw in DTYPES else float),
+                                (SECTIONS.GRID,)) for kw in list(ORTHOGONAL_GRID_KEYWORDS) + list(ROCK_GRID_KEYWORDS)},
+    'MULTIPLY': KeywordSpecification('MULTIPLY', DataTypes.STATEMENT_LIST, StatementSpecification(
+        STATEMENT_LIST_INFO['MULTIPLY']['columns'], STATEMENT_LIST_INFO['MULTIPLY']['dtypes']
+    ), (SECTIONS.GRID,) ),
+    'COPY': KeywordSpecification('COPY', DataTypes.STATEMENT_LIST, StatementSpecification(
+        STATEMENT_LIST_INFO['COPY']['columns'], STATEMENT_LIST_INFO['COPY']['dtypes']
+    ), (SECTIONS.GRID,) ),
+    **{kw: KeywordSpecification(kw, DataTypes.TABLE_SET, TableSpecification(
+        TABLE_INFO[kw]['attrs'], TABLE_INFO[kw]['domain']
+    ), (SECTIONS.PROPS,)) for kw in TABLES_KEYWORDS},
+    'EQUIL': KeywordSpecification('EQUIL', DataTypes.TABLE_SET, TableSpecification(
+        TABLE_INFO['EQUIL']['attrs'], TABLE_INFO['EQUIL']['domain']
+    ), (SECTIONS.SOLUTION,)),
+    'RPTSOL': KeywordSpecification('RPTSOL', DataTypes.PARAMETERS, None, (SECTIONS.SOLUTION,)),
+    **{kw: KeywordSpecification(kw, None, None, (SECTIONS.SUMMARY,)) for kw in FIELD_SUMMARY_KEYWORDS},
 
-for key, val in DATA_DIRECTORY.items():
-    DATA_DIRECTORY[key] = dict(**val, **GLOBAL_KEYWORDS_DIRECTORY)
+    **{kw: KeywordSpecification(kw, DataTypes.OBJECT_LIST, None, (SECTIONS.SUMMARY,)) for kw in WELL_SUMMARY_KEYWORDS},
+    **{kw: KeywordSpecification(kw, None, None, (SECTIONS.SUMMARY,)) for kw in TOTAL_SUMMARY_KEYWORDS},
+    'EXCEL': KeywordSpecification('EXCEL', None, None, (SECTIONS.SUMMARY,)),
+    'RPTONLY': KeywordSpecification('RPTONLY', None, None, (SECTIONS.SUMMARY,)),
+    'RPTSCHED': KeywordSpecification('RPTSCHED', DataTypes.PARAMETERS, None, (SECTIONS.SCHEDULE,)),
+    'RPTRST': KeywordSpecification('RPTRST', DataTypes.PARAMETERS, None, (SECTIONS.SCHEDULE,)),
+    'WELSPECS': KeywordSpecification('WELSPECS', DataTypes.STATEMENT_LIST, None, (SECTIONS.SCHEDULE,)),
+    'TSTEP': KeywordSpecification('TSTEP', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.SCHEDULE,)),
+    **{kw: KeywordSpecification(kw, DataTypes.STATEMENT_LIST, StatementSpecification(
+        STATEMENT_LIST_INFO[kw]['columns'], STATEMENT_LIST_INFO[kw]['dtypes'],
+    ), (SECTIONS.SCHEDULE,)) for kw in SCHEDULE_KEYWORDS},
+    **{kw: KeywordSpecification(kw, None, None, [val for val in SECTIONS]) for kw in ('NOECHO', 'ECHO', 'END')},
+    'INCLUDE': KeywordSpecification('INCLUDE', DataTypes.STRING, None, [val for val in SECTIONS])
+}
 
 def dump_keyword(spec, val, buf, include_path):
     _DUMP_ROUTINES[spec.data_type](spec.keyword, val, buf, include_path)

@@ -1,18 +1,13 @@
 from contextlib import ExitStack
 import copy
-import itertools
 import logging
-from os import wait
-import pathlib
-import pdb
-import shlex
 import uuid
 import re
 
 import numpy as np
 import pandas as pd
 
-from .data_directory import DATA_DIRECTORY, INT_NAN, RECORDS_INFO, STATEMENT_LIST_INFO, TABLE_INFO, DataTypes, DTYPES
+from .data_directory import DATA_DIRECTORY, INT_NAN, SECTIONS, DataTypes
 
 
 DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
@@ -58,10 +53,9 @@ def _load_object_list(keyword, buf):
     return res
 
 
-def _load_table(keyword, buf):
-    table_info = TABLE_INFO[keyword]
-    n_attrs = len(table_info['attrs'])
-    dtype = table_info['dtype'] if 'dtype' in table_info else float
+def _load_table(keyword_spec, buf):
+    n_attrs = len(keyword_spec.columns)
+    dtype = keyword_spec.dtype
     data = _read_numerical_table_data(buf, 1, dtype)
     tables = []
     for region_table_data in data:
@@ -75,21 +69,19 @@ def _load_table(keyword, buf):
                 tmp[:] = None
             region_table_data = np.concatenate((region_table_data, tmp))
         data_tmp = region_table_data.reshape(-1, n_attrs)
-        table = pd.DataFrame(data_tmp, columns=table_info['attrs'])
-        if 'domain' in table_info and table_info['domain'] is not None:
-            if len(table_info['domain'])==1:
-                domain = table_info['attrs'][table_info['domain'][0]]
+        table = pd.DataFrame(data_tmp, columns=keyword_spec.columns)
+        if  keyword_spec.domain is not None:
+            if len(keyword_spec.domain)==1:
+                domain = keyword_spec.columns[keyword_spec.domain[0]]
             else:
                 raise ValueError('Single attribute should be specified for table index.')
             table = table.set_index(domain)
         tables.append(table)
     return tables
 
-def _load_single_statement(keyword, buffer, columns=None, column_types=None):
-    if columns is None:
-        columns = STATEMENT_LIST_INFO[keyword]['columns']
-    if column_types is None:
-        column_types = STATEMENT_LIST_INFO[keyword]['dtypes']
+def _load_single_statement(keyword_spec, buffer):
+    columns = keyword_spec.columns
+    column_types = keyword_spec.dtypes
     shift = 0
     full = [None] * len(columns)
     while True:
@@ -113,9 +105,8 @@ def _load_single_statement(keyword, buffer, columns=None, column_types=None):
         df[int_columns] = df[int_columns].fillna(INT_NAN).astype(int)
     return df
 
-def _load_records(keyword, buffer):
-    info = RECORDS_INFO[keyword]
-    res = [_load_single_statement(keyword, buffer, columns=rec['columns'], column_types=rec['dtypes']) for rec in info]
+def _load_records(keyword_spec, buffer):
+    res = [_load_single_statement(spec, buffer) for spec in keyword_spec.specifications]
     return res
 
 def _read_numerical_table_data(buffer, depth, dtype):
@@ -200,11 +191,8 @@ def _read_numerical_table_data(buffer, depth, dtype):
             d[i] = np.hstack(vals)
     return data
 
-def _load_array(keyword, buf):
-    kwargs = {}
-    if keyword in DTYPES:
-        kwargs['dtype'] = DTYPES[keyword]
-    data = read_array(buf, **kwargs)
+def _load_array(keyword_spec, buf):
+    data = read_array(buf, dtype=keyword_spec.dtype)
     return data
 
 def read_array(buffer, dtype=None, compressed=True, **kwargs):
@@ -258,7 +246,7 @@ def decompress_array(s, dtype=None):
         nums.extend(val)
     return np.array(nums)
 
-def _load_parameters(keyword, buf):
+def _load_parameters(keyword_spec, buf):
     res = {}
     for line in buf:
         split = line.split('/')
@@ -292,7 +280,7 @@ def parse_vals(full, shift, vals):
             full[i+shift] = v
     return full, i + shift + 1
 
-def _load_statement_list(keyword, buf):
+def _load_statement_list(keyword_spec, buf):
     """Parse Eclipse keyword data to dataframe.
 
     Parameters
@@ -313,23 +301,20 @@ def _load_statement_list(keyword, buf):
     pd.Dataframe
         Loaded keyword dataframe.
     """
-    columns = STATEMENT_LIST_INFO[keyword]['columns']
-    column_types = STATEMENT_LIST_INFO[keyword]['dtypes']
     statements = []
     while True:
         line = _get_expected_line(buf)
         if line.startswith('/'):
             break
         buf.prev()
-        statement = _load_single_statement(keyword, buf)
+        statement = _load_single_statement(keyword_spec, buf)
         statements.append(statement)
 
     df = pd.concat(statements, ignore_index=True)
     return df
 
 LOADERS = {
-    None: lambda keyword, buf: None,
-    **{t: lambda keyword, buf: None for t in DataTypes},
+    None: lambda keyword_spec, buf: None,
     DataTypes.STRING: _load_string,
     DataTypes.OBJECT_LIST: _load_object_list,
     DataTypes.TABLE_SET: _load_table,
@@ -486,12 +471,11 @@ def load(path, logger=None, encoding=None):
 
     res = {
     }
-    sections = DATA_DIRECTORY.keys()
+    sections = [sec.value for sec in SECTIONS]
     if logger is None:
         logger = logging.getLogger(str(uuid.uuid4()))
         logger.addHandler(logging.NullHandler())
         logger.propagate = False
-    data_dir = path.parent
     filename = path.name
 
     logger.info(f'Start reading {filename}')
@@ -507,10 +491,15 @@ def load(path, logger=None, encoding=None):
                 if cur_section not in res:
                     res[cur_section] = []
                 continue
-            if firstword in DATA_DIRECTORY[cur_section]:
-
+            if firstword in DATA_DIRECTORY:
+                keyword_spec = DATA_DIRECTORY[firstword]
+                keyword_sections = [sec.value for sec in keyword_spec.sections]
+                if cur_section not in keyword_sections:
+                    logger.warning(f'Keyword {firstword} in section {cur_section}' +
+                        f'is not supported (skipping): line {lines.line_number}')
+                    continue
                 logger.info(f'Start reading keyword {firstword}: line {lines.line_number}.')
-                data = LOADERS[DATA_DIRECTORY[cur_section][firstword]](firstword, lines)
+                data = LOADERS[keyword_spec.type](keyword_spec.specification, lines)
                 if cur_section not in res:
                     res[cur_section] = []
                 res[cur_section].append((firstword, data))
