@@ -82,6 +82,7 @@ class SECTIONS(Enum):
     NONE = ''
     GRID = 'GRID'
     SCHEDULE = 'SCHEDULE'
+    EDIT = 'EDIT'
     PROPS = 'PROPS'
     SOLUTION = 'SOLUTION'
     SUMMARY = 'SUMMARY'
@@ -368,7 +369,45 @@ DATA_DIRECTORY = {
     'ENDSCALE': KeywordSpecification('ENDSCALE', DataTypes.SINGLE_STATEMENT, StatementSpecification(
         ['DIRECTIONAL_SWITCH', 'IRREVERSIBLE_SWITCH', 'SAT_POINTS_NUM', 'NODE_NUM', 'COMBININNG',
          'EQUILIBRATION'],
-        ['text'] * 2 + ['int'] * 3 + ['text']), (SECTIONS.RUNSPEC,))
+        ['text'] * 2 + ['int'] * 3 + ['text']), (SECTIONS.RUNSPEC,)),
+    'FAULTDIM' : KeywordSpecification('FAULTDIM', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['N'], ['int']
+    ), (SECTIONS.RUNSPEC,)),
+    'EQLOPTS': KeywordSpecification('EQLOPTS', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['OPTION'], ['text']
+    ), (SECTIONS.RUNSPEC,)),
+    'MESSAGES': KeywordSpecification('MESSAGES', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        [f'PRINT_LIM_SEV{i}' for i in range(1, 7)] + [f'STOP_LIM_SEV{i}' for i in range(1, 7)],
+        ['int']*12
+    ), [val for val in SECTIONS]),
+    'GRIDFILE': KeywordSpecification('GRIDFILE', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['_', 'DUMP_INIT_EGRID'], ['int']*2
+    ), (SECTIONS.GRID,)),
+    'MINPV': KeywordSpecification('MINPV', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['VAL'], ['float']
+    ), (SECTIONS.GRID,)),
+    'PINCH': KeywordSpecification('PINCH', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['THRESHOLD_THICKNESS', 'MINPV_NN_CONTROL', 'MAX_GAP', 'NN_TRANSMISSIBILITY_METHOD',
+         'VERT_TRANSMISSIBILITY_METHOD'], ['float', 'text', 'float', 'text', 'text'],
+    ), (SECTIONS.GRID,)),
+    'FAULTS': KeywordSpecification('FAULTS', DataTypes.STATEMENT_LIST, StatementSpecification(
+        ['NAME', 'I1', 'I2', 'J1', 'J2', 'K1', 'K2', 'FACE'], ['text'] + ['int']*6 + ['text']
+    ), (SECTIONS.GRID,)),
+    'JFUNC': KeywordSpecification('JFUNC',  DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['PHASE', 'STW', 'STG', 'ALPHA', 'BETA', 'PERM_DIR'],
+        ['text'] + ['float'] * 4 + ['text']
+    ), (SECTIONS.GRID,)),
+    'COORD': KeywordSpecification('COORD', DataTypes.ARRAY, ArraySpecification(
+       float
+    ), (SECTIONS.GRID,)),
+    'ZCORN': KeywordSpecification('ZCORN', DataTypes.ARRAY, ArraySpecification(
+       float
+    ), (SECTIONS.GRID,)),
+    'EDITNNC': KeywordSpecification('EDITNNC', DataTypes.STATEMENT_LIST, StatementSpecification(
+        ['I1', 'J1', 'K1', 'I2', 'J2', 'K2', 'TRANSMISSIBILITY_MULT', 'SAT_REG1', 'SAT_REG2',
+         'PVT_REG1', 'PVT_REG2', 'DIR1', 'DIR2', 'DIFFUSIVITY_MULT'],
+        ['int'] * 6 + ['float'] + ['int'] * 4 + ['text'] * 2 + ['float']
+    ), (SECTIONS.EDIT,))
 }
 
 def dump_keyword(spec, val, buf, include_path):
