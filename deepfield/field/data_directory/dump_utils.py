@@ -70,12 +70,21 @@ def _dump_object_list(keyword_spec, val, buf):
     buf.write('/')
 
 def dump_parameters(keyword_spec, val, buf):
+    if keyword_spec.specification.tabulated:
+        return dump_tabulated_parameters(keyword_spec, val, buf)
+
     buf.write(keyword_spec.keyword + '\n')
     res = ' '.join(
         [f'{k}' if v is None else f'{k}={v}' for k, v in val.items()]
     )
     buf.write(res)
     buf.write('\n/')
+
+def dump_tabulated_parameters(keyword_spec, val, buf):
+    buf.write(keyword_spec.keyword + '\n')
+    for key, data in val.items():
+        buf.write('\t'.join((key, data)) + '\n')
+    buf.write('/')
 
 DUMP_ROUTINES = {
     DataTypes.OBJECT_LIST: lambda keyword_spec, val, buf, _: _dump_object_list(keyword_spec, val, buf),

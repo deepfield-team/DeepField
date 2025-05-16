@@ -224,6 +224,23 @@ DUMP_ROUTINES_TEST_DATA = {
                 'RESTART=2',
                 '/'
             ))
+        ),
+        (
+            (
+                'REPORTSCREEN',
+                {
+                    'WELL': 'LOW',
+                    'ITERS': 'MEDIUM'
+                }
+            ),
+            '\n'.join(
+                (
+                    'REPORTSCREEN',
+                    'WELL\tLOW',
+                    'ITERS\tMEDIUM',
+                    '/'
+                )
+            )
         )
     ],
     DataTypes.STRING: [
