@@ -277,8 +277,6 @@ def _load_parameters_tabulated(_, buf):
             break
     return res
 
-
-
 def parse_vals(full, shift, vals):
     """Parse values (unpack asterisk terms)."""
     full = copy.deepcopy(full)
@@ -525,6 +523,6 @@ def load(path, logger=None, encoding=None):
                 logger.info(f'Unnecessary "/" (skipping): line: {lines.line_number}.')
             else:
                 logger.warning(f'Keyword {firstword} in section {cur_section} ' +
-                    'is not supported (skipping): line {line.line_number}')
+                    f'is not supported (skipping): line {lines.line_number}')
 
     return res
