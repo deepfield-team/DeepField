@@ -103,9 +103,13 @@ class TableSpecification(NamedTuple):
     domain: Sequence[int] | None
     dtype: type=float
 
+class ParametersSpecification(NamedTuple):
+    tabulated: bool=False
+
 class StatementSpecification(NamedTuple):
     columns: Sequence[str]
     dtypes: Sequence[str]
+    terminated: bool=True
 
 class RecordsSpecification(NamedTuple):
     specifications: Sequence[StatementSpecification]
@@ -117,7 +121,7 @@ class KeywordSpecification(NamedTuple):
     keyword: str
     type: DataTypes | None
     specification: (StatementSpecification |
-        RecordsSpecification | None | ArraySpecification | TableSpecification)
+        RecordsSpecification | None | ArraySpecification | TableSpecification | ParametersSpecification)
     sections: Sequence[SECTIONS]
 
 STATEMENT_LIST_INFO = {
@@ -342,22 +346,25 @@ DATA_DIRECTORY = {
     'EQUIL': KeywordSpecification('EQUIL', DataTypes.TABLE_SET, TableSpecification(
         TABLE_INFO['EQUIL']['attrs'], TABLE_INFO['EQUIL']['domain']
     ), (SECTIONS.SOLUTION,)),
-    'RPTSOL': KeywordSpecification('RPTSOL', DataTypes.PARAMETERS, None, (SECTIONS.SOLUTION,)),
+    'RPTSOL': KeywordSpecification('RPTSOL', DataTypes.PARAMETERS, ParametersSpecification(), (SECTIONS.SOLUTION,)),
     **{kw: KeywordSpecification(kw, None, None, (SECTIONS.SUMMARY,)) for kw in FIELD_SUMMARY_KEYWORDS},
 
     **{kw: KeywordSpecification(kw, DataTypes.OBJECT_LIST, None, (SECTIONS.SUMMARY,)) for kw in WELL_SUMMARY_KEYWORDS},
     **{kw: KeywordSpecification(kw, None, None, (SECTIONS.SUMMARY,)) for kw in TOTAL_SUMMARY_KEYWORDS},
     'EXCEL': KeywordSpecification('EXCEL', None, None, (SECTIONS.SUMMARY,)),
     'RPTONLY': KeywordSpecification('RPTONLY', None, None, (SECTIONS.SUMMARY,)),
-    'RPTSCHED': KeywordSpecification('RPTSCHED', DataTypes.PARAMETERS, None, (SECTIONS.SCHEDULE,)),
-    'RPTRST': KeywordSpecification('RPTRST', DataTypes.PARAMETERS, None, (SECTIONS.SCHEDULE,)),
+    'RPTSCHED': KeywordSpecification('RPTSCHED', DataTypes.PARAMETERS, ParametersSpecification(), (SECTIONS.SCHEDULE,)),
+    'RPTRST': KeywordSpecification('RPTRST', DataTypes.PARAMETERS, ParametersSpecification(), (SECTIONS.SCHEDULE,)),
     'WELSPECS': KeywordSpecification('WELSPECS', DataTypes.STATEMENT_LIST, None, (SECTIONS.SCHEDULE,)),
     'TSTEP': KeywordSpecification('TSTEP', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.SCHEDULE,)),
     **{kw: KeywordSpecification(kw, DataTypes.STATEMENT_LIST, StatementSpecification(
         STATEMENT_LIST_INFO[kw]['columns'], STATEMENT_LIST_INFO[kw]['dtypes'],
     ), (SECTIONS.SCHEDULE,)) for kw in SCHEDULE_KEYWORDS},
     **{kw: KeywordSpecification(kw, None, None, [val for val in SECTIONS]) for kw in ('NOECHO', 'ECHO', 'END')},
-    'INCLUDE': KeywordSpecification('INCLUDE', DataTypes.STRING, None, [val for val in SECTIONS])
+    'INCLUDE': KeywordSpecification('INCLUDE', DataTypes.STRING, None, [val for val in SECTIONS]),
+    'REPORTSCREEN': KeywordSpecification('REPORTSCREEN', DataTypes.PARAMETERS, ParametersSpecification(
+        tabulated=True,
+    ), [val for val in SECTIONS])
 }
 
 def dump_keyword(spec, val, buf, include_path):

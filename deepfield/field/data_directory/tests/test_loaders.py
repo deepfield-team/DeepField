@@ -231,6 +231,30 @@ TEST_DATA = {
                     'WELLS': None,
                 }
             )
+        ),
+        (
+            '\n'.join((
+                'REPORTSCREEN',
+                'WELL LOW',
+                'ITERS MEDIUM',
+                '/'
+            )),
+            (
+                'REPORTSCREEN',
+                {
+                    'WELL': 'LOW',
+                    'ITERS': 'MEDIUM',
+                }
+            )
+        ),
+        (
+            '\n'.join((
+                'REPORTSCREEN',
+                'WELL LOW abc',
+                'ITERS MEDIUM',
+                '/'
+            )),
+            ValueError()
         )
     ],
     DataTypes.ARRAY: [

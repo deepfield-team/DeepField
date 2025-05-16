@@ -247,6 +247,8 @@ def decompress_array(s, dtype=None):
     return np.array(nums)
 
 def _load_parameters(keyword_spec, buf):
+    if keyword_spec.tabulated:
+        return _load_parameters_tabulated(keyword_spec, buf)
     res = {}
     for line in buf:
         split = line.split('/')
@@ -257,10 +259,25 @@ def _load_parameters(keyword_spec, buf):
                 res[key] = val
             else:
                 res[word] = None
-
         if len(split) > 1:
             break
     return res
+
+def _load_parameters_tabulated(_, buf):
+    res = {}
+    for line in buf:
+        split = line.split('/')
+        if len(split) > 1 and split[0] == '':
+            break
+        words = split[0].split()
+        if len(words) != 2:
+            raise ValueError('There should be exactly two words on each line.')
+        res[words[0]] = words[1]
+        if len(split) > 1:
+            break
+    return res
+
+
 
 def parse_vals(full, shift, vals):
     """Parse values (unpack asterisk terms)."""
