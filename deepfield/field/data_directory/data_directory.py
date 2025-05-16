@@ -364,7 +364,11 @@ DATA_DIRECTORY = {
     'INCLUDE': KeywordSpecification('INCLUDE', DataTypes.STRING, None, [val for val in SECTIONS]),
     'REPORTSCREEN': KeywordSpecification('REPORTSCREEN', DataTypes.PARAMETERS, ParametersSpecification(
         tabulated=True,
-    ), [val for val in SECTIONS])
+    ), [val for val in SECTIONS]),
+    'ENDSCALE': KeywordSpecification('ENDSCALE', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['DIRECTIONAL_SWITCH', 'IRREVERSIBLE_SWITCH', 'SAT_POINTS_NUM', 'NODE_NUM', 'COMBININNG',
+         'EQUILIBRATION'],
+        ['text'] * 2 + ['int'] * 3 + ['text']), (SECTIONS.RUNSPEC,))
 }
 
 def dump_keyword(spec, val, buf, include_path):

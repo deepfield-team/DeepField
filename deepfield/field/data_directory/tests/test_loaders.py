@@ -157,6 +157,19 @@ TEST_DATA = {
         ),
         (
             '\n'.join((
+                'ENDSCALE',
+                '/'
+            )),
+            (
+                'ENDSCALE',
+                pd.DataFrame(
+                    [[None] * 2 + [INT_NAN] * 3 + [None]],
+                    columns=DATA_DIRECTORY['ENDSCALE'].specification.columns
+                )
+            )
+        ),
+        (
+            '\n'.join((
                 'TABDIMS',
                 '2 4 2* 3',
             )),
