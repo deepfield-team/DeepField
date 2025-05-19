@@ -67,8 +67,6 @@ TABLE_INFO = {
 
 class DataTypes(Enum):
     STRING = auto()
-    DATE = auto()
-    NUMBER = auto()
     SINGLE_STATEMENT = auto()
     STATEMENT_LIST = auto()
     ARRAY = auto()
@@ -349,7 +347,6 @@ DATA_DIRECTORY = {
     ), (SECTIONS.SOLUTION,)),
     'RPTSOL': KeywordSpecification('RPTSOL', DataTypes.PARAMETERS, ParametersSpecification(), (SECTIONS.SOLUTION,)),
     **{kw: KeywordSpecification(kw, None, None, (SECTIONS.SUMMARY,)) for kw in FIELD_SUMMARY_KEYWORDS},
-
     **{kw: KeywordSpecification(kw, DataTypes.OBJECT_LIST, None, (SECTIONS.SUMMARY,)) for kw in WELL_SUMMARY_KEYWORDS},
     **{kw: KeywordSpecification(kw, None, None, (SECTIONS.SUMMARY,)) for kw in TOTAL_SUMMARY_KEYWORDS},
     'EXCEL': KeywordSpecification('EXCEL', None, None, (SECTIONS.SUMMARY,)),
@@ -407,7 +404,12 @@ DATA_DIRECTORY = {
         ['I1', 'J1', 'K1', 'I2', 'J2', 'K2', 'TRANSMISSIBILITY_MULT', 'SAT_REG1', 'SAT_REG2',
          'PVT_REG1', 'PVT_REG2', 'DIR1', 'DIR2', 'DIFFUSIVITY_MULT'],
         ['int'] * 6 + ['float'] + ['int'] * 4 + ['text'] * 2 + ['float']
-    ), (SECTIONS.EDIT,))
+    ), (SECTIONS.EDIT,)),
+    'STONE1': KeywordSpecification('STONE1', None, None, (SECTIONS.PROPS,)),
+    'STONE2': KeywordSpecification('STONE2', None, None, (SECTIONS.PROPS,)),
+    'PVTO': KeywordSpecification('PVTO', DataTypes.TABLE_SET, TableSpecification(TABLE_INFO['PVTO']['attrs'],
+                                                                                 TABLE_INFO['PVTO']['domain']),
+                                 (SECTIONS.PROPS,))
 }
 
 def dump_keyword(spec, val, buf, include_path):

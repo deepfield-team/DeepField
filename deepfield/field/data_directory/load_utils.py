@@ -52,30 +52,40 @@ def _load_object_list(keyword, buf):
             break
     return res
 
-
 def _load_table(keyword_spec, buf):
     n_attrs = len(keyword_spec.columns)
     dtype = keyword_spec.dtype
-    data = _read_numerical_table_data(buf, 1, dtype)
+    if keyword_spec.domain is None:
+        depth = 1
+    else:
+        depth = len(keyword_spec.domain)
+    data = _read_numerical_table_data(buf, depth, dtype)
     tables = []
     for region_table_data in data:
-        if region_table_data.size < n_attrs:
-            tmp = np.empty(n_attrs - region_table_data.size, dtype=dtype)
-            if dtype == float:
-                tmp[:] = np.nan
-            elif dtype == int:
-                tmp[:] = INT_NAN
-            else:
-                tmp[:] = None
-            region_table_data = np.concatenate((region_table_data, tmp))
-        data_tmp = region_table_data.reshape(-1, n_attrs)
-        table = pd.DataFrame(data_tmp, columns=keyword_spec.columns)
+        if depth == 2:
+            table_parts = []
+            for d in region_table_data:
+                data_tmp = d[1:].reshape(-1, n_attrs-1)
+                data_tmp = np.hstack(
+                    (np.ones((data_tmp.shape[0], 1), dtype=data_tmp.dtype) * d[0],
+                     data_tmp))
+                table_parts.append(data_tmp)
+            table = pd.DataFrame(np.vstack(table_parts), columns=keyword_spec.columns)
+        else:
+            if region_table_data.size < n_attrs:
+                tmp = np.empty(n_attrs - region_table_data.size, dtype=dtype)
+                if dtype == float:
+                    tmp[:] = np.nan
+                elif dtype == int:
+                    tmp[:] = INT_NAN
+                else:
+                    tmp[:] = None
+                region_table_data = np.concatenate((region_table_data, tmp))
+            data_tmp = region_table_data.reshape(-1, n_attrs)
+            table = pd.DataFrame(data_tmp, columns=keyword_spec.columns)
         if  keyword_spec.domain is not None:
-            if len(keyword_spec.domain)==1:
-                domain = keyword_spec.columns[keyword_spec.domain[0]]
-            else:
-                raise ValueError('Single attribute should be specified for table index.')
-            table = table.set_index(domain)
+            domain_attrs = [keyword_spec.columns[i] for i in keyword_spec.domain]
+            table = table.set_index(domain_attrs)
         tables.append(table)
     return tables
 

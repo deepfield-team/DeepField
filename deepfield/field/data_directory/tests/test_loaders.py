@@ -122,6 +122,62 @@ TEST_DATA = {
                 )
             )
         ),
+        (
+            '\n'.join((
+                'PVTO',
+                '1 5 1.031 5.81 /',
+                '12.33 52 1.080 5.03 /',
+                '21.65 73 1.1021 4.23',
+                '\t204 1.092 4.62',
+                '\t321 1.016 6.02 /',
+                '/',
+                '1 5 1.0002 3.58 /',
+                '14.87 58 1.086 2.93 /',
+                '27.7 90 1.113 2.25',
+                '\t234 1.1 2.88',
+                '\t387 1.121 3.96 /',
+                '/',
+                '1 5 1.0002 3.58 /',
+                '18.67 57 1.0730 2.89 /',
+                '31.65 88 1.1083 2.2',
+                '\t248 1.093 2.57',
+                '\t334 1.073 4.23 /',
+                '/'
+            )),
+            (
+                'PVTO',
+                (
+                    pd.DataFrame(np.array([
+                        [1, 5, 1.031, 5.81],
+                        [12.33, 52, 1.08, 5.03],
+                        [21.65, 73, 1.1021, 4.23],
+                        [21.65, 204, 1.092, 4.62],
+                        [21.65, 321, 1.016, 6.02]
+                    ]), columns=DATA_DIRECTORY['PVTO'].specification.columns,).set_index(
+                        [DATA_DIRECTORY['PVTO'].specification.columns[i] for
+                            i in DATA_DIRECTORY['PVTO'].specification.domain]),
+                    pd.DataFrame(np.array([
+                        [1, 5, 1.0002, 3.58],
+                        [14.87, 58, 1.086, 2.93],
+                        [27.7, 90, 1.113, 2.25],
+                        [27.7, 234, 1.1, 2.88],
+                        [27.7, 387, 1.121, 3.96]
+                    ]), columns=DATA_DIRECTORY['PVTO'].specification.columns,).set_index(
+                        [DATA_DIRECTORY['PVTO'].specification.columns[i] for
+                            i in DATA_DIRECTORY['PVTO'].specification.domain]),
+                    pd.DataFrame(np.array([
+                        [1, 5, 1.0002, 3.58],
+                        [18.67, 57, 1.0730, 2.89],
+                        [31.65, 88, 1.1083, 2.2],
+                        [31.65, 248, 1.093, 2.57],
+                        [31.65, 334, 1.073, 4.23]
+                    ]), columns=DATA_DIRECTORY['PVTO'].specification.columns,).set_index(
+                        [DATA_DIRECTORY['PVTO'].specification.columns[i] for
+                            i in DATA_DIRECTORY['PVTO'].specification.domain]),
+                )
+            )
+            
+        )
     ],
     DataTypes.SINGLE_STATEMENT: [
         (
