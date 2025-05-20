@@ -36,19 +36,26 @@ def _load_string(keyword, buf):
             raise ValueError(f'Data for keyword {keyword} was not properly terminated.')
     return split[1].strip()
 
-def _load_object_list(keyword, buf):
-    _ = keyword
+def _load_object_list(keyword_spec, buf):
+    if keyword_spec is not None:
+        terminated = keyword_spec.terminated
+    else:
+        terminated = False
     res = []
     while True:
         line = _get_expected_line(buf)
         split = line.split('/')
         val = split[0].strip(' \t\n\'\""')
+        if terminated and len(split) == 1:
+            raise ValueError(f'Line "{line}" is not teminated with "/"')
         if val:
             res.append(val)
         else:
             if len(split) == 1:
                 raise ValueError("Object specification expected.")
-        if len(split) > 1:
+        if len(split) > 1 and not terminated:
+            break
+        if line.startswith('/'):
             break
     return res
 

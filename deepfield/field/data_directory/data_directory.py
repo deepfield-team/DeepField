@@ -17,12 +17,28 @@ FLUID_KEYWORDS = ('OIL', 'GAS', 'WATER', 'DISGAS')
 ORTHOGONAL_GRID_KEYWORDS = ('DX', 'DY', 'DZ', 'TOPS', 'ACTNUM')
 ROCK_GRID_KEYWORDS = ('PORO', 'PERMX', 'PERMY', 'PERMZ', 'NTG')
 TABLES_KEYWORDS = ('DENSITY', 'PVCDO', 'PVTW', 'ROCK', 'SWOF')
-FIELD_SUMMARY_KEYWORDS = ('FOPR', 'FWPR', 'FWIR')
-WELL_SUMMARY_KEYWORDS = ('WOPR', 'WWPR', 'WWIR', 'WLPR', 'WBHP')
+FIELD_SUMMARY_KEYWORDS = ('FOPR', 'FWPR', 'FWIR', 'FHPV', 'FMWPR', 'FMWPT', 'FMWPA',
+                          'FGIP', 'FGOR', 'FGORH', 'FGIP', 'FGPR', 'FGPRH',
+                          'FGPT', 'FGPTH', 'FLPR', 'FLPRH', 'FLPT', 'FLPTH', 'FOIP', 'FOPRH',
+                          'FOPTH', 'FPR', 'FWCT', 'FWCTH', 'FWIRH',
+                          'FWITH', 'FWPRH', 'FWPTH', 'FVPR', 'FVPT', 'FTPRAQW', 'FTPRFW', 'FTPRMW',
+                          'FTPRFO', 'FTPRMO')
+WELL_SUMMARY_KEYWORDS = ('WOPR', 'WWPR', 'WWIR', 'WLPR', 'WBHP', 'WBP9', 'WBP', 'WGIR', 'WGIRH',
+                         'WGIT', 'WGITH', 'WGOR', 'WGORH', 'WGPR', 'WGPRH', 'WGPT', 'WGPTH', 'WLPRH',
+                         'WLPT', 'WLPTH', 'WOPRH', 'WOPTH', 'WWCT', 'WWCTH', 'WWIRH', 'WWIT', 'WWITH',
+                         'WWPRH', 'WWPT', 'WWPTH', 'WTPRAQW', 'WTRFW', 'WTPRMV', 'WPIW', 'WPIO', 'WPIG',
+                         'WWPP', 'WOPP', 'WGPP', 'WOPT', 'WTPRFW', 'WTPRMW',)
+REGION_SUMMARY_KEYWORDS = ('RGIPL', 'ROIP', 'RWIP','RGIP', 'RPR', 'ROE')
 TOTAL_SUMMARY_KEYWORDS = ('FOPT', 'FWPT', 'FWIT')
 SCHEDULE_KEYWORDS = ('WELSPECS','COMPDAT', 'WCONPROD', 'WCONINJE')
 DIMS_KEYWORDS = ('TABDIMS', 'EQLDIMS', 'REGDIMS', 'WELLDIMS', 'VFPPDIMS', 'VFPIDIMS',
                  'AQUDIMS')
+MODEL_SUMMARY_KEYWORDS = ('TIMESTEP', 'ELAPSED', 'TCPU', 'MLINEARS', 'MSUMLINS', 'MSUMNEWT', 'NEWTON',
+                          'MLINEARS', 'MSUMLINS', 'MSUMNEWT', 'NEWTON', 'NLINEARS', 'STEPTYPE')
+GROUP_SUMMARY_KEYWORDS = ('GTPRAQW', 'GTPRFW', 'GTPRMW', 'GGOR', 'GGPR', 'GGPRH', 'GGPT', 'GGPTH',
+                          'GLPR', 'GLPRH', 'GLPT', 'GLPTH', 'GOPR', 'GOPRH', 'GOPT', 'GOPTH', 'GWCT',
+                          'GWCTH', 'GWPR', 'GWPRH', 'GWPT', 'GWPTH', 'GGORH')
+REGIONS_SUMMARY_KEYWORDS = ()
 
 _ATM_TO_PSI = 14.69
 
@@ -61,7 +77,7 @@ TABLE_INFO = {
                     defaults=[(600, 37.457),  (999.014, 62.366), (1, 0.062428)]),
 
     'EQUIL': dict(attrs=['DEPTH', 'PRES', 'WOC_DEPTH', 'WOC_PC', 'GOC_DEPTH', 'GOC_PC', 'RSVD_PBVD_TABLE',
-                         'RVVD_PDVD_TABLE'], domain=None),
+                         'RVVD_PDVD_TABLE', 'ACCURACY'], domain=None),
 }
 
 
@@ -116,12 +132,17 @@ class RecordsSpecification(NamedTuple):
 class ArraySpecification(NamedTuple):
     dtype: type
 
+class ObjectSpecification(NamedTuple):
+    terminated: bool=False
+
 class KeywordSpecification(NamedTuple):
     keyword: str
     type: DataTypes | None
     specification: (StatementSpecification |
-        RecordsSpecification | None | ArraySpecification | TableSpecification | ParametersSpecification)
+        RecordsSpecification | ObjectSpecification |
+        None | ArraySpecification | TableSpecification | ParametersSpecification)
     sections: Sequence[SECTIONS]
+
 
 STATEMENT_LIST_INFO = {
     'RUNCTRL': {
@@ -161,8 +182,7 @@ STATEMENT_LIST_INFO = {
         ]
     },
     'WCONPROD': {
-        'columns': [
-            'WELL', 'MODE', 'CONTROL', 'OIL_RATE', 'WATER_RATE', 'GAS_RATE', 'SURFACE_LIQUID_RATE',
+        'columns': [ 'WELL', 'MODE', 'CONTROL', 'OIL_RATE', 'WATER_RATE', 'GAS_RATE', 'SURFACE_LIQUID_RATE',
             'RESERVOIR_LIQUID_RATE', 'BHP', 'THP', 'VFP_TABLE_NUM', 'ALQ', 'WET_GAS_PRODUCTION_RATE',
             'TOTAL_MOLAR_RATE', 'STEAM_PRODUCTION', 'PRESSURE_OFFSET', 'TEMPERATURE_OFFSET',
             'CALORIFIC_RATE', 'LINEARLY_COMBINED_RATE_TARGET', 'NGL_RATE'
@@ -409,7 +429,46 @@ DATA_DIRECTORY = {
     'STONE2': KeywordSpecification('STONE2', None, None, (SECTIONS.PROPS,)),
     'PVTO': KeywordSpecification('PVTO', DataTypes.TABLE_SET, TableSpecification(TABLE_INFO['PVTO']['attrs'],
                                                                                  TABLE_INFO['PVTO']['domain']),
-                                 (SECTIONS.PROPS,))
+                                 (SECTIONS.PROPS,)),
+    'PVDG': KeywordSpecification('PVDG', DataTypes.TABLE_SET, TableSpecification(TABLE_INFO['PVDG']['attrs'],
+                                                                                 TABLE_INFO['PVDG']['domain']),
+                                 (SECTIONS.PROPS,)),
+    'SGOF': KeywordSpecification('SGOF', DataTypes.TABLE_SET, TableSpecification(TABLE_INFO['SGOF']['attrs'],
+                                                                                 TABLE_INFO['SGOF']['domain']),
+                                 (SECTIONS.PROPS,)),
+    'SCALECRS': KeywordSpecification('SCALECRS', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['VALUE'], ['text']
+    ), (SECTIONS.PROPS,)),
+    'PVTNUM': KeywordSpecification('PVTNUM', DataTypes.ARRAY, ArraySpecification(int),
+                                   (SECTIONS.REGIONS, SECTIONS.SCHEDULE)),
+    'EQLNUM': KeywordSpecification('EQLNUM', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
+    'FIPFAULT': KeywordSpecification('FIPFAULT', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
+    'SATNUM': KeywordSpecification('SATNUM', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
+    'FIPNUM': KeywordSpecification('FIPNUM', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
+    'PBVD': KeywordSpecification('PBVD', DataTypes.TABLE_SET, TableSpecification(
+        ['DEPTH', 'PB'], [0]
+    ), (SECTIONS.SOLUTION,)),
+    'THPRES': KeywordSpecification('THPRES', DataTypes.STATEMENT_LIST, StatementSpecification(
+        ['REG1', 'REG2', 'TH'], ['int', 'int', 'float']
+    ), (SECTIONS.SOLUTION,),),
+    'OUTSOL': KeywordSpecification('OUTSOL', DataTypes.PARAMETERS, ParametersSpecification(),
+                                   (SECTIONS.SOLUTION, SECTIONS.SCHEDULE)),
+    **{kw: KeywordSpecification(kw, None, None, [val for val in SECTIONS]) for kw in ('SKIP', 'SKIPOFF', 'SKIPON',
+                                                                                      'ENDSKIP')},
+    **{kw: KeywordSpecification(kw, DataTypes.OBJECT_LIST, None,
+                                (SECTIONS.SUMMARY,)) for kw in REGION_SUMMARY_KEYWORDS},
+    **{kw: KeywordSpecification(kw, None, None, (SECTIONS.SUMMARY,)) for kw in MODEL_SUMMARY_KEYWORDS},
+    **{kw: KeywordSpecification(kw, DataTypes.OBJECT_LIST, None,
+                                (SECTIONS.SUMMARY,)) for kw in GROUP_SUMMARY_KEYWORDS},
+    'WCONHIST': KeywordSpecification('WCONHIST', DataTypes.STATEMENT_LIST, StatementSpecification(
+        [ 'WELL', 'MODE', 'CONTROL', 'OIL_RATE', 'WATER_RATE', 'GAS_RATE',
+         'VFP_TABLE_NUM', 'ALQ', 'THP', 'BHP', 'WET_GAS_PRODUCTION_RATE',
+         'NGL_RATE'],
+        ['text'] * 3 + ['float'] * 3 + ['int'] + ['float'] * 5
+
+    ), (SECTIONS.SCHEDULE,)),
+    'DATES': KeywordSpecification('DATES', DataTypes.OBJECT_LIST, ObjectSpecification(terminated=True),
+                                  (SECTIONS.SCHEDULE,))
 }
 
 def dump_keyword(spec, val, buf, include_path):
