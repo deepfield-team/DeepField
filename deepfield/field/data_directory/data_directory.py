@@ -157,7 +157,6 @@ STATEMENT_LIST_INFO = {
         ],
         'dtypes': [
             'text', 'text', 'int', 'int', 'float', 'text', 'float', 'text', 'text', 'text', 'int', 'text', 'text',
-            'text'
         ]
     },
     'COMPDAT': {

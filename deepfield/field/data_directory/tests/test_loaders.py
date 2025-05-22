@@ -495,6 +495,21 @@ TEST_DATA = {
                 '1054 OPEN ORAT 16.38 1.765 0 18.14 1* 50 /',
                 '')),
             ValueError()
+        ),
+        (
+            '\n'.join((
+                'WELSPECS',
+                "'3' 'GROUP 1' 22 20 1* 'OIL' 1* 1* 1* 1* 1* 1* 1* 1* 1* 1* 1* /",
+                '/'
+            )),
+            (
+                'WELSPECS',
+                pd.DataFrame(
+                    [['3', 'GROUP 1', 22, 20, np.NaN, 'OIL', np.NaN] + [None]*3 + [INT_NAN] + [None]*2],
+                    columns=DATA_DIRECTORY['WELSPECS'].specification.columns
+                )
+            )
+
         )
     ]
 }
