@@ -1,6 +1,7 @@
 from contextlib import ExitStack
 import copy
 import logging
+import shlex
 import uuid
 import re
 
@@ -105,7 +106,7 @@ def _load_single_statement(keyword_spec, buffer):
         line = _get_expected_line(buffer)
         split = line.split('/')
         line = split[0].strip()
-        vals = line.split()
+        vals = shlex.split(line)
         full, shift = parse_vals(full, shift, vals)
         if len(split) > 1:
             break
