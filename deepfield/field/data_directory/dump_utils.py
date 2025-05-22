@@ -36,6 +36,9 @@ def _dump_array(keyword_spec, val, buf, include_dir):
 def _dump_table(keyword_spec, val, buf):
     buf.write(keyword_spec.keyword)
     for table in val:
+        if keyword_spec.specification.domain is not None and len(keyword_spec.specification.domain) == 2:
+            _dump_multitable(table, buf)
+            continue
         buf.write('\n')
         for ind, row in table.iterrows():
             vals = row.values
@@ -46,6 +49,26 @@ def _dump_table(keyword_spec, val, buf):
             str_representaions = _replace_empty_vals(str_representaions)
             buf.write('\t'.join([v for v in str_representaions]) + '\n')
         buf.write('/')
+
+def _dump_multitable(val, buf):
+    buf.write('\n')
+    for ind0, df in val.groupby(level=0):
+        for i, (ind1, row) in enumerate(df.iterrows()):
+            vals = row.values.tolist()
+            if i == 0:
+                vals =  [*ind1] + vals
+            else:
+                vals = [ind1[1]] + vals
+            vals = [nan_to_none(v) for v in vals]
+            str_representations = [_string_representation(v) if v is not None else '' for v in vals]
+            str_representations = _replace_empty_vals(str_representations)
+            if i !=0:
+                str_representations = [''] + str_representations
+            if i == len(df) - 1:
+                str_representations = str_representations + ['/']
+            buf.write('\t'.join(str_representations) + '\n')
+    buf.write('/')
+
 
 def _dump_single_statement(keyword_spec, val, buf):
     buf.write(keyword_spec.keyword + '\n')

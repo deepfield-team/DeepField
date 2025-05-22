@@ -93,6 +93,62 @@ DUMP_ROUTINES_TEST_DATA = {
                 '2305.0\t210.0\t2510.0\t*\t2305.0',
                 '/'
             )),
+        ),
+        (
+            (
+                'PVTO',
+                (
+                    pd.DataFrame(np.array([
+                        [1, 5, 1.031, 5.81],
+                        [12.33, 52, 1.08, 5.03],
+                        [21.65, 73, 1.1021, 4.23],
+                        [21.65, 204, 1.092, 4.62],
+                        [21.65, 321, 1.016, 6.02]
+                    ]), columns=DATA_DIRECTORY['PVTO'].specification.columns,).set_index(
+                        [DATA_DIRECTORY['PVTO'].specification.columns[i] for
+                            i in DATA_DIRECTORY['PVTO'].specification.domain]),
+                    pd.DataFrame(np.array([
+                        [1, 5, 1.0002, 3.58],
+                        [14.87, 58, 1.086, 2.93],
+                        [27.7, 90, 1.113, 2.25],
+                        [27.7, 234, 1.1, 2.88],
+                        [27.7, 387, 1.121, 3.96]
+                    ]), columns=DATA_DIRECTORY['PVTO'].specification.columns,).set_index(
+                        [DATA_DIRECTORY['PVTO'].specification.columns[i] for
+                            i in DATA_DIRECTORY['PVTO'].specification.domain]),
+                    pd.DataFrame(np.array([
+                        [1, 5, 1.0002, 3.58],
+                        [18.67, 57, 1.0730, 2.89],
+                        [31.65, 88, 1.1083, 2.2],
+                        [31.65, 248, 1.093, 2.57],
+                        [31.65, 334, 1.073, 4.23]
+                    ]), columns=DATA_DIRECTORY['PVTO'].specification.columns,).set_index(
+                        [DATA_DIRECTORY['PVTO'].specification.columns[i] for
+                            i in DATA_DIRECTORY['PVTO'].specification.domain]),
+                )
+            ),
+            '\n'.join((
+                'PVTO',
+                '1.0\t5.0\t1.031\t5.81\t/',
+                '12.33\t52.0\t1.08\t5.03\t/',
+                '21.65\t73.0\t1.1021\t4.23',
+                '\t204.0\t1.092\t4.62',
+                '\t321.0\t1.016\t6.02\t/',
+                '/',
+                '1.0\t5.0\t1.0002\t3.58\t/',
+                '14.87\t58.0\t1.086\t2.93\t/',
+                '27.7\t90.0\t1.113\t2.25',
+                '\t234.0\t1.1\t2.88',
+                '\t387.0\t1.121\t3.96\t/',
+                '/',
+                '1.0\t5.0\t1.0002\t3.58\t/',
+                '18.67\t57.0\t1.073\t2.89\t/',
+                '31.65\t88.0\t1.1083\t2.2',
+                '\t248.0\t1.093\t2.57',
+                '\t334.0\t1.073\t4.23\t/',
+                '/'
+            ))
+
         )
     ],
     DataTypes.SINGLE_STATEMENT: [
