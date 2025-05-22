@@ -467,7 +467,14 @@ DATA_DIRECTORY = {
 
     ), (SECTIONS.SCHEDULE,)),
     'DATES': KeywordSpecification('DATES', DataTypes.OBJECT_LIST, ObjectSpecification(terminated=True),
-                                  (SECTIONS.SCHEDULE,))
+                                  (SECTIONS.SCHEDULE,)),
+    'WCONINJH': KeywordSpecification('WCONINJH', DataTypes.STATEMENT_LIST, StatementSpecification(
+        ['WELL', 'FLUID', 'MODE', 'SURFACE_RATE', 'BHP', 'THP', 'VFP_TABLE_NUM', 'OIL_GAS_CONCETRATION',
+         'SURFACE_OIL_PROPORTION', 'SURFACE_WATER_PROPORTION', 'SURFACE_GAS_CONCETRATION', 'CONTROL'],
+        ['text', 'text', 'text', 'float', 'float', 'float', 'int', 'float', 'float', 'float', 'float',
+         'text']
+    ), (SECTIONS.SCHEDULE,)),
+    'RPTRSTD': KeywordSpecification('RPTRSTD', DataTypes.OBJECT_LIST, ObjectSpecification(), (SECTIONS.SOLUTION,))
 }
 
 def dump_keyword(spec, val, buf, include_path):
