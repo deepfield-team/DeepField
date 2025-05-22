@@ -148,7 +148,6 @@ DUMP_ROUTINES_TEST_DATA = {
                 '\t334.0\t1.073\t4.23\t/',
                 '/'
             ))
-
         )
     ],
     DataTypes.SINGLE_STATEMENT: [
@@ -187,6 +186,20 @@ DUMP_ROUTINES_TEST_DATA = {
                 '1054\tOPEN\tORAT\t16.38\t1.765\t0.0\t18.14\t*\t50.0/',
                 '/'
             ))
+        ),
+        (
+            (
+                'WELSPECS',
+                pd.DataFrame(
+                    [['3', 'GROUP 1', 22, 20, np.NaN, 'OIL', np.NaN] + [None]*3 + [INT_NAN] + [None]*2],
+                    columns=DATA_DIRECTORY['WELSPECS'].specification.columns
+                )
+            ),
+            '\n'.join((
+                'WELSPECS',
+                "3\t'GROUP 1'\t22\t20\t*\tOIL/",
+                '/'
+            )),
         )
     ],
     DataTypes.RECORDS: [

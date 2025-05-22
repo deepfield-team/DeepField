@@ -147,6 +147,9 @@ def _string_representation(v):
         if 'e' in r:
             return np.format_float_scientific(v, unique=True, trim='-', exp_digits=1).upper()
         return r
+    if isinstance(v, str):
+        if any(symbol in v for symbol in ' \t'):
+            return "'" + v + "'"
     return str(v)
 
 
@@ -197,7 +200,7 @@ def dump(data, path, inplace_scedule=False, filename=None):
 
     if not include_dir.exists():
         include_dir.mkdir()
-    
+
     if filename is None:
         for key, val in data['RUNSPEC']:
             if key=='TITLE':
