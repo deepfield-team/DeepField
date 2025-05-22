@@ -211,7 +211,7 @@ def dump(data, path, inplace_scedule=False, filename=None):
 
     with ExitStack() as stack:
         buf = stack.enter_context(open(path / filename, 'w'))
-        for section in ('', 'RUNSPEC', 'GRID', 'PROPS', 'REGIONS', 'SOLUTION', 'SUMMARY', 'SCHEDULE'):
+        for section in ('', 'RUNSPEC', 'GRID', 'EDIT', 'PROPS', 'REGIONS', 'SOLUTION', 'SUMMARY', 'SCHEDULE'):
             if section in data:
                 if section != '':
                     buf.write(f'{section}\n\n')
