@@ -324,7 +324,25 @@ TEST_DATA = {
                 '/'
             )),
             ValueError()
+        ),
+        (
+            '\n'.join((
+                'RPTSCHED',
+                "'WELLS=2' 'SUMMARY=2' 'fip=3' 'RESTART=1' 'WELSPECS' 'CPU=2' /"
+            )),
+            (
+                'RPTSCHED',
+                {
+                    'WELLS': '2',
+                    'SUMMARY': '2',
+                    'fip': '3',
+                    'RESTART': '1',
+                    'WELSPECS': None,
+                    'CPU': '2'
+                }
+            )
         )
+
     ],
     DataTypes.ARRAY: [
         (

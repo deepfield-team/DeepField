@@ -271,6 +271,7 @@ def _load_parameters(keyword_spec, buf):
     for line in buf:
         split = line.split('/')
         words = split[0].split()
+        words = [w.strip('\'\"') for w in words]
         for word in words:
             if '=' in word:
                 key, val = word.split('=')
