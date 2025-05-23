@@ -1332,9 +1332,7 @@ def create_mesh(plotter, grid, attribute, opacity, threshold, slice_xyz, timesta
     plotter.remove_actor('cells')
     try:
         plotter.remove_scalar_bar()
-    except IndexError:
-        pass
-    except StopIteration:
+    except (IndexError, StopIteration):
         pass
 
     if timestamp is None:
