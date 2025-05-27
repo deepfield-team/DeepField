@@ -62,12 +62,15 @@ def _load_object_list(keyword_spec, buf):
 
 def _load_table(keyword_spec, buf):
     n_attrs = len(keyword_spec.columns)
-    dtype = keyword_spec.dtype
+    dtypes = keyword_spec.dtypes
+    if isinstance(dtypes, str):
+        dtypes = [keyword_spec.dtypes] * n_attrs
+
     if keyword_spec.domain is None:
         depth = 1
     else:
         depth = len(keyword_spec.domain)
-    data = _read_numerical_table_data(buf, depth, dtype)
+    data = _read_numerical_table_data(buf, depth, 'float')
     tables = []
     for region_table_data in data:
         if depth == 2:
@@ -75,22 +78,27 @@ def _load_table(keyword_spec, buf):
             for d in region_table_data:
                 data_tmp = d[1:].reshape(-1, n_attrs-1)
                 data_tmp = np.hstack(
-                    (np.ones((data_tmp.shape[0], 1), dtype=data_tmp.dtype) * d[0],
+                    (np.ones((data_tmp.shape[0], 1)) * d[0],
                      data_tmp))
                 table_parts.append(data_tmp)
             table = pd.DataFrame(np.vstack(table_parts), columns=keyword_spec.columns)
         else:
             if region_table_data.size < n_attrs:
-                tmp = np.empty(n_attrs - region_table_data.size, dtype=dtype)
-                if dtype == float:
-                    tmp[:] = np.nan
-                elif dtype == int:
-                    tmp[:] = INT_NAN
-                else:
-                    tmp[:] = None
+                tmp = np.empty(n_attrs - region_table_data.size)
+                tmp[:] = np.nan
                 region_table_data = np.concatenate((region_table_data, tmp))
             data_tmp = region_table_data.reshape(-1, n_attrs)
             table = pd.DataFrame(data_tmp, columns=keyword_spec.columns)
+        if 'int' in dtypes:
+            
+            int_columns = [col for col, t  in zip(keyword_spec.columns, dtypes) if t=='int']
+            for col in int_columns:
+                table[col] = table[col].fillna(INT_NAN)
+                if (np.mod(table[col], 1) > 0).any():
+                    raise ValueError('Noninteger value in integer column.')
+                table[col] = table[col].astype(int)
+        
+
         if  keyword_spec.domain is not None:
             domain_attrs = [keyword_spec.columns[i] for i in keyword_spec.domain]
             table = table.set_index(domain_attrs)

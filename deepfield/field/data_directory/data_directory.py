@@ -1,7 +1,4 @@
-from ast import keyword
-from collections import namedtuple
 from collections.abc import Sequence
-from dataclasses import dataclass
 from enum import Enum, auto
 import os
 from typing import Any, Callable, NamedTuple, Optional
@@ -116,7 +113,7 @@ DTYPES = {
 class TableSpecification(NamedTuple):
     columns: Sequence[str]
     domain: Sequence[int] | None
-    dtype: type=float
+    dtypes: Sequence[str] | str = 'float'
 
 class ParametersSpecification(NamedTuple):
     tabulated: bool=False
@@ -362,7 +359,9 @@ DATA_DIRECTORY = {
         TABLE_INFO[kw]['attrs'], TABLE_INFO[kw]['domain']
     ), (SECTIONS.PROPS,)) for kw in TABLES_KEYWORDS},
     'EQUIL': KeywordSpecification('EQUIL', DataTypes.TABLE_SET, TableSpecification(
-        TABLE_INFO['EQUIL']['attrs'], TABLE_INFO['EQUIL']['domain']
+        TABLE_INFO['EQUIL']['attrs'],
+        TABLE_INFO['EQUIL']['domain'],
+        ['float'] * 6 + ['int'] * 3
     ), (SECTIONS.SOLUTION,)),
     'RPTSOL': KeywordSpecification('RPTSOL', DataTypes.PARAMETERS, ParametersSpecification(), (SECTIONS.SOLUTION,)),
     **{kw: KeywordSpecification(kw, None, None, (SECTIONS.SUMMARY,)) for kw in FIELD_SUMMARY_KEYWORDS},

@@ -54,15 +54,15 @@ TEST_DATA = {
             (
                 'EQUIL',
                 (
-                    pd.DataFrame(np.array([
-                        [2300, 200, 2500, 0.1, 2300, 0.001, np.NaN, np.NaN, np.NaN],
-                    ]), columns=DATA_DIRECTORY['EQUIL'].specification.columns),
-                    pd.DataFrame(np.array([
-                        [2310, 205, 2520, 0.05, 2310, 0.0, np.NaN, np.NaN, np.NaN],
-                    ]), columns=DATA_DIRECTORY['EQUIL'].specification.columns),
-                    pd.DataFrame(np.array([
-                        [2305, 210, 2510, np.NaN, 2305, np.NaN, np.NaN, np.NaN, np.NaN],
-                    ]), columns=DATA_DIRECTORY['EQUIL'].specification.columns)
+                    pd.DataFrame([
+                        [2300.0, 200.0, 2500.0, 0.1, 2300.0, 0.001, INT_NAN, INT_NAN, INT_NAN],
+                    ], columns=DATA_DIRECTORY['EQUIL'].specification.columns),
+                    pd.DataFrame([
+                        [2310.0, 205.0, 2520.0, 0.05, 2310.0, 0.0, INT_NAN, INT_NAN, INT_NAN],
+                    ], columns=DATA_DIRECTORY['EQUIL'].specification.columns),
+                    pd.DataFrame([
+                        [2305.0, 210.0, 2510.0, np.NaN, 2305.0, np.NaN, INT_NAN, INT_NAN, INT_NAN],
+                    ], columns=DATA_DIRECTORY['EQUIL'].specification.columns)
                 )
             )
         ),
