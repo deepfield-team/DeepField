@@ -1,5 +1,6 @@
 from contextlib import ExitStack
 import copy
+import itertools
 import logging
 import shlex
 import uuid
@@ -61,6 +62,18 @@ def _load_object_list(keyword_spec, buf):
     return res
 
 def _load_table(keyword_spec, buf):
+    def _parse_val(val, t):
+        if t == 'int':
+            return int(val)
+        if t == 'float':
+            return float(val)
+
+    def _empty_val(t):
+        if t == 'int':
+            return INT_NAN
+        if t == 'float':
+            return np.NaN
+
     n_attrs = len(keyword_spec.columns)
     dtypes = keyword_spec.dtypes
     if isinstance(dtypes, str):
@@ -70,35 +83,38 @@ def _load_table(keyword_spec, buf):
         depth = 1
     else:
         depth = len(keyword_spec.domain)
-    data = _read_numerical_table_data(buf, depth, 'float')
+    data = _read_table_data(buf, depth)
     tables = []
     for region_table_data in data:
         if depth == 2:
             table_parts = []
             for d in region_table_data:
-                data_tmp = d[1:].reshape(-1, n_attrs-1)
-                data_tmp = np.hstack(
-                    (np.ones((data_tmp.shape[0], 1)) * d[0],
-                     data_tmp))
-                table_parts.append(data_tmp)
-            table = pd.DataFrame(np.vstack(table_parts), columns=keyword_spec.columns)
+                n_rows = (len(d) - 1) / (n_attrs - 1)
+                if not n_rows.is_integer():
+                    raise ValueError('Number of element is not aligned with the number of attributes.')
+                data_tmp = []
+                for i in range(int(n_rows)):
+                    data_tmp.append([_parse_val(d[0], dtypes[0])] +
+                        [_parse_val(v, t) for v, t in zip(d[i * (n_attrs-1) + 1 : (i + 1) * (n_attrs-1) + 1],
+                                                dtypes[1:])])
+                table_parts += (data_tmp)
+            table = pd.DataFrame(table_parts, columns=keyword_spec.columns)
         else:
-            if region_table_data.size < n_attrs:
-                tmp = np.empty(n_attrs - region_table_data.size)
-                tmp[:] = np.nan
-                region_table_data = np.concatenate((region_table_data, tmp))
-            data_tmp = region_table_data.reshape(-1, n_attrs)
+            if len(region_table_data) < n_attrs:
+                tmp = [_empty_val(t) for t in dtypes[len(region_table_data):]]
+                region_table_data += tmp
+            if len(region_table_data) % n_attrs > 0:
+                raise ValueError('Number of values in table is not consistent wit number of columns.')
+            n_rows = int(len(region_table_data) / n_attrs)
+            data_tmp = [list(map(_parse_val,region_table_data[i * n_attrs : (i+1) * n_attrs], dtypes)) for i in range(n_rows)]
             table = pd.DataFrame(data_tmp, columns=keyword_spec.columns)
         if 'int' in dtypes:
-            
             int_columns = [col for col, t  in zip(keyword_spec.columns, dtypes) if t=='int']
             for col in int_columns:
                 table[col] = table[col].fillna(INT_NAN)
                 if (np.mod(table[col], 1) > 0).any():
                     raise ValueError('Noninteger value in integer column.')
                 table[col] = table[col].astype(int)
-        
-
         if  keyword_spec.domain is not None:
             domain_attrs = [keyword_spec.columns[i] for i in keyword_spec.domain]
             table = table.set_index(domain_attrs)
@@ -135,7 +151,7 @@ def _load_records(keyword_spec, buffer):
     res = [_load_single_statement(spec, buffer) for spec in keyword_spec.specifications]
     return res
 
-def _read_numerical_table_data(buffer, depth, dtype):
+def _read_table_data(buffer, depth):
     """Read numerical data for table.
 
     Parameters
@@ -185,9 +201,8 @@ def _read_numerical_table_data(buffer, depth, dtype):
             if not (line[0].isdigit() or line[0]=='.' or line[:3]=='nan'): # line can start from `.`, e.g `.123`
                 buffer.prev()
                 break
-            line = line.replace('nan', str(INT_NAN))
-            numbers = np.fromstring(line, dtype=dtype, sep=' ')
-            cur_item.append(numbers)
+            values = line.split()
+            cur_item.append(values)
             group_end = False
         if len(split) > 1:
             if group_end:
@@ -214,7 +229,7 @@ def _read_numerical_table_data(buffer, depth, dtype):
         tmp_iter = data
     for d in (tmp_iter):
         for i, vals in enumerate(d):
-            d[i] = np.hstack(vals)
+            d[i] = list(itertools.chain(*vals))
     return data
 
 def _load_array(keyword_spec, buf):
