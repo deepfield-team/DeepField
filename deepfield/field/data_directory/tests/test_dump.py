@@ -263,6 +263,36 @@ DUMP_ROUTINES_TEST_DATA = {
                 'PROD2',
                 '/'
             ))
+        ),
+        (
+            (
+                'RPTRSTD',
+                [pd.to_datetime('2018-01-01'),
+                 pd.to_datetime('2018-07-01'),
+                 pd.to_datetime('2019-01-01')],
+            ),
+            (
+                '\n'.join((
+                    'RPTRSTD',
+                    '01 JAN 2018',
+                    '01 JUL 2018',
+                    '01 JAN 2019',
+                    '/'
+                ))
+            )
+        ),
+        (
+            (
+                'DATES',
+                [
+                    pd.to_datetime('2000-03-01 15:00:00')
+                ]
+            ),
+            '\n'.join((
+                'DATES',
+                '01 MAR 2000 15:00:00 /',
+                '/'
+            ))
         )
     ],
     DataTypes.PARAMETERS: [

@@ -9,6 +9,18 @@ MAX_STRLEN = 40
 
 INPLACE_ARRAYS = ['TSTEP']
 
+def format_string_val(val, keyword_spec):
+    if keyword_spec.specification is not None and keyword_spec.specification.date:
+        d = val.strftime('%d %b %Y').upper()
+        if val.hour or val.minute or val.second:
+            t = val.strftime('%H:%M:%S')
+            return ' '.join((d, t))
+        return d
+    return val
+
+def _dump_string(keyword_spec, val, buf):
+     buf.write('\n'.join([keyword_spec.keyword, format_string_val(val, keyword_spec), '/']))
+
 def dump_keyword(keyword, val, section,  buf, include_path):
     DUMP_ROUTINES[DATA_DIRECTORY[section][keyword]](keyword, val, buf, include_path)
     buf.write('\n')
@@ -89,7 +101,10 @@ def _dump_records(keyword_spec, val, buf):
 def _dump_object_list(keyword_spec, val, buf):
     buf.write(keyword_spec.keyword + '\n')
     for o in val:
-        buf.write(f'{o}\n')
+        buf.write(f'{format_string_val(o, keyword_spec)}')
+        if keyword_spec.specification is not None and keyword_spec.specification.terminated:
+            buf.write(' /')
+        buf.write('\n')
     buf.write('/')
 
 def dump_parameters(keyword_spec, val, buf):
@@ -111,7 +126,7 @@ def dump_tabulated_parameters(keyword_spec, val, buf):
 
 DUMP_ROUTINES = {
     DataTypes.OBJECT_LIST: lambda keyword_spec, val, buf, _: _dump_object_list(keyword_spec, val, buf),
-    DataTypes.STRING: lambda keyword_spec, val, buf, _: buf.write('\n'.join([keyword_spec.keyword, val, '/'])),
+    DataTypes.STRING: lambda keyword_spec, val, buf, _: _dump_string(keyword_spec, val, buf),
     DataTypes.STATEMENT_LIST: lambda keyword_spec, val, buf, _: _dump_statement_list(keyword_spec, val, buf),
     DataTypes.PARAMETERS: lambda keyword_spec, val, buf, _: dump_parameters(keyword_spec, val, buf),
     DataTypes.ARRAY: _dump_array,

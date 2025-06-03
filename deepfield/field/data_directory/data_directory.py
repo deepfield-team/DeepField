@@ -115,6 +115,9 @@ class TableSpecification(NamedTuple):
     domain: Sequence[int] | None
     dtypes: Sequence[str] | str = 'float'
 
+class StringSpecification(NamedTuple):
+    date: bool=False
+
 class ParametersSpecification(NamedTuple):
     tabulated: bool=False
 
@@ -131,15 +134,15 @@ class ArraySpecification(NamedTuple):
 
 class ObjectSpecification(NamedTuple):
     terminated: bool=False
+    date: bool=False
 
 class KeywordSpecification(NamedTuple):
     keyword: str
     type: DataTypes | None
     specification: (StatementSpecification |
         RecordsSpecification | ObjectSpecification |
-        None | ArraySpecification | TableSpecification | ParametersSpecification)
+        None | ArraySpecification | TableSpecification | ParametersSpecification | StringSpecification)
     sections: Sequence[SECTIONS]
-
 
 STATEMENT_LIST_INFO = {
     'RUNCTRL': {
@@ -320,13 +323,12 @@ DATA_DIRECTORY = {
     }
 }
 
-
 DATA_DIRECTORY = {
     'TITLE': KeywordSpecification('TITLE', DataTypes.STRING, None, (SECTIONS.RUNSPEC,)),
     **{kw: KeywordSpecification(kw, None, None, (SECTIONS.RUNSPEC,)) for kw in [
         'MULTOUT', 'MULTOUTS', 'UNIFOUT', 'METRIC'
     ]},
-    'START': KeywordSpecification('START', DataTypes.STRING, None, (SECTIONS.RUNSPEC,)),
+    'START': KeywordSpecification('START', DataTypes.STRING, StringSpecification(True), (SECTIONS.RUNSPEC,)),
     **{kw: KeywordSpecification(kw, None, None, (SECTIONS.RUNSPEC,)) for kw in FLUID_KEYWORDS},
     **{kw: KeywordSpecification(kw, DataTypes.SINGLE_STATEMENT, StatementSpecification(
         STATEMENT_LIST_INFO[kw]['columns'], STATEMENT_LIST_INFO[kw]['dtypes']),
@@ -465,7 +467,8 @@ DATA_DIRECTORY = {
         ['text'] * 3 + ['float'] * 3 + ['int'] + ['float'] * 5
 
     ), (SECTIONS.SCHEDULE,)),
-    'DATES': KeywordSpecification('DATES', DataTypes.OBJECT_LIST, ObjectSpecification(terminated=True),
+    'DATES': KeywordSpecification('DATES', DataTypes.OBJECT_LIST, ObjectSpecification(terminated=True,
+                                                                                      date=True),
                                   (SECTIONS.SCHEDULE,)),
     'WCONINJH': KeywordSpecification('WCONINJH', DataTypes.STATEMENT_LIST, StatementSpecification(
         ['WELL', 'FLUID', 'MODE', 'SURFACE_RATE', 'BHP', 'THP', 'VFP_TABLE_NUM', 'OIL_GAS_CONCETRATION',
@@ -473,7 +476,8 @@ DATA_DIRECTORY = {
         ['text', 'text', 'text', 'float', 'float', 'float', 'int', 'float', 'float', 'float', 'float',
          'text']
     ), (SECTIONS.SCHEDULE,)),
-    'RPTRSTD': KeywordSpecification('RPTRSTD', DataTypes.OBJECT_LIST, ObjectSpecification(), (SECTIONS.SOLUTION,))
+    'RPTRSTD': KeywordSpecification('RPTRSTD', DataTypes.OBJECT_LIST, ObjectSpecification(date=True),
+                                    (SECTIONS.SOLUTION,))
 }
 
 def dump_keyword(spec, val, buf, include_path):
@@ -505,7 +509,6 @@ _DUMP_ROUTINES = {
     DataTypes.TABLE_SET: lambda keyword, val, buf, _: _dump_table(keyword, val, buf),
     None: lambda keyword, _, buf, ___: buf.write(f'{keyword}\n')
 }
-
 
 def _dump_array_ascii(buffer, array, header=None, fmt='%f', compressed=True):
     """Writes array-like data into an ASCII buffer.

@@ -41,6 +41,10 @@ TEST_DATA = {
         (
             '\n'.join(('INCLUDE', "'abc/abc'a", '/')),
             ValueError()
+        ),
+        (
+            '\n'.join(('START', '01 JUL 1984 /', '/')),
+            ('START', (pd.to_datetime('1984-07-01')))
         )
     ],
     DataTypes.TABLE_SET: [
@@ -176,7 +180,6 @@ TEST_DATA = {
                             i in DATA_DIRECTORY['PVTO'].specification.domain]),
                 )
             )
-            
         )
     ],
     DataTypes.SINGLE_STATEMENT: [
@@ -424,8 +427,8 @@ TEST_DATA = {
             (
                 'DATES',
                 [
-                    '01 JUL 2011',
-                    '01 AUG 2012'
+                    pd.to_datetime('2011-07-01'),
+                    pd.to_datetime('2012-08-01')
                 ]
             )
         ),

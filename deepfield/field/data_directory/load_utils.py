@@ -13,7 +13,7 @@ from .data_directory import DATA_DIRECTORY, INT_NAN, SECTIONS, DataTypes
 
 
 DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
-def _load_string(keyword, buf):
+def _load_string(keyword_spec, buf):
     line = next(buf)
     if "'" in line:
         split = re.split(r"'(.*)'", line)
@@ -30,19 +30,25 @@ def _load_string(keyword, buf):
         raise ValueError('Quoted string should start with quotes.')
     if split[2]:
         if split[2].strip().startswith('/'):
+            if keyword_spec is not None and keyword_spec.date:
+                return _parse_date(split[1].strip())
             return split[1].strip()
         raise ValueError('Quoted string shold not have not quoted parts.')
     else:
         line = next(buf)
         if not line.startswith('/'):
-            raise ValueError(f'Data for keyword {keyword} was not properly terminated.')
-    return split[1].strip()
+            raise ValueError(f'Data for keyword {keyword_spec} was not properly terminated.')
+    if keyword_spec is None or not keyword_spec.date:
+        return split[1].strip()
+    return _parse_date(split[1].strip())
 
 def _load_object_list(keyword_spec, buf):
     if keyword_spec is not None:
         terminated = keyword_spec.terminated
+        is_dates = keyword_spec.date
     else:
         terminated = False
+        is_dates = False
     res = []
     while True:
         line = _get_expected_line(buf)
@@ -51,7 +57,10 @@ def _load_object_list(keyword_spec, buf):
         if terminated and len(split) == 1:
             raise ValueError(f'Line "{line}" is not teminated with "/"')
         if val:
-            res.append(val)
+            if is_dates:
+                res.append(_parse_date(val))
+            else:
+                res.append(val)
         else:
             if len(split) == 1:
                 raise ValueError("Object specification expected.")
@@ -60,6 +69,9 @@ def _load_object_list(keyword_spec, buf):
         if line.startswith('/'):
             break
     return res
+
+def _parse_date(s):
+    return pd.to_datetime(s)
 
 def _load_table(keyword_spec, buf):
     def _parse_val(val, t):
@@ -448,7 +460,7 @@ class StringIteratorIO:
         self._line_number += 1
         if line:
             if line == 'INCLUDE':
-                path = LOADERS[DataTypes.STRING]('INCLUDE', self)
+                path = LOADERS[DataTypes.STRING](DATA_DIRECTORY['INCLUDE'].specification, self)
                 self.include_file(path)
                 return next(self)
             self._last_line = line
