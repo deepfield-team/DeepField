@@ -26,23 +26,27 @@ def _load_string(keyword_spec, buf):
             split = ['', split[0], *['/' + s for s in split[1:]] ]
         else:
             split = ['', split[0], '']
-
-    if split[0]:
-        raise ValueError('Quoted string should start with quotes.')
-    if split[2]:
-        if split[2].strip().startswith('/'):
-            if keyword_spec is not None and keyword_spec.date:
-                return _parse_date(split[1].strip())
-            return split[1].strip()
-        raise ValueError('Quoted string shold not have not quoted parts.')
+    
+    terminated = False
+    for i, s in enumerate(split):
+        if i % 2 == 0:
+            if '/' in s:
+                terminated = True
+                break
+    if terminated:
+        val = ''.join(split[:i] + [split[i].split('/')[0]]) # pyright: ignore[reportPossiblyUnboundVariable]
     else:
+        val = line
         line = next(buf)
         if not line.startswith('/'):
             warnings.warn('Data was not properly terminated.')
             buf.prev()
+    val = re.sub(r'"(.*?)"', r'\1', val)
+    val = re.sub(r'\'(.*?)\'', r'\1', val)
+    val = val.strip()
     if keyword_spec is None or not keyword_spec.date:
-        return split[1].strip()
-    return _parse_date(split[1].strip())
+        return val
+    return _parse_date(val)
 
 def _load_object_list(keyword_spec, buf):
     if keyword_spec is not None:

@@ -45,15 +45,22 @@ TEST_DATA = {
         ),
         (
             '\n'.join(('INCLUDE', "a'abc/abc'", '/')),
-            ValueError()
+            ('INCLUDE', "aabc/abc")
         ),
         (
             '\n'.join(('INCLUDE', "'abc/abc'a", '/')),
-            ValueError()
+            ('INCLUDE', "abc/abca")
         ),
         (
             '\n'.join(('START', '01 JUL 1984 /', '/')),
             ('START', (pd.to_datetime('1984-07-01')))
+        ),
+        (
+            '\n'.join((
+                'START',
+                "01 'JUN' 2010 /"
+            )),
+            ('START', pd.to_datetime('2010-06-01'))
         )
     ],
     DataTypes.TABLE_SET: [
