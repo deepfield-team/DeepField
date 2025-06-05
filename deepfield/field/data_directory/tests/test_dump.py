@@ -73,6 +73,27 @@ DUMP_ROUTINES_TEST_DATA = {
             (
                 'EQUIL',
                 (
+                    pd.DataFrame([
+                        [1450.0, 141.0, 1475.0, 0.0, 638.0, 0.0, 1, INT_NAN, 10]
+                    ], columns=DATA_DIRECTORY['EQUIL'].specification.columns),
+                    pd.DataFrame([
+                        [1450.0, 141.0, 1475.0, 0.0, 965.0, 0.0, 1, INT_NAN, 10]
+                    ], columns=DATA_DIRECTORY['EQUIL'].specification.columns)
+                ),
+            ),
+            '\n'.join((
+                'EQUIL',
+                '1450.0\t141.0\t1475.0\t0.0\t638.0\t0.0\t1\t*\t10',
+                '/',
+                '1450.0\t141.0\t1475.0\t0.0\t965.0\t0.0\t1\t*\t10',
+                '/',
+            ))
+            
+        ),
+        (
+            (
+                'EQUIL',
+                (
                     pd.DataFrame(np.array([
                         [2300, 200, 2500, 0.1, 2300, 0.001, np.NaN, np.NaN, np.NaN],
                     ]), columns=DATA_DIRECTORY['EQUIL'].specification.columns),

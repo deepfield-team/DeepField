@@ -47,15 +47,15 @@ def _dump_array(keyword_spec, val, buf, include_dir):
 
 def _dump_table(keyword_spec, val, buf):
     buf.write(keyword_spec.keyword)
+    domain = keyword_spec.specification.domain
     for table in val:
         if keyword_spec.specification.domain is not None and len(keyword_spec.specification.domain) == 2:
             _dump_multitable(table, buf)
             continue
         buf.write('\n')
-        for ind, row in table.iterrows():
-            vals = row.values
-            if keyword_spec.specification.domain is not None:
-                vals = [ind] + vals.tolist()
+        row_iterator = (table.itertuples() if domain is not None else table.itertuples(index=False))
+        for row in row_iterator:
+            vals = list(row)
             vals = [nan_to_none(v) for v in vals]
             str_representaions = [_string_representation(v) if v is not None else '' for v in vals]
             str_representaions = _replace_empty_vals(str_representaions)

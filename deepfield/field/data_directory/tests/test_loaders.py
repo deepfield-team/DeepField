@@ -72,6 +72,26 @@ TEST_DATA = {
         ),
         (
             '\n'.join((
+                'EQUIL',
+                '1450 141 1475 0 638 0 1 1* 10 /',
+                '1450 141 1475 0 965 0 1 1* 10 /',
+                '/'
+
+            )),
+            (
+                'EQUIL',
+                (
+                    pd.DataFrame([
+                        [1450.0, 141.0, 1475.0, 0.0, 638.0, 0.0, 1, INT_NAN, 10]
+                    ], columns=DATA_DIRECTORY['EQUIL'].specification.columns),
+                    pd.DataFrame([
+                        [1450.0, 141.0, 1475.0, 0.0, 965.0, 0.0, 1, INT_NAN, 10]
+                    ], columns=DATA_DIRECTORY['EQUIL'].specification.columns)
+                )
+            ),
+        ),
+        (
+            '\n'.join((
                 'SWOF',
                 '0.42 0 0.737 0',
                 '0.48728 0.000225 0.610213 0',

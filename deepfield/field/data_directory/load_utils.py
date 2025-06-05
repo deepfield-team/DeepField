@@ -76,6 +76,8 @@ def _parse_date(s):
 def _load_table(keyword_spec, buf):
     def _parse_val(val, t):
         if t == 'int':
+            if val == 'nan':
+                return INT_NAN
             return int(val)
         if t == 'float':
             return float(val)
