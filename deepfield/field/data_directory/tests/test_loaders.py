@@ -20,7 +20,16 @@ TEST_DATA = {
         ),
         (
             '\n'.join(('TITLE', 'abc', '', '')),
-            ValueError()
+            ('TITLE', 'abc')
+        ),
+        (
+            '\n'.join((
+                'TITLE',
+                'MODEL COMP FAULT TEST',
+                '',
+                'abc'
+            )),
+            ('TITLE', 'MODEL COMP FAULT TEST')
         ),
         (
             '\n'.join(('INCLUDE', '"abc/abc"', '/')),
@@ -76,7 +85,6 @@ TEST_DATA = {
                 '1450 141 1475 0 638 0 1 1* 10 /',
                 '1450 141 1475 0 965 0 1 1* 10 /',
                 '/'
-
             )),
             (
                 'EQUIL',

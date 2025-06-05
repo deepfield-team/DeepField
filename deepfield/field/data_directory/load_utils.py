@@ -5,6 +5,7 @@ import logging
 import shlex
 import uuid
 import re
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -37,7 +38,8 @@ def _load_string(keyword_spec, buf):
     else:
         line = next(buf)
         if not line.startswith('/'):
-            raise ValueError(f'Data for keyword {keyword_spec} was not properly terminated.')
+            warnings.warn('Data was not properly terminated.')
+            buf.prev()
     if keyword_spec is None or not keyword_spec.date:
         return split[1].strip()
     return _parse_date(split[1].strip())
