@@ -502,4 +502,23 @@ DATA_DIRECTORY = {
     'MW': KeywordSpecification('MW', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
     'ACF': KeywordSpecification('ACF', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
     'BIC': KeywordSpecification('BIC', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
+    'ZMFVD': None,
 }
+
+def get_dynamic_keyword_specification(keyword, data):
+    if keyword == 'ZMFVD':
+        n_comp = None
+        for d in data['RUNSPEC']:
+            if d[0] == 'COMPS':
+                n_comp = d[1].N.values[0]
+        if n_comp is None:
+            raise ValueError('No COMP keyword in `data`.')
+        spec = KeywordSpecification('ZMFVD', DataTypes.TABLE_SET, TableSpecification(
+            ['DEPTH'] + [f'C{i}' for i in range(1, n_comp+1)],
+            [0],
+            ['float'] * (n_comp+1),
+        ), (SECTIONS.PROPS,))
+        return spec
+    else:
+        raise ValueError(f'Specification can not be defined for keyword {keyword}.')
+

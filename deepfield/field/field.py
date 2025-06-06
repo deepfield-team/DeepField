@@ -20,7 +20,7 @@ from .aquifer import Aquifers
 from .arithmetics import load_add, load_copy, load_equals, load_multiply
 from .configs import default_config
 from .dump_ecl_utils import egrid, init, restart, summary
-from .data_directory.data_directory import DATA_DIRECTORY, dump_keyword
+from .data_directory.data_directory import DATA_DIRECTORY
 from .faults import Faults
 from .grids import CornerPointGrid, Grid, OrthogonalGrid, specify_grid
 from .parse_utils import (

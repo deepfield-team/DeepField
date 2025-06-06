@@ -3,7 +3,7 @@ import copy
 import numbers
 import numpy as np
 import pandas as pd
-from .data_directory import INT_NAN, DataTypes, DATA_DIRECTORY
+from .data_directory import INT_NAN, DataTypes, DATA_DIRECTORY, get_dynamic_keyword_specification
 
 MAX_STRLEN = 40
 
@@ -239,7 +239,11 @@ def dump(data, path, inplace_scedule=False, filename=None):
                 else:
                     buf_tmp = buf
                 for (key, val) in data[section]:
-                    DUMP_ROUTINES[DATA_DIRECTORY[key].type](DATA_DIRECTORY[key], val, buf_tmp, include_dir)
+                    if DATA_DIRECTORY[key] is not None:
+                        spec = DATA_DIRECTORY[key]
+                    else:
+                        spec = get_dynamic_keyword_specification(key, data)
+                    DUMP_ROUTINES[spec.type](spec, val, buf_tmp, include_dir)
                     buf_tmp.write('\n\n')
 
 def _dump_array_ascii(buffer, array, header=None, fmt='%f', compressed=True):

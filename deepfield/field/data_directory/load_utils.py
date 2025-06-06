@@ -10,7 +10,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from .data_directory import DATA_DIRECTORY, INT_NAN, SECTIONS, DataTypes
+from .data_directory import DATA_DIRECTORY, INT_NAN, SECTIONS, DataTypes, get_dynamic_keyword_specification
 
 
 DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
@@ -569,7 +569,10 @@ def load(path, logger=None, encoding=None):
                     res[cur_section] = []
                 continue
             if firstword in DATA_DIRECTORY:
-                keyword_spec = DATA_DIRECTORY[firstword]
+                if DATA_DIRECTORY[firstword] is not None:
+                    keyword_spec = DATA_DIRECTORY[firstword]
+                else:
+                    keyword_spec = get_dynamic_keyword_specification(firstword, res)
                 keyword_sections = [sec.value for sec in keyword_spec.sections]
                 if cur_section not in keyword_sections:
                     logger.warning(f'Keyword {firstword} in section {cur_section}' +
@@ -586,5 +589,6 @@ def load(path, logger=None, encoding=None):
             else:
                 logger.warning(f'Keyword {firstword} in section {cur_section} ' +
                     f'is not supported (skipping): line {lines.line_number}')
-
     return res
+
+
