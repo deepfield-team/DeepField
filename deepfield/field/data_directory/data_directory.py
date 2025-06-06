@@ -477,8 +477,33 @@ DATA_DIRECTORY = {
          'text']
     ), (SECTIONS.SCHEDULE,)),
     'RPTRSTD': KeywordSpecification('RPTRSTD', DataTypes.OBJECT_LIST, ObjectSpecification(date=True),
-                                    (SECTIONS.SOLUTION,))
+                                    (SECTIONS.SOLUTION,)),
+    'COMPS': KeywordSpecification('COMPS', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        columns=['N'], dtypes=['int']
+    ), (SECTIONS.RUNSPEC,)),
+    'PARALLEL': KeywordSpecification('PARALLEL', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['NDMAIN', 'MACHINE_TYPE'], ['int', 'text']
+    ), (SECTIONS.RUNSPEC,)),
+    'NOMIX': KeywordSpecification('NOMIX', None, None, (SECTIONS.RUNSPEC,)),
+    'MULTPV': KeywordSpecification('MULTPV', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.EDIT, SECTIONS.GRID)),
+    'STCOND': KeywordSpecification('STCOND', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['TEMP', 'PRES'], ['float', 'float']
+    ), (SECTIONS.PROPS,)),
+    'RTEMP': KeywordSpecification('RTEMP', DataTypes.TABLE_SET, TableSpecification(
+        ['TEMP'], None, ), (SECTIONS.PROPS,)),
+    'EOS': KeywordSpecification('EOS', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['EOS'], ['text']
+    ), (SECTIONS.RUNSPEC, SECTIONS.PROPS,)),
+    'CNAMES': KeywordSpecification('CNAMES', DataTypes.PARAMETERS, ParametersSpecification(), (SECTIONS.PROPS,)),
+    'TCRIT': KeywordSpecification('TCRIT', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
+    'PCRIT': KeywordSpecification('PCRIT', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
+    'VCRIT': KeywordSpecification('VCRIT', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
+    'VCRITVIS': KeywordSpecification('VCRITVIS', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
+    'MW': KeywordSpecification('MW', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
+    'ACF': KeywordSpecification('ACF', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
+    'BIC': KeywordSpecification('BIC', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
 }
+
 
 def dump_keyword(spec, val, buf, include_path):
     _DUMP_ROUTINES[spec.data_type](spec.keyword, val, buf, include_path)
