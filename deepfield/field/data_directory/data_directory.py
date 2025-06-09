@@ -1,7 +1,7 @@
-from collections.abc import Sequence
+from collections.abc import Sequence, Callable
 from enum import Enum, auto
 import os
-from typing import Any, Callable, NamedTuple, Optional
+from typing import NamedTuple
 
 import pandas as pd
 import numpy as np
@@ -126,11 +126,13 @@ class StatementSpecification(NamedTuple):
     dtypes: Sequence[str]
     terminated: bool=True
 
-class RecordsSpecification(NamedTuple):
-    specifications: Sequence[StatementSpecification]
-
 class ArraySpecification(NamedTuple):
     dtype: type
+
+class RecordsSpecification(NamedTuple):
+    specifications: Sequence[StatementSpecification] | None
+    dynamic: bool=False
+    get_next_specification: Callable[[Sequence[pd.DataFrame]], StatementSpecification | ArraySpecification] | None=None
 
 class ObjectSpecification(NamedTuple):
     terminated: bool=False
@@ -143,6 +145,30 @@ class KeywordSpecification(NamedTuple):
         RecordsSpecification | ObjectSpecification |
         None | ArraySpecification | TableSpecification | ParametersSpecification | StringSpecification)
     sections: Sequence[SECTIONS]
+
+def _get_vfpprod_specification(data):
+    default_specs = (
+        StatementSpecification(
+            ['TABLE_NUM', 'BH_DATUM_DEPTH', 'FLO', 'WFR', 'GFR', 'THP', 'ALQ', 'UNITS', 'QUANTITY'],
+            ['int', 'float', 'text', 'text', 'text', 'text', 'text', 'text', 'text']
+        ),
+        ArraySpecification(float),
+        ArraySpecification(float),
+        ArraySpecification(float),
+        ArraySpecification(float),
+        ArraySpecification(float),
+    )
+    if len(data) < 6:
+        return default_specs[len(data)]
+    n_max = 6 + len(data[2])*len(data[3])*len(data[4])*len(data[5])
+    if len(data) >= n_max:
+        raise ValueError('Max number of records is exceeded.')
+    spec = StatementSpecification(
+        ['NT', 'NW', 'NG', 'NA'] + [f'BHP_THT{i+1}' for i in range(len(data[1]))],
+        ['int']*4 + ['float'] * len(data[1])
+    )
+    return spec
+
 
 STATEMENT_LIST_INFO = {
     'RUNCTRL': {
@@ -503,6 +529,9 @@ DATA_DIRECTORY = {
     'ACF': KeywordSpecification('ACF', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
     'BIC': KeywordSpecification('BIC', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
     'ZMFVD': None,
+    'VFPPROD': KeywordSpecification('VFPPROD', DataTypes.RECORDS,
+                                    RecordsSpecification(None, True, _get_vfpprod_specification),
+                                    (SECTIONS.SCHEDULE,))
 }
 
 def get_dynamic_keyword_specification(keyword, data):

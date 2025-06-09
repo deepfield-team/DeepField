@@ -10,7 +10,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from .data_directory import DATA_DIRECTORY, INT_NAN, SECTIONS, DataTypes, get_dynamic_keyword_specification
+from .data_directory import DATA_DIRECTORY, INT_NAN, SECTIONS, ArraySpecification, DataTypes, StatementSpecification, get_dynamic_keyword_specification
 
 
 DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
@@ -168,7 +168,27 @@ def _load_single_statement(keyword_spec, buffer):
     return df
 
 def _load_records(keyword_spec, buffer):
-    res = [_load_single_statement(spec, buffer) for spec in keyword_spec.specifications]
+    def _load_record(spec, buffer):
+        if isinstance(spec, StatementSpecification):
+            return _load_single_statement(spec, buffer)
+        elif isinstance(spec, ArraySpecification):
+            return _load_array(spec, buffer)
+        else:
+            raise ValueError('Only `StatementSpecification` and `ArraySpecification` ' +
+                f'are supported not {type(spec)}')
+    def _spec_generator(res):
+        while True:
+            try:
+                yield keyword_spec.get_next_specification(res)
+            except ValueError:
+                break
+    res = []
+    if keyword_spec.dynamic:
+        spec_iterable = _spec_generator(res)
+    else:
+        spec_iterable = keyword_spec.specifications
+    for spec in spec_iterable:
+        res.append(_load_record(spec, buffer))
     return res
 
 def _read_table_data(buffer, depth):

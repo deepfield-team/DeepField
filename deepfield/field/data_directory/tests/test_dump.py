@@ -250,6 +250,93 @@ DUMP_ROUTINES_TEST_DATA = {
                 '0.1\t0.001\t1E-7\t0.0001\t10.0\t0.01\t1E-6\t0.001\t0.001/',
                 '12\t1\t25\t1\t8\t8\t1000000.0\t1000000.0\t1000000.0\t1000000.0/\n'
             )),
+        ),
+        (
+            (
+                'VFPPROD',
+                (
+                    pd.DataFrame([[
+                        1, 2200.0, 'OIL', 'WCT', 'GOR', 'THP', ' ', 'METRIC', 'BHP',
+                    ]], columns=['TABLE_NUM', 'BH_DATUM_DEPTH', 'FLO', 'WFR',
+                                 'GFR', 'THP', 'ALQ', 'UNITS', 'QUANTITY']),
+                    np.array([1, 30, 300]),
+                    np.array([10, 20]),
+                    np.array([0, 0.7]),
+                    np.array([1, 100, 500]),
+                    np.array([0]),
+                    pd.DataFrame(
+                        [[1, 1, 1, 1, 1.75243e2, 1.75243e2, 1.75244e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[2, 1, 1, 1, 1.80749e2, 1.80749e2, 1.80750e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 1, 2, 1, 1, 1.91358e2, 1.91359e2, 1.91362e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 2, 2, 1, 1, 1.96743e2, 1.96744e2, 1.96747e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 1, 1, 2, 1, 1.71599e2, 1.71599e2, 1.71601e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 2, 1, 2, 1, 1.77093e2, 1.77093e2, 1.77095e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 1, 2, 2, 1, 1.88482e2, 1.88483e2, 1.88487e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 2, 2, 2, 1, 1.93865e2, 1.93866e2, 1.93869e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 1, 1, 3, 1, 1.45582e2, 1.45526e2, 1.45462e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 2, 1, 3, 1, 1.50977e2, 1.50978e2, 1.50979e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 1, 2, 3, 1, 1.71277e2, 1.71278e2, 1.71282e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 2, 2, 3, 1, 1.71277e2, 1.71278e2, 1.71282e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                )
+            ),
+            '\n'.join((
+                'VFPPROD',
+                "1\t2200.0\tOIL\tWCT\tGOR\tTHP\t' '\tMETRIC\tBHP/",
+                '1\t30\t300/',
+                '10\t20/',
+                '0.0\t0.7/',
+                '1\t100\t500/',
+                '0/',
+                '1\t1\t1\t1\t175.243\t175.243\t175.244/',
+                '2\t1\t1\t1\t180.749\t180.749\t180.75/',
+                '1\t2\t1\t1\t191.358\t191.359\t191.362/',
+                '2\t2\t1\t1\t196.743\t196.744\t196.747/' ,
+                '1\t1\t2\t1\t171.599\t171.599\t171.601/',
+                '2\t1\t2\t1\t177.093\t177.093\t177.095/',
+                '1\t2\t2\t1\t188.482\t188.483\t188.487/',
+                '2\t2\t2\t1\t193.865\t193.866\t193.869/',
+                '1\t1\t3\t1\t145.582\t145.526\t145.462/',
+                '2\t1\t3\t1\t150.977\t150.978\t150.979/',
+                '1\t2\t3\t1\t171.277\t171.278\t171.282/',
+                '2\t2\t3\t1\t171.277\t171.278\t171.282/',
+                ''
+            )),
+
         )
     ],
     DataTypes.ARRAY: [

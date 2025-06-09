@@ -515,6 +515,91 @@ TEST_DATA = {
                 '10 0.01 1E-6 0.001 0.001 /',
             )),
             ValueError()
+        ),
+        (
+            '\n'.join((
+                'VFPPROD',
+                "1 2200 'OIL' 'WCT' 'GOR' 'THP' ' ' 'METRIC' 'BHP' /",
+                '1 30 300 /',
+                '10 20 /',
+                '0 0.7 /',
+                '1 100 500 /',
+                '0 /',
+                '1 1 1 1 1.75243E+002 1.75243E+002 1.75244E+002 /',
+                '2 1 1 1 1.80749E+002 1.80749E+002 1.80750E+002 /',
+                '1 2 1 1 1.91358E+002 1.91359E+002 1.91362E+002 /',
+                '2 2 1 1 1.96743E+002 1.96744E+002 1.96747E+002 /' ,
+                '1 1 2 1 1.71599E+002 1.71599E+002 1.71601E+002 /',
+                '2 1 2 1 1.77093E+002 1.77093E+002 1.77095E+002 /',
+                '1 2 2 1 1.88482E+002 1.88483E+002 1.88487E+002 /',
+                '2 2 2 1 1.93865E+002 1.93866E+002 1.93869E+002 /',
+                '1 1 3 1 1.45582E+002 1.45526E+002 1.45462E+002 /',
+                '2 1 3 1 1.50977E+002 1.50978E+002 1.50979E+002 /',
+                '1 2 3 1 1.71277E+002 1.71278E+002 1.71282E+002 /',
+                '2 2 3 1 1.71277E+002 1.71278E+002 1.71282E+002 /',
+            )),
+            (
+                'VFPPROD',
+                (
+                    pd.DataFrame([[
+                        1, 2200.0, 'OIL', 'WCT', 'GOR', 'THP', ' ', 'METRIC', 'BHP',
+                    ]], columns=['TABLE_NUM', 'BH_DATUM_DEPTH', 'FLO', 'WFR',
+                                 'GFR', 'THP', 'ALQ', 'UNITS', 'QUANTITY']),
+                    np.array([1, 30, 300]),
+                    np.array([10, 20]),
+                    np.array([0, 0.7]),
+                    np.array([1, 100, 500]),
+                    np.array([0]),
+                    pd.DataFrame(
+                        [[1, 1, 1, 1, 1.75243e2, 1.75243e2, 1.75244e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[2, 1, 1, 1, 1.80749e2, 1.80749e2, 1.80750e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 1, 2, 1, 1, 1.91358e2, 1.91359e2, 1.91362e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 2, 2, 1, 1, 1.96743e2, 1.96744e2, 1.96747e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 1, 1, 2, 1, 1.71599e2, 1.71599e2, 1.71601e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 2, 1, 2, 1, 1.77093e2, 1.77093e2, 1.77095e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 1, 2, 2, 1, 1.88482e2, 1.88483e2, 1.88487e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 2, 2, 2, 1, 1.93865e2, 1.93866e2, 1.93869e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 1, 1, 3, 1, 1.45582e2, 1.45526e2, 1.45462e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 2, 1, 3, 1, 1.50977e2, 1.50978e2, 1.50979e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 1, 2, 3, 1, 1.71277e2, 1.71278e2, 1.71282e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                    pd.DataFrame(
+                        [[ 2, 2, 3, 1, 1.71277e2, 1.71278e2, 1.71282e2]],
+                        columns=['NT', 'NW', 'NG', 'NA', 'BHP_THT1', 'BHP_THT2', 'BHP_THT3']
+                    ),
+                )
+            )
         )
     ],
     DataTypes.STATEMENT_LIST: [
