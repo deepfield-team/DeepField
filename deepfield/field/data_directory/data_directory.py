@@ -542,7 +542,12 @@ DATA_DIRECTORY = {
          'RESERVOIR_FRACTION_TARGET', 'WET_GAS_PRODUCTION_RATE', 'CALORIFIC_RATE', 'SURFACE_GAS_FRACTION_TARGET',
          'SURFACE_WATER_FRACTION_TARGET'
         ],
-        ['text']*2 + ['foat']*4 + ['text']*2 + ['float'] + ['text']*4, ['float']*6,
+        ['text']*2 + ['foat']*4 + ['text']*2 + ['float'] + ['text']*4 + ['float']*6,
+    ), (SECTIONS.SCHEDULE,)),
+    'IMPLICIT': KeywordSpecification('IMPLICIT', None, None, (SECTIONS.RUNSPEC,)),
+    'FIPPATT': KeywordSpecification('FIPATT', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
+    'WELTARG': KeywordSpecification('WELTARG', DataTypes.STATEMENT_LIST, StatementSpecification(
+        ['WELL', 'CONTROL', 'VAL'], ['text', 'text', 'float']
     ), (SECTIONS.SCHEDULE,))
 }
 
