@@ -531,7 +531,19 @@ DATA_DIRECTORY = {
     'ZMFVD': None,
     'VFPPROD': KeywordSpecification('VFPPROD', DataTypes.RECORDS,
                                     RecordsSpecification(None, True, _get_vfpprod_specification),
-                                    (SECTIONS.SCHEDULE,))
+                                    (SECTIONS.SCHEDULE,)),
+    'GRUPTREE': KeywordSpecification('GRUPTREE', DataTypes.STATEMENT_LIST, StatementSpecification(
+        ['CHILD', 'PARENT'], ['text', 'text']
+    ), (SECTIONS.SCHEDULE,)),
+    'GCONPROD': KeywordSpecification('CGONPROD', DataTypes.STATEMENT_LIST, StatementSpecification(
+        ['GROUP', 'CONTROL', 'OIL_RATE', 'WATER_RATE', 'GAS_RATE', 'SURFACE_LIQUID_RATE', 'WORKOVER_ACTION_OIL',
+         'HIGHER_GROUP_CONTROL', 'HIGHER_GROUP_CONTROL_RATIO', 'HIGHER_GROUP_CONTROL_RATIO_PHASE',
+         'WORKOVER_ACTION_WATER', 'WORKOVER_ACTION_GAS', 'WORKOVER_ACTION_LIQ', 'RESERVOIR_LIQUID_RATE',
+         'RESERVOIR_FRACTION_TARGET', 'WET_GAS_PRODUCTION_RATE', 'CALORIFIC_RATE', 'SURFACE_GAS_FRACTION_TARGET',
+         'SURFACE_WATER_FRACTION_TARGET'
+        ],
+        ['text']*2 + ['foat']*4 + ['text']*2 + ['float'] + ['text']*4, ['float']*6,
+    ), (SECTIONS.SCHEDULE,))
 }
 
 def get_dynamic_keyword_specification(keyword, data):
