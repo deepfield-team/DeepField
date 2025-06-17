@@ -650,7 +650,21 @@ TEST_DATA = {
                     columns=DATA_DIRECTORY['WELSPECS'].specification.columns
                 )
             )
-
+        ),
+        (
+            '\n'.join((
+                'WECON',
+                'P*    2*  0.9 2*  WELL/',
+                '/'
+            )),
+            (
+                'WECON',
+                pd.DataFrame([[
+                    'P*', np.NaN, np.NaN, 0.9, np.NaN, np.NaN,
+                    'WELL', None, None, None,
+                    np.NaN, None, np.NaN, np.NaN,
+                ]], columns=DATA_DIRECTORY['WECON'].specification.columns)
+            )
         )
     ]
 }

@@ -368,11 +368,14 @@ def parse_vals(full, shift, vals):
             v = v.strip('\'\"')
             if v == '*':
                 continue
-            n = int(v.split('*')[0])
-            shift += n - 1
-            if v.endswith('*'):
-                continue
-            full[i+shift-n+1:i+shift+1] = [v.split('*')[1]] * n
+            try:
+                n = int(v.split('*')[0])
+                shift += n - 1
+                if v.endswith('*'):
+                    continue
+                full[i+shift-n+1:i+shift+1] = [v.split('*')[1]] * n
+            except ValueError:
+                full[i+shift] = v
         else:
             full[i+shift] = v
     return full, i + shift + 1

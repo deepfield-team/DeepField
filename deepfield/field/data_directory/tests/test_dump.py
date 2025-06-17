@@ -221,6 +221,21 @@ DUMP_ROUTINES_TEST_DATA = {
                 "3\t'GROUP 1'\t22\t20\t*\tOIL/",
                 '/'
             )),
+        ),
+        (
+            (
+                'WECON',
+                pd.DataFrame([[
+                    'P*', np.NaN, np.NaN, 0.9, np.NaN, np.NaN,
+                    'WELL', None, None, None,
+                    np.NaN, None, np.NaN, np.NaN,
+                ]], columns=DATA_DIRECTORY['WECON'].specification.columns)
+            ),
+            '\n'.join((
+                'WECON',
+                'P*\t2*\t0.9\t2*\tWELL/',
+                '/'
+            )),
         )
     ],
     DataTypes.RECORDS: [

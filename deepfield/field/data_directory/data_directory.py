@@ -548,6 +548,14 @@ DATA_DIRECTORY = {
     'FIPPATT': KeywordSpecification('FIPATT', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
     'WELTARG': KeywordSpecification('WELTARG', DataTypes.STATEMENT_LIST, StatementSpecification(
         ['WELL', 'CONTROL', 'VAL'], ['text', 'text', 'float']
+    ), (SECTIONS.SCHEDULE,)),
+    'WECON': KeywordSpecification('WECON', DataTypes.STATEMENT_LIST, StatementSpecification(
+        ['WELL', 'OIL_RATE_LOWER_LIMIT', 'GAS_RATE_UPPER_LIMIT', 'WATER_CUT_UPPER_LIMIT',
+         'GAS_OIL_RATIO_UPPER_LIMIT', 'WATER_GAS_RATIO_UPPER_LIMIT', 'VIOLATION_WORKOVER', 'END_RUN_FLUG',
+         'WELL_TO_OPEN', 'PARAMETER_TO_APPLY_LIMIT', 'SECONDARY_WATER_CUT_LIMIT',
+         'SECONDARY_WATER_CUT_VIOLATION_WORKOVER', 'GAS_LIQUID_RATIO_UPPER_LIMIT',
+         'LIQUID_RATE_LOWER_LIMIT'],
+        ['text'] + ['float'] * 5 + ['text'] * 4 +['float'] + ['text'] + ['float'] * 2
     ), (SECTIONS.SCHEDULE,))
 }
 
