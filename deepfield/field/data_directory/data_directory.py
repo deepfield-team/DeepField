@@ -169,7 +169,6 @@ def _get_vfpprod_specification(data):
     )
     return spec
 
-
 STATEMENT_LIST_INFO = {
     'RUNCTRL': {
         'columns': ['PARAMETER', 'VALUE'],
@@ -556,7 +555,21 @@ DATA_DIRECTORY = {
          'SECONDARY_WATER_CUT_VIOLATION_WORKOVER', 'GAS_LIQUID_RATIO_UPPER_LIMIT',
          'LIQUID_RATE_LOWER_LIMIT'],
         ['text'] + ['float'] * 5 + ['text'] * 4 +['float'] + ['text'] + ['float'] * 2
-    ), (SECTIONS.SCHEDULE,))
+    ), (SECTIONS.SCHEDULE,)),
+    'FIELD': KeywordSpecification('FIELD', None, None, (SECTIONS.RUNSPEC,)),
+    'GRIDOPTS': KeywordSpecification('GRIDOPTS', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['MULTIPLIERS_FLAG', 'N_MULTIPLIERS_REG'],
+        ['text', 'int']
+    ), (SECTIONS.RUNSPEC,)),
+    'RPTGRID': KeywordSpecification('RPTGRID', DataTypes.OBJECT_LIST, ObjectSpecification(), (SECTIONS.GRID,)),
+    'MAPUNITS': KeywordSpecification('MAPUNITS', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['UNITS'], ['text']
+    ), (SECTIONS.GRID,)),
+    'GRIDUNIT': KeywordSpecification('GRIDUNIT', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['UNITS', 'MAP_FLAG'], ['text', 'text']
+    ), (SECTIONS.GRID,)),
+    'NEWTRAN': KeywordSpecification('NEWTRAN', None, None, (SECTIONS.GRID,)),
+    'COORDSYS': None,
 }
 
 def get_dynamic_keyword_specification(keyword, data):
@@ -573,6 +586,23 @@ def get_dynamic_keyword_specification(keyword, data):
             ['float'] * (n_comp+1),
         ), (SECTIONS.PROPS,))
         return spec
+    if keyword == 'COORDSYS':
+        n_res = None
+        for d in data['RUNSPEC']:
+            if d[0] == 'NUMRES':
+                n_res = d[1].N.values[0]
+            if n_res is None:
+                n_res = 1
+            spec = KeywordSpecification('RUNSPEC', DataTypes.RECORDS, RecordsSpecification(
+                [StatementSpecification(
+                    ['K1', 'K2', 'CIRCLE_COMPLETION', 'CONNECTION_BELOW',
+                     'LATERAL_BLOCK_CONNECTION_LOWER_BOUND',
+                     'LATERAL_BLOCK_CONNECTION_UPPER_BOUND'],
+                    ['int', 'int', 'text', 'int', 'int']
+                ),] * n_res
+            ), (SECTIONS.GRID, ))
+            return spec
+
     else:
         raise ValueError(f'Specification can not be defined for keyword {keyword}.')
 
