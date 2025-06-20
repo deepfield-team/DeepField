@@ -397,7 +397,7 @@ DATA_DIRECTORY = {
     'EXCEL': KeywordSpecification('EXCEL', None, None, (SECTIONS.SUMMARY,)),
     'RPTONLY': KeywordSpecification('RPTONLY', None, None, (SECTIONS.SUMMARY,)),
     'RPTSCHED': KeywordSpecification('RPTSCHED', DataTypes.PARAMETERS, ParametersSpecification(), (SECTIONS.SCHEDULE,)),
-    'RPTRST': KeywordSpecification('RPTRST', DataTypes.PARAMETERS, ParametersSpecification(), (SECTIONS.SCHEDULE,)),
+    'RPTRST': KeywordSpecification('RPTRST', DataTypes.PARAMETERS, ParametersSpecification(), (SECTIONS.SCHEDULE, SECTIONS.SOLUTION)),
     'WELSPECS': KeywordSpecification('WELSPECS', DataTypes.STATEMENT_LIST, None, (SECTIONS.SCHEDULE,)),
     'TSTEP': KeywordSpecification('TSTEP', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.SCHEDULE,)),
     **{kw: KeywordSpecification(kw, DataTypes.STATEMENT_LIST, StatementSpecification(
@@ -573,7 +573,15 @@ DATA_DIRECTORY = {
     'COREYWO': KeywordSpecification('COREYWO', DataTypes.TABLE_SET, TableSpecification(
         ['SWL', 'SWU', 'SWCR', 'SOWCR', 'KROLW', 'KRORW', 'KRWR', 'KRWU', 'PCOW', 'NOW', 'NW', 'NP', 'SPCO'],
         domain=None
-    ), (SECTIONS.PROPS,))
+    ), (SECTIONS.PROPS,)),
+    'PRESSURE': KeywordSpecification('PRESSURE', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.SOLUTION,)),
+    'SWAT': KeywordSpecification('SWAT', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.SOLUTION,)),
+    'SGAS': KeywordSpecification('SGAS', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.SOLUTION,)),
+    'PBUB': KeywordSpecification('PBUB', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.SOLUTION,)),
+    'MULTX': KeywordSpecification('MULTX', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.GRID,)),
+    'MULTY': KeywordSpecification('MULTY', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.GRID,)),
+    'MULTZ': KeywordSpecification('MULTZ', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.GRID,)),
+
 }
 
 def get_dynamic_keyword_specification(keyword, data):
