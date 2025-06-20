@@ -570,6 +570,10 @@ DATA_DIRECTORY = {
     ), (SECTIONS.GRID,)),
     'NEWTRAN': KeywordSpecification('NEWTRAN', None, None, (SECTIONS.GRID,)),
     'COORDSYS': None,
+    'COREYWO': KeywordSpecification('COREYWO', DataTypes.TABLE_SET, TableSpecification(
+        ['SWL', 'SWU', 'SWCR', 'SOWCR', 'KROLW', 'KRORW', 'KRWR', 'KRWU', 'PCOW', 'NOW', 'NW', 'NP', 'SPCO'],
+        domain=None
+    ), (SECTIONS.PROPS,))
 }
 
 def get_dynamic_keyword_specification(keyword, data):
