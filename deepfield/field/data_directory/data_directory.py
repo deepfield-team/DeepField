@@ -587,7 +587,12 @@ DATA_DIRECTORY = {
     'MULTY': KeywordSpecification('MULTY', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.GRID,)),
     'MULTZ': KeywordSpecification('MULTZ', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.GRID,)),
     'RPTRSTT': KeywordSpecification('RPTRSTT', DataTypes.ARRAY_WITH_UNITS, ArraySpecification(float),
-                                    (SECTIONS.SOLUTION,))
+                                    (SECTIONS.SOLUTION, SECTIONS.SCHEDULE)),
+    'FIPCCC': KeywordSpecification('FIPCCC', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
+    'FIPDDD': KeywordSpecification('FIPDDD', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
+    'FIPRPT': KeywordSpecification('FIPRPT', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
+    'FIPXXX': KeywordSpecification('FIPXXX', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
+    'RESTART': KeywordSpecification('RESTART', DataTypes.STRING, None, (SECTIONS.SOLUTION,))
 }
 
 def get_dynamic_keyword_specification(keyword, data):
