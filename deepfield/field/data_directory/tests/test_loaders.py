@@ -683,6 +683,25 @@ TEST_DATA = {
                 )
             )
         )
+    ],
+    None: [
+        (
+            '\n'.join((
+                'RPTRSTL',
+                '/'
+            )),
+            (
+                'RPTRSTL',
+                None
+            ),
+        ),
+        (
+            '\n'.join((
+                'RPTRSTL',
+                'abc'
+            )),
+            ValueError()
+        )
     ]
 }
 

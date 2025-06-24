@@ -143,12 +143,16 @@ class ObjectSpecification(NamedTuple):
     terminated: bool=False
     date: bool=False
 
+class NoDataSpecification(NamedTuple):
+    terminated: bool=False
+
 class KeywordSpecification(NamedTuple):
     keyword: str
     type: DataTypes | None
     specification: (StatementSpecification |
         RecordsSpecification | ObjectSpecification |
-        None | ArraySpecification | TableSpecification | ParametersSpecification | StringSpecification)
+        None | ArraySpecification | TableSpecification | ParametersSpecification | StringSpecification |
+        NoDataSpecification)
     sections: Sequence[SECTIONS]
 
 def _get_vfpprod_specification(data):
@@ -592,7 +596,11 @@ DATA_DIRECTORY = {
     'FIPDDD': KeywordSpecification('FIPDDD', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
     'FIPRPT': KeywordSpecification('FIPRPT', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
     'FIPXXX': KeywordSpecification('FIPXXX', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
-    'RESTART': KeywordSpecification('RESTART', DataTypes.STRING, None, (SECTIONS.SOLUTION,))
+    'RESTART': KeywordSpecification('RESTART', DataTypes.STRING, None, (SECTIONS.SOLUTION,)),
+    'RSVD': KeywordSpecification('RSVD', DataTypes.TABLE_SET, TableSpecification(
+        ["DEPTH", 'GAS_RATIO'], [0,]
+    ), (SECTIONS.SOLUTION,)),
+    'RPTRSTL': KeywordSpecification('RPTRSTL', None, NoDataSpecification(True), (SECTIONS.SOLUTION,)),
 }
 
 def get_dynamic_keyword_specification(keyword, data):

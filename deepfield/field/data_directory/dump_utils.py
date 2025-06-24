@@ -134,6 +134,11 @@ def _dump_array_with_units(keyword_spec, val, buf):
     _dump_array_ascii(buf, val.data.reshape(-1), fmt=fmt)
     buf.write('/')
 
+def _dump_no_data(keyword_spec, buf,):
+    buf.write(f'{keyword_spec.keyword}')
+    if keyword_spec.specification is not None and keyword_spec.specification.terminated:
+        buf.write('\n/')
+
 DUMP_ROUTINES = {
     DataTypes.OBJECT_LIST: lambda keyword_spec, val, buf, _: _dump_object_list(keyword_spec, val, buf),
     DataTypes.STRING: lambda keyword_spec, val, buf, _: _dump_string(keyword_spec, val, buf),
@@ -141,7 +146,7 @@ DUMP_ROUTINES = {
     DataTypes.PARAMETERS: lambda keyword_spec, val, buf, _: dump_parameters(keyword_spec, val, buf),
     DataTypes.ARRAY: _dump_array,
     DataTypes.TABLE_SET: lambda keyword_spec, val, buf, _=None: _dump_table(keyword_spec, val, buf),
-    None: lambda keyword_spec, _, buf, ___: buf.write(f'{keyword_spec.keyword}'),
+    None: lambda keyword_spec, _, buf, ___: _dump_no_data(keyword_spec, buf),
     DataTypes.SINGLE_STATEMENT: lambda keyword_spec, val, buf, _: _dump_single_statement(keyword_spec, val, buf),
     DataTypes.RECORDS: lambda keyword_spec, val, buf, _: _dump_records(keyword_spec, val, buf),
     DataTypes.ARRAY_WITH_UNITS: lambda keyword_spec, val, buf, _: _dump_array_with_units(keyword_spec, val, buf)

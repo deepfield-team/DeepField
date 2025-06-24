@@ -423,8 +423,15 @@ def _load_statement_list(keyword_spec, buf):
     df = pd.concat(statements, ignore_index=True)
     return df
 
+def _load_no_data(keyword_spec, buf):
+    if keyword_spec is None or not keyword_spec.terminated:
+        return
+    line = next(buf)
+    if not line.startswith('/'):
+        raise ValueError('Data is not properly terminated.')
+
 LOADERS = {
-    None: lambda keyword_spec, buf: None,
+    None: _load_no_data,
     DataTypes.STRING: _load_string,
     DataTypes.OBJECT_LIST: _load_object_list,
     DataTypes.TABLE_SET: _load_table,

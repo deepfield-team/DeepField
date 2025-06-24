@@ -502,7 +502,17 @@ DUMP_ROUTINES_TEST_DATA = {
                 'MULTOUT',
                 None
             ),
-            'MULTOUT'
+            'MULTOUT',
+        ),
+        (
+            (
+                'RPTRSTL',
+                None
+            ),
+            '\n'.join((
+                'RPTRSTL',
+                '/',
+            ))
         )
     ]
 }
