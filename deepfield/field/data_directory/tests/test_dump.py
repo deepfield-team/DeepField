@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import pytest
 
-from deepfield.field.data_directory.data_directory import (DATA_DIRECTORY, INT_NAN, DataTypes,)
+from deepfield.field.data_directory.data_directory import (DATA_DIRECTORY, INT_NAN, ArrayWithUnits, DataTypes,)
 from deepfield.field.data_directory.dump_utils import DUMP_ROUTINES, dump
 from deepfield.field.data_directory.load_utils import load
 
@@ -478,6 +478,23 @@ DUMP_ROUTINES_TEST_DATA = {
             ))
         )
 
+    ],
+    DataTypes.ARRAY_WITH_UNITS: [
+        (
+            (
+                'RPTRSTT',
+                ArrayWithUnits(
+                    'MONTH',
+                    np.array([2.0, 3.0, 4.0])
+                )
+            ),
+            '\n'.join((
+                'RPTRSTT',
+                'MONTH',
+                '2 3 4',
+                '/'
+            )),
+        )
     ],
     None: [
         (

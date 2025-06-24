@@ -1,11 +1,11 @@
 import itertools
-from typing import Sequence
+from typing import NamedTuple
 import pytest
 import numpy as np
 import pandas as pd
 from deepfield.field.data_directory.load_utils import LOADERS, decompress_array, parse_vals
 
-from deepfield.field.data_directory.data_directory import DataTypes, DATA_DIRECTORY
+from deepfield.field.data_directory.data_directory import ArrayWithUnits, DataTypes, DATA_DIRECTORY
 from deepfield.field.parse_utils.ascii import INT_NAN
 
 TEST_DATA = {
@@ -666,6 +666,23 @@ TEST_DATA = {
                 ]], columns=DATA_DIRECTORY['WECON'].specification.columns)
             )
         )
+    ],
+    DataTypes.ARRAY_WITH_UNITS: [
+        (
+            '\n'.join((
+                'RPTRSTT',
+                'MONTH',
+                '2 3 4',
+                '/'
+            )),
+            (
+                'RPTRSTT',
+                ArrayWithUnits(
+                    'MONTH',
+                    np.array([2.0, 3.0, 4.0])
+                )
+            )
+        )
     ]
 }
 
@@ -700,7 +717,7 @@ def test_load(data_type, input, expected):
             LOADERS[data_type](DATA_DIRECTORY[keyword].specification, buf)
     else:
         res = LOADERS[data_type](DATA_DIRECTORY[keyword].specification, buf)
-        if not isinstance(expected[1], tuple | list):
+        if not isinstance(expected[1], tuple | list | ArrayWithUnits):
             expected_res = [expected[1]]
             res = [res]
         else:
@@ -711,7 +728,7 @@ def test_load(data_type, input, expected):
             elif isinstance(e, pd.DataFrame):
                 pd.testing.assert_frame_equal(r, e)
             else:
-                assert (keyword, res) == (expected[0], expected_res)
+                assert r == e
 
 DECOMPRESS_TEST_DATA = [
     (

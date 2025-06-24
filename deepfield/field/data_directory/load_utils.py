@@ -10,7 +10,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from .data_directory import DATA_DIRECTORY, INT_NAN, SECTIONS, ArraySpecification, DataTypes, StatementSpecification, get_dynamic_keyword_specification
+from .data_directory import DATA_DIRECTORY, INT_NAN, SECTIONS, ArraySpecification, ArrayWithUnits, DataTypes, StatementSpecification, get_dynamic_keyword_specification
 
 
 DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
@@ -276,7 +276,15 @@ def _load_array(keyword_spec, buf):
     data = read_array(buf, dtype=keyword_spec.dtype)
     return data
 
-def read_array(buffer, dtype=None, compressed=True, **kwargs):
+def _load_array_with_units(keyword_spec, buf):
+    line = next(buf)
+    units = line.split()[0]
+    buf.prev()
+    array = read_array(buf, dtype=keyword_spec.dtype, skip_first_word=True)
+    return ArrayWithUnits(units, array)
+
+
+def read_array(buffer, dtype=None, compressed=True, skip_first_word=False, **kwargs):
     """Read array data from a string buffer before first occurrence of '/' symbol.
 
     Parameters
@@ -298,10 +306,12 @@ def read_array(buffer, dtype=None, compressed=True, **kwargs):
     last_line = False
     if dtype is None:
         dtype = float
-    for line in buffer:
+    for i, line in enumerate(buffer):
         if '/' in line:
             last_line = True
             line = line.split('/')[0]
+        if i == 0 and skip_first_word:
+            line = ' '.join(line.split()[1:])
         if compressed:
             x = decompress_array(line, dtype=dtype)
         else:
@@ -422,7 +432,8 @@ LOADERS = {
     DataTypes.PARAMETERS: _load_parameters,
     DataTypes.SINGLE_STATEMENT: _load_single_statement,
     DataTypes.STATEMENT_LIST: _load_statement_list,
-    DataTypes.RECORDS: _load_records
+    DataTypes.RECORDS: _load_records,
+    DataTypes.ARRAY_WITH_UNITS: _load_array_with_units,
 }
 
 class StringIteratorIO:

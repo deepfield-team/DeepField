@@ -5,7 +5,7 @@ from typing import NamedTuple
 
 import pandas as pd
 import numpy as np
-from pandas.errors import SpecificationError
+import numpy.typing as npt
 
 
 INT_NAN = -99999999
@@ -78,6 +78,10 @@ TABLE_INFO = {
 }
 
 
+class ArrayWithUnits(NamedTuple):
+    units: str
+    data: npt.NDArray
+
 class DataTypes(Enum):
     STRING = auto()
     SINGLE_STATEMENT = auto()
@@ -87,6 +91,7 @@ class DataTypes(Enum):
     PARAMETERS = auto()
     OBJECT_LIST = auto()
     RECORDS = auto()
+    ARRAY_WITH_UNITS = auto()
 
 class SECTIONS(Enum):
     RUNSPEC = 'RUNSPEC'
@@ -581,7 +586,8 @@ DATA_DIRECTORY = {
     'MULTX': KeywordSpecification('MULTX', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.GRID,)),
     'MULTY': KeywordSpecification('MULTY', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.GRID,)),
     'MULTZ': KeywordSpecification('MULTZ', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.GRID,)),
-
+    'RPTRSTT': KeywordSpecification('RPTRSTT', DataTypes.ARRAY_WITH_UNITS, ArraySpecification(float),
+                                    (SECTIONS.SOLUTION,))
 }
 
 def get_dynamic_keyword_specification(keyword, data):

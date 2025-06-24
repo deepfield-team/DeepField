@@ -124,6 +124,16 @@ def dump_tabulated_parameters(keyword_spec, val, buf):
         buf.write('\t'.join((key, data)) + '\n')
     buf.write('/')
 
+def _dump_array_with_units(keyword_spec, val, buf):
+    buf.write(keyword_spec.keyword + '\n')
+    buf.write(val.units + '\n')
+    if keyword_spec.specification.dtype in (bool, int):
+        fmt = '%d'
+    else:
+        fmt = '%g'
+    _dump_array_ascii(buf, val.data.reshape(-1), fmt=fmt)
+    buf.write('/')
+
 DUMP_ROUTINES = {
     DataTypes.OBJECT_LIST: lambda keyword_spec, val, buf, _: _dump_object_list(keyword_spec, val, buf),
     DataTypes.STRING: lambda keyword_spec, val, buf, _: _dump_string(keyword_spec, val, buf),
@@ -134,6 +144,7 @@ DUMP_ROUTINES = {
     None: lambda keyword_spec, _, buf, ___: buf.write(f'{keyword_spec.keyword}'),
     DataTypes.SINGLE_STATEMENT: lambda keyword_spec, val, buf, _: _dump_single_statement(keyword_spec, val, buf),
     DataTypes.RECORDS: lambda keyword_spec, val, buf, _: _dump_records(keyword_spec, val, buf),
+    DataTypes.ARRAY_WITH_UNITS: lambda keyword_spec, val, buf, _: _dump_array_with_units(keyword_spec, val, buf)
 }
 
 def _dump_statement(val, buf, closing_slash=True):
