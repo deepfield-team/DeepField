@@ -1,6 +1,6 @@
 import pandas as pd
 import pytest
-from deepfield.field.data_directory.data_directory import (SECTIONS, DataTypes,
+from deepfield.field.data_directory.data_directory import (SECTIONS, DataTypes, StatementSpecification,
     get_dynamic_keyword_specification, KeywordSpecification, TableSpecification)
 TEST_DATA = (
     (
@@ -28,6 +28,50 @@ TEST_DATA = (
         ),
         ValueError()
     ),
+    (
+        (
+            'COMPVD',
+            {
+                'PROPS': (
+                    (
+                        'NCOMPS',
+                        pd.DataFrame([[5]], columns=['N'])
+                    ),
+                )
+            }
+        ),
+        KeywordSpecification(
+            'COMPVD', DataTypes.TABLE_SET, TableSpecification(
+                ['DEPTH'] + [f'Z{i}' for i in range(1, 6)] + ['LIQUID_FLAG', 'P_SAT'],
+                [0],
+                ['float'] * (6) + ['int', 'float']
+            ), (SECTIONS.PROPS,)
+        )
+    ),
+    (
+        (
+            'GPTABLEN',
+            {
+                'PROPS': (
+                    (
+                        'NCOMPS',
+                        pd.DataFrame([[8]], columns=['N'])
+                    ),
+                )
+            }
+        ),
+        KeywordSpecification(
+            'GPTABLEN', DataTypes.TABLE_SET, TableSpecification(
+                ['C_HEAVY'] + [f'OIL_RECOVERY_FRACTION{i}' for i in range(1, 9)] +
+                    [f'NGL_RECOVERY_FRACTION{i}' for i in range(1, 9)],
+                domain=[0],
+                header=StatementSpecification(
+                    ['GPTABLE_NUM', 'HEAVY_C1', 'HEAVY_CLAST'],
+                    ['int']*3
+                )
+            ), (SECTIONS.SOLUTION, SECTIONS.SCHEDULE)
+        )
+    )
 )
 
 @pytest.mark.parametrize(

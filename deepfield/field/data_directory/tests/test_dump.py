@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import pytest
 
-from deepfield.field.data_directory.data_directory import (DATA_DIRECTORY, INT_NAN, ArrayWithUnits, DataTypes,)
+from deepfield.field.data_directory.data_directory import (DATA_DIRECTORY, INT_NAN, SECTIONS, ArrayWithUnits, DataTypes, KeywordSpecification, StatementSpecification, TableSpecification,)
 from deepfield.field.data_directory.dump_utils import DUMP_ROUTINES, dump
 from deepfield.field.data_directory.load_utils import load
 
@@ -74,10 +74,10 @@ DUMP_ROUTINES_TEST_DATA = {
                 'EQUIL',
                 (
                     pd.DataFrame([
-                        [1450.0, 141.0, 1475.0, 0.0, 638.0, 0.0, 1, INT_NAN, 10]
+                        [1450.0, 141.0, 1475.0, 0.0, 638.0, 0.0, 1, INT_NAN, 10, INT_NAN, INT_NAN]
                     ], columns=DATA_DIRECTORY['EQUIL'].specification.columns),
                     pd.DataFrame([
-                        [1450.0, 141.0, 1475.0, 0.0, 965.0, 0.0, 1, INT_NAN, 10]
+                        [1450.0, 141.0, 1475.0, 0.0, 965.0, 0.0, 1, INT_NAN, 10, INT_NAN, INT_NAN]
                     ], columns=DATA_DIRECTORY['EQUIL'].specification.columns)
                 ),
             ),
@@ -95,13 +95,13 @@ DUMP_ROUTINES_TEST_DATA = {
                 'EQUIL',
                 (
                     pd.DataFrame(np.array([
-                        [2300, 200, 2500, 0.1, 2300, 0.001, np.NaN, np.NaN, np.NaN],
+                        [2300, 200, 2500, 0.1, 2300, 0.001, INT_NAN, INT_NAN, INT_NAN, INT_NAN, INT_NAN],
                     ]), columns=DATA_DIRECTORY['EQUIL'].specification.columns),
                     pd.DataFrame(np.array([
-                        [2310, 205, 2520, 0.05, 2310, 0.0, np.NaN, np.NaN, np.NaN],
+                        [2310, 205, 2520, 0.05, 2310, 0.0, INT_NAN, INT_NAN, INT_NAN, INT_NAN, INT_NAN],
                     ]), columns=DATA_DIRECTORY['EQUIL'].specification.columns),
                     pd.DataFrame(np.array([
-                        [2305, 210, 2510, np.NaN, 2305, np.NaN, np.NaN, np.NaN, np.NaN],
+                        [2305, 210, 2510, np.NaN, 2305, np.NaN, INT_NAN, INT_NAN, INT_NAN, INT_NAN, INT_NAN],
                     ]), columns=DATA_DIRECTORY['EQUIL'].specification.columns)
                 )
             ),
@@ -168,7 +168,43 @@ DUMP_ROUTINES_TEST_DATA = {
                 '\t248.0\t1.093\t2.57',
                 '\t334.0\t1.073\t4.23\t/',
                 '/'
-            ))
+            )),
+        ),
+        (
+            (
+                KeywordSpecification(
+                    'GPTABLEN',
+                    DataTypes.TABLE_SET,
+                    TableSpecification(
+                        ['C_HEAVY'] + [f'OIL_RECOVERY_FRACTION{i}' for i in range(1, 9)] +
+                            [f'NGL_RECOVERY_FRACTION{i}' for i in range(1, 9)],
+                        domain=[0],
+                        header=StatementSpecification(['GPTABLE_NUM', 'HEAVY_C1', 'HEAVY_CLAST'], ['int']*3)
+                    ), (SECTIONS.SCHEDULE,)
+                ),
+                (
+                    (
+                        pd.DataFrame(
+                            [[0.2, 0.00, 0.00, 0.00, 0.00061, 0.05, 0.1, 1.0, 1.0, 0.02, 0.03, 0.01, 0.0520, 0.02,
+                              0.01, 0.0, 0.0]],
+                            columns=(['C_HEAVY'] + [f'OIL_RECOVERY_FRACTION{i}' for i in range(1, 9)] +
+                                [f'NGL_RECOVERY_FRACTION{i}' for i in range(1, 9)])
+                        ).set_index(['C_HEAVY']),
+                        pd.DataFrame(
+                            [[1, 8, 8]],
+                            columns=['GPTABLE_NUM', 'HEAVY_C1', 'HEAVY_CLAST']
+                        )
+                    ),
+                ),
+            ),
+            '\n'.join((
+                'GPTABLEN',
+                '1\t8\t8',
+                '0.2\t0.0\t0.0\t0.0\t0.00061\t0.05\t0.1\t1.0\t1.0' +
+                '\t0.02\t0.03\t0.01\t0.052\t0.02\t0.01\t0.0\t0.0',
+                '/'
+            )),
+
         )
     ],
     DataTypes.SINGLE_STATEMENT: [
@@ -522,8 +558,12 @@ DUMP_ROUTINES_TEST_DATA = {
     itertools.chain(*([(key, val, exp) for (val,  exp) in data] for (key, data) in DUMP_ROUTINES_TEST_DATA.items()))
 )
 def test_dump_keyword(data_type, input, expected, tmp_path):
+    if isinstance(input[0], KeywordSpecification):
+        specification = input[0]
+    else:
+        specification = DATA_DIRECTORY[input[0]]
     with io.StringIO() as buf:
-        DUMP_ROUTINES[data_type](DATA_DIRECTORY[input[0]], input[1], buf, tmp_path)
+        DUMP_ROUTINES[data_type](specification, input[1], buf, tmp_path)
         result = buf.getvalue()
         if data_type == DataTypes.ARRAY:
             exp_buf = Template(expected[0]).safe_substitute(include_dir=tmp_path.name)

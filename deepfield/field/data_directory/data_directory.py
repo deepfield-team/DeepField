@@ -74,7 +74,7 @@ TABLE_INFO = {
                     defaults=[(600, 37.457),  (999.014, 62.366), (1, 0.062428)]),
 
     'EQUIL': dict(attrs=['DEPTH', 'PRES', 'WOC_DEPTH', 'WOC_PC', 'GOC_DEPTH', 'GOC_PC', 'RSVD_PBVD_TABLE',
-                         'RVVD_PDVD_TABLE', 'ACCURACY'], domain=None),
+                         'RVVD_PDVD_TABLE', 'ACCURACY', 'INITIALIZTION_TYPE', 'FLAG'], domain=None),
 }
 
 
@@ -115,11 +115,6 @@ DTYPES = {
     'TSTEP': int,
 }
 
-class TableSpecification(NamedTuple):
-    columns: Sequence[str]
-    domain: Sequence[int] | None
-    dtypes: Sequence[str] | str = 'float'
-
 class StringSpecification(NamedTuple):
     date: bool=False
 
@@ -131,11 +126,17 @@ class StatementSpecification(NamedTuple):
     dtypes: Sequence[str]
     terminated: bool=True
 
+class TableSpecification(NamedTuple):
+    columns: Sequence[str]
+    domain: Sequence[int] | None
+    dtypes: Sequence[str] | str = 'float'
+    header: StatementSpecification | None = None
+
 class ArraySpecification(NamedTuple):
     dtype: type
 
 class RecordsSpecification(NamedTuple):
-    specifications: Sequence[StatementSpecification] | None
+    specifications: Sequence[StatementSpecification | TableSpecification] | None
     dynamic: bool=False
     get_next_specification: Callable[[Sequence[pd.DataFrame]], StatementSpecification | ArraySpecification] | None=None
 
@@ -397,7 +398,7 @@ DATA_DIRECTORY = {
     'EQUIL': KeywordSpecification('EQUIL', DataTypes.TABLE_SET, TableSpecification(
         TABLE_INFO['EQUIL']['attrs'],
         TABLE_INFO['EQUIL']['domain'],
-        ['float'] * 6 + ['int'] * 3
+        ['float'] * 6 + ['int'] * 5
     ), (SECTIONS.SOLUTION,)),
     'RPTSOL': KeywordSpecification('RPTSOL', DataTypes.PARAMETERS, ParametersSpecification(), (SECTIONS.SOLUTION,)),
     **{kw: KeywordSpecification(kw, None, None, (SECTIONS.SUMMARY,)) for kw in FIELD_SUMMARY_KEYWORDS},
@@ -515,6 +516,9 @@ DATA_DIRECTORY = {
     'COMPS': KeywordSpecification('COMPS', DataTypes.SINGLE_STATEMENT, StatementSpecification(
         columns=['N'], dtypes=['int']
     ), (SECTIONS.RUNSPEC,)),
+    'NCOMPS': KeywordSpecification('NCOMPS', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        columns=['N'], dtypes=['int']
+    ), (SECTIONS.PROPS,)),
     'PARALLEL': KeywordSpecification('PARALLEL', DataTypes.SINGLE_STATEMENT, StatementSpecification(
         ['NDMAIN', 'MACHINE_TYPE'], ['int', 'text']
     ), (SECTIONS.RUNSPEC,)),
@@ -532,7 +536,9 @@ DATA_DIRECTORY = {
     'TCRIT': KeywordSpecification('TCRIT', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
     'PCRIT': KeywordSpecification('PCRIT', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
     'VCRIT': KeywordSpecification('VCRIT', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
+    'ZCRIT': KeywordSpecification('ZCRIT', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
     'VCRITVIS': KeywordSpecification('VCRITVIS', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
+    'ZCRITVIS': KeywordSpecification('ZCRITVIS', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
     'MW': KeywordSpecification('MW', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
     'ACF': KeywordSpecification('ACF', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
     'BIC': KeywordSpecification('BIC', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
@@ -601,16 +607,43 @@ DATA_DIRECTORY = {
         ["DEPTH", 'GAS_RATIO'], [0,]
     ), (SECTIONS.SOLUTION,)),
     'RPTRSTL': KeywordSpecification('RPTRSTL', None, NoDataSpecification(True), (SECTIONS.SOLUTION,)),
+    'UNIFIN': KeywordSpecification('UINIFIN', None, NoDataSpecification(False), (SECTIONS.RUNSPEC,)),
+    'SWFN': KeywordSpecification('SWFN', DataTypes.TABLE_SET, TableSpecification(
+        ['SW', 'KRW', 'POW'], domain=[0]
+    ), (SECTIONS.PROPS,)),
+    'SGFN': KeywordSpecification('SGFN', DataTypes.TABLE_SET, TableSpecification(
+        ['SG', 'KRG', 'POG'], domain=[0]
+    ), (SECTIONS.PROPS,)),
+    'SOF3': KeywordSpecification('SOF3', DataTypes.TABLE_SET, TableSpecification(
+        ['SO', 'KRO_NO_GAS', 'KRO_CONNATE_WATER'], domain=[0]
+    ), (SECTIONS.PROPS,)),
+    'GRAVITY': KeywordSpecification('GRAVITY', DataTypes.TABLE_SET, TableSpecification(
+        ['OIL_API_GRAVITY', 'WATER_GRAVITY', 'GAS_GRAVITY'], domain=None
+    ), (SECTIONS.PROPS,)),
+    'PRCORR': KeywordSpecification('PRCORR', None, NoDataSpecification(False), (SECTIONS.PROPS,)),
+    'OMEGAA': KeywordSpecification('OMEGAA', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
+    'OMEGAB': KeywordSpecification('OMEGAB', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
+    'SSHIFT': KeywordSpecification('SSHIFT', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
+    'DNGL': KeywordSpecification('DNGL', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
+    'PARACHOR': KeywordSpecification('PARACHOR', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
+    'LBCCOEF': KeywordSpecification('LBCCOEF', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['A1', 'A2', 'A3', 'A4', 'A5'],
+        ['float'] * 5
+    ), (SECTIONS.PROPS,)),
+    'COMPVD': None,
+    'FIELDSEP': KeywordSpecification('FIELDSEP', DataTypes.STATEMENT_LIST, StatementSpecification(
+        ['STAGE_NUM', 'TEMP', 'PRES', 'LIQ_DEST', 'GAS_DEST', 'K_VAL_TABLE_NUM', 'GPTABLE_NUM',
+         'SURFACE_EOS_NUM'],
+        ['int'] + ['float']*2 + ['int']*5
+    ), (SECTIONS.SOLUTION,)),
+    'GPTABLEN': None,
 }
 
 def get_dynamic_keyword_specification(keyword, data):
     if keyword == 'ZMFVD':
-        n_comp = None
-        for d in data['RUNSPEC']:
-            if d[0] == 'COMPS':
-                n_comp = d[1].N.values[0]
+        n_comp = _get_ncomp(data)
         if n_comp is None:
-            raise ValueError('No COMP keyword in `data`.')
+            raise ValueError('No number of components information in `data`.')
         spec = KeywordSpecification('ZMFVD', DataTypes.TABLE_SET, TableSpecification(
             ['DEPTH'] + [f'C{i}' for i in range(1, n_comp+1)],
             [0],
@@ -633,7 +666,44 @@ def get_dynamic_keyword_specification(keyword, data):
                 ),] * n_res
             ), (SECTIONS.GRID, ))
             return spec
-
+    if keyword == 'COMPVD':
+        n_comp = _get_ncomp(data)
+        if n_comp is None:
+            raise ValueError('No number of components information in `data`.')
+        return KeywordSpecification('COMPVD', DataTypes.TABLE_SET, TableSpecification(
+            ['DEPTH'] + [f'Z{i}' for i in range(1, n_comp+1)] + ['LIQUID_FLAG'] + ['P_SAT'],
+            domain=[0],
+            dtypes=['float']*(n_comp+1) + ['int', 'float']
+        ),(SECTIONS.PROPS,))
+    if keyword == 'GPTABLEN':
+        n_comp = _get_ncomp(data)
+        if n_comp is None:
+            raise ValueError('No number of components information in `data`.')
+        return KeywordSpecification('GPTABLEN', DataTypes.TABLE_SET, TableSpecification(
+            ['C_HEAVY'] + [f'OIL_RECOVERY_FRACTION{i}' for i in range(1, n_comp+1)] +
+                [f'NGL_RECOVERY_FRACTION{i}' for i in range(1, n_comp+1)],
+            domain=[0],
+            header=StatementSpecification(
+                ['GPTABLE_NUM', 'HEAVY_C1', 'HEAVY_CLAST'],
+                ['int', 'int', 'int']
+            )
+        ), (SECTIONS.SOLUTION, SECTIONS.SCHEDULE))
     else:
         raise ValueError(f'Specification can not be defined for keyword {keyword}.')
-
+        
+def _get_ncomp(data):
+    """
+    Number of fluid components.
+    """
+    n_comp = None
+    if 'RUNSPEC' in data:
+        for d in data['RUNSPEC']:
+            if d[0] == 'COMPS':
+                n_comp = d[1].N.values[0]
+    if n_comp is not None:
+        return n_comp
+    if 'PROPS' in data:
+        for d in data['PROPS']:
+            if d[0] == 'NCOMPS':
+                n_comp = d[1].N.values[0]
+    return n_comp

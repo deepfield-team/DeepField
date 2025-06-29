@@ -10,7 +10,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from .data_directory import DATA_DIRECTORY, INT_NAN, SECTIONS, ArraySpecification, ArrayWithUnits, DataTypes, StatementSpecification, get_dynamic_keyword_specification
+from .data_directory import DATA_DIRECTORY, INT_NAN, SECTIONS, ArraySpecification, ArrayWithUnits, DataTypes, StatementSpecification, TableSpecification, get_dynamic_keyword_specification
 
 
 DEFAULT_ENCODINGS = ['utf-8', 'cp1251']
@@ -106,6 +106,13 @@ def _load_table(keyword_spec, buf):
     data = _read_table_data(buf, depth)
     tables = []
     for region_table_data in data:
+        header = None
+        if keyword_spec.header is not None:
+            n_header = len(keyword_spec.header.columns)
+            header_data = region_table_data[:n_header]
+            header_data = [_parse_val(v, t) for v, t in zip(header_data, keyword_spec.header.dtypes)]
+            header = pd.DataFrame([header_data], columns=keyword_spec.header.columns)
+            region_table_data = region_table_data[n_header:]
         if depth == 2:
             table_parts = []
             for d in region_table_data:
@@ -138,7 +145,11 @@ def _load_table(keyword_spec, buf):
         if  keyword_spec.domain is not None:
             domain_attrs = [keyword_spec.columns[i] for i in keyword_spec.domain]
             table = table.set_index(domain_attrs)
-        tables.append(table)
+        if header is not None:
+            tables.append((table, header))
+        else:
+            tables.append(table)
+
     return tables
 
 def _load_single_statement(keyword_spec, buffer):
@@ -173,9 +184,11 @@ def _load_records(keyword_spec, buffer):
             return _load_single_statement(spec, buffer)
         elif isinstance(spec, ArraySpecification):
             return _load_array(spec, buffer)
+        if isinstance(spec, TableSpecification):
+            return _load_table(spec, buffer)
         else:
             raise ValueError('Only `StatementSpecification` and `ArraySpecification` ' +
-                f'are supported not {type(spec)}')
+                f'or `TableSpecification` are supported not {type(spec)}')
     def _spec_generator(res):
         while True:
             try:

@@ -49,11 +49,20 @@ def _dump_table(keyword_spec, val, buf):
     buf.write(keyword_spec.keyword)
     domain = keyword_spec.specification.domain
     for table in val:
+        if keyword_spec.specification.header:
+            header = table[1]
+            data = table[0]
+        else:
+            header = None
+            data = table
+        if header is not None:
+            buf.write('\n')
+            _dump_statement(header, buf, closing_slash=False, new_line=False)
         if keyword_spec.specification.domain is not None and len(keyword_spec.specification.domain) == 2:
-            _dump_multitable(table, buf)
+            _dump_multitable(data, buf)
             continue
         buf.write('\n')
-        row_iterator = (table.itertuples() if domain is not None else table.itertuples(index=False))
+        row_iterator = (data.itertuples() if domain is not None else data.itertuples(index=False))
         for row in row_iterator:
             vals = list(row)
             vals = [nan_to_none(v) for v in vals]
@@ -152,7 +161,7 @@ DUMP_ROUTINES = {
     DataTypes.ARRAY_WITH_UNITS: lambda keyword_spec, val, buf, _: _dump_array_with_units(keyword_spec, val, buf)
 }
 
-def _dump_statement(val, buf, closing_slash=True):
+def _dump_statement(val, buf, closing_slash=True, new_line=True):
     if isinstance(val, pd.DataFrame):
         if val.shape[0] != 1:
             raise ValueError('Val shoud have exactly one row.')
@@ -167,7 +176,9 @@ def _dump_statement(val, buf, closing_slash=True):
     if len(str_representaions) == 0:
         str_representaions.append('*')
     result = '\t'.join(str_representaions)
-    result += '\n' if not closing_slash else '/\n'
+    nl = '\n' if new_line else ''
+
+    result += nl if not closing_slash else '/' + nl
     buf.write(result)
 
 def _string_representation(v):

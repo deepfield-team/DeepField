@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from deepfield.field.data_directory.load_utils import LOADERS, decompress_array, parse_vals
 
-from deepfield.field.data_directory.data_directory import ArrayWithUnits, DataTypes, DATA_DIRECTORY
+from deepfield.field.data_directory.data_directory import SECTIONS, ArrayWithUnits, DataTypes, DATA_DIRECTORY, KeywordSpecification, StatementSpecification, TableSpecification
 from deepfield.field.parse_utils.ascii import INT_NAN
 
 TEST_DATA = {
@@ -75,13 +75,13 @@ TEST_DATA = {
                 'EQUIL',
                 (
                     pd.DataFrame([
-                        [2300.0, 200.0, 2500.0, 0.1, 2300.0, 0.001, INT_NAN, INT_NAN, INT_NAN],
+                        [2300.0, 200.0, 2500.0, 0.1, 2300.0, 0.001, INT_NAN, INT_NAN, INT_NAN, INT_NAN, INT_NAN],
                     ], columns=DATA_DIRECTORY['EQUIL'].specification.columns),
                     pd.DataFrame([
-                        [2310.0, 205.0, 2520.0, 0.05, 2310.0, 0.0, INT_NAN, INT_NAN, INT_NAN],
+                        [2310.0, 205.0, 2520.0, 0.05, 2310.0, 0.0, INT_NAN, INT_NAN, INT_NAN, INT_NAN, INT_NAN],
                     ], columns=DATA_DIRECTORY['EQUIL'].specification.columns),
                     pd.DataFrame([
-                        [2305.0, 210.0, 2510.0, np.NaN, 2305.0, np.NaN, INT_NAN, INT_NAN, INT_NAN],
+                        [2305.0, 210.0, 2510.0, np.NaN, 2305.0, np.NaN, INT_NAN, INT_NAN, INT_NAN, INT_NAN, INT_NAN],
                     ], columns=DATA_DIRECTORY['EQUIL'].specification.columns)
                 )
             )
@@ -97,10 +97,10 @@ TEST_DATA = {
                 'EQUIL',
                 (
                     pd.DataFrame([
-                        [1450.0, 141.0, 1475.0, 0.0, 638.0, 0.0, 1, INT_NAN, 10]
+                        [1450.0, 141.0, 1475.0, 0.0, 638.0, 0.0, 1, INT_NAN, 10, INT_NAN, INT_NAN]
                     ], columns=DATA_DIRECTORY['EQUIL'].specification.columns),
                     pd.DataFrame([
-                        [1450.0, 141.0, 1475.0, 0.0, 965.0, 0.0, 1, INT_NAN, 10]
+                        [1450.0, 141.0, 1475.0, 0.0, 965.0, 0.0, 1, INT_NAN, 10, INT_NAN, INT_NAN]
                     ], columns=DATA_DIRECTORY['EQUIL'].specification.columns)
                 )
             ),
@@ -213,6 +213,44 @@ TEST_DATA = {
                     ]), columns=DATA_DIRECTORY['PVTO'].specification.columns,).set_index(
                         [DATA_DIRECTORY['PVTO'].specification.columns[i] for
                             i in DATA_DIRECTORY['PVTO'].specification.domain]),
+                )
+            )
+        ),
+        (
+            (
+                '\n'.join((
+                    'GPTABLEN',
+                    '1 8 8',
+                    '0.2\t0.00\t0.00\t0.00\t0.00061\t0.05\t0.1\t1.0\t1.0',
+                    '\t0.02\t0.03\t0.01\t0.0520\t0.02\t0.01\t0.0\t0.0',
+                    '/'
+                )),
+                KeywordSpecification(
+                    'GPTABLEN',
+                    DataTypes.TABLE_SET,
+                    TableSpecification(
+                        ['C_HEAVY'] + [f'OIL_RECOVERY_FRACTION{i}' for i in range(1, 9)] +
+                            [f'NGL_RECOVERY_FRACTION{i}' for i in range(1, 9)],
+                        domain=[0],
+                        header=StatementSpecification(['GPTABLE_NUM', 'HEAVY_C1', 'HEAVY_CLAST'], ['int']*3)
+                    ), (SECTIONS.SCHEDULE,)
+                )
+            ),
+            (
+                'GPTABLEN',
+                (
+                    (
+                        pd.DataFrame(
+                            [[0.2, 0.00, 0.00, 0.00, 0.00061, 0.05, 0.1, 1.0, 1.0, 0.02, 0.03, 0.01, 0.0520, 0.02,
+                              0.01, 0.0, 0.0]],
+                            columns=(['C_HEAVY'] + [f'OIL_RECOVERY_FRACTION{i}' for i in range(1, 9)] +
+                                [f'NGL_RECOVERY_FRACTION{i}' for i in range(1, 9)])
+                        ).set_index(['C_HEAVY']),
+                        pd.DataFrame(
+                            [[1, 8, 8]],
+                            columns=['GPTABLE_NUM', 'HEAVY_C1', 'HEAVY_CLAST']
+                        )
+                    ),
                 )
             )
         )
@@ -726,28 +764,45 @@ def test_load(data_type, input, expected):
                 self._last = None
             else:
                 raise ValueError('Can not get previous line.')
-    buf = iter(input.splitlines())
+    if isinstance(input, tuple | list):
+        inp_text, specification = input
+    else:
+        specification = None
+        inp_text = input
+
+    buf = iter(inp_text.splitlines())
 
     buf = IterPrev(buf)
 
     keyword = next(buf)
+    if specification is None:
+        specification = DATA_DIRECTORY[keyword]
     if isinstance(expected, Exception):
         with pytest.raises(type(expected)):
-            LOADERS[data_type](DATA_DIRECTORY[keyword].specification, buf)
+            LOADERS[data_type](specification.specification, buf)
     else:
-        res = LOADERS[data_type](DATA_DIRECTORY[keyword].specification, buf)
+        res = LOADERS[data_type](specification.specification, buf)
         if not isinstance(expected[1], tuple | list | ArrayWithUnits):
             expected_res = [expected[1]]
             res = [res]
         else:
             expected_res = expected[1]
         for r, e in zip(res, expected_res):
-            if isinstance(e, np.ndarray):
-                np.testing.assert_equal(r, e)
-            elif isinstance(e, pd.DataFrame):
-                pd.testing.assert_frame_equal(r, e)
-            else:
-                assert r == e
+            _test_val(r, e)
+
+def _test_val(r, e):
+    if isinstance(r, tuple | list):
+        assert len(r) == len(e)
+        for _r, _e in zip(r, e):
+            _test_val(_r, _e)
+        return
+    if isinstance(e, np.ndarray):
+        np.testing.assert_equal(r, e)
+    elif isinstance(e, pd.DataFrame):
+        pd.testing.assert_frame_equal(r, e)
+    else:
+        assert r == e
+
 
 DECOMPRESS_TEST_DATA = [
     (
