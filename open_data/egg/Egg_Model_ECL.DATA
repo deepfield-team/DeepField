@@ -8,6 +8,7 @@ NOECHO
 RUNSPEC
 TITLE
 Egg_Model
+/
 
 -- ascii formatted output
 --FMTOUT
@@ -45,7 +46,7 @@ START
 
 -- <+> GRID Section
 
-GRID 
+GRID
 
 
 SPECGRID
@@ -120,7 +121,7 @@ SWOF
 	0.8000  4.7192e-01  2.8000e-05  0
 	0.8500 6.0000e-01  0.0000e+00  0
 	0.9000  7.4939e-01  0.0000e+00  0
-	       
+
 /
 
 
@@ -168,15 +169,15 @@ WWPR
 'PROD4'
 /
 WWIR
-'INJECT1' 
+'INJECT1'
 'INJECT2'
-'INJECT3' 
-'INJECT4' 
+'INJECT3'
+'INJECT4'
 'INJECT5'
 'INJECT6'
 'INJECT7'
 'INJECT8'
-/   
+/
 FOPT
 FWPT
 FWIT
@@ -192,7 +193,7 @@ WBHP
 'PROD3'
 'PROD4'
 /
---BRPV 
+--BRPV
 --1 1 1 /
 EXCEL
 
@@ -231,7 +232,7 @@ WELSPECS
 /
 
 COMPDAT
-    	'INJECT1'    2*    1     7 'OPEN' 2*     0.2 	1*          0 / 
+    	'INJECT1'    2*    1     7 'OPEN' 2*     0.2 	1*          0 /
 	'INJECT2'    2*    1     7 'OPEN' 2*     0.2 	1*          0 /
 	'INJECT3'    2*    1     7 'OPEN' 2*     0.2 	1*          0 /
 	'INJECT4'    2*    1     7 'OPEN' 2*     0.2 	1*          0 /
@@ -239,10 +240,10 @@ COMPDAT
 	'INJECT6'    2*    1     7 'OPEN' 2*     0.2 	1*          0 /
 	'INJECT7'    2*    1     7 'OPEN' 2*     0.2 	1*          0 /
 	'INJECT8'    2*    1     7 'OPEN' 2*     0.2 	1*          0 /
-    	'PROD1'      2*    1     7 'OPEN' 2*     0.2 	1*          0 / 
-    	'PROD2'      2*    1     7 'OPEN' 2*     0.2 	1*          0 / 
-    	'PROD3'      2*    1     7 'OPEN' 2*     0.2 	1*          0 / 
-    	'PROD4'      2*    1     7 'OPEN' 2*     0.2	1*          0 / 
+    	'PROD1'      2*    1     7 'OPEN' 2*     0.2 	1*          0 /
+    	'PROD2'      2*    1     7 'OPEN' 2*     0.2 	1*          0 /
+    	'PROD3'      2*    1     7 'OPEN' 2*     0.2 	1*          0 /
+    	'PROD4'      2*    1     7 'OPEN' 2*     0.2	1*          0 /
 /
 
 
@@ -253,7 +254,7 @@ WCONPROD
     'PROD2' 'OPEN' 'BHP' 5*  395/
     'PROD4' 'OPEN' 'BHP' 5*  395/
 /
---5*13.789514 
+--5*13.789514
 --WCONINJE
 --    	'INJECT1' 'WATER' 'OPEN' 'BHP' 2* 405/
 --	'INJECT2' 'WATER' 'OPEN' 'BHP' 2* 405/
@@ -274,6 +275,6 @@ TUNING
 INCLUDE
   SCHEDULE_NEW.INC /
 
--- END OF DECK 
+-- END OF DECK
 
 -- <@> JewelSuite(TM) ECLIPSE Deck Builder

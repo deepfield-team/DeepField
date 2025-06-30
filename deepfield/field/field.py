@@ -1,38 +1,52 @@
 # pylint: disable=too-many-lines
 """Field class."""
-import logging
-import os
-import sys
-import weakref
 from copy import deepcopy
 from functools import partial
+import logging
+import os
 from string import Template
+import sys
+import weakref
 
+from anytree import PreOrderIter
 import h5py
 import numpy as np
 import pandas as pd
 import pyvista as pv
-from anytree import PreOrderIter
-from vtk import vtkXMLUnstructuredGridWriter # pylint: disable=no-name-in-module
-from vtk.util.numpy_support import numpy_to_vtk # pylint: disable=no-name-in-module, import-error
+from vtk import vtkXMLUnstructuredGridWriter
+from vtk.util.numpy_support import numpy_to_vtk
 
-from .arithmetics import load_add, load_copy, load_equals, load_multiply
-from .faults import Faults
 from .aquifer import Aquifers
+from .arithmetics import load_add, load_copy, load_equals, load_multiply
 from .configs import default_config
 from .dump_ecl_utils import egrid, init, restart, summary
+from .data_directory.data_directory import DATA_DIRECTORY
+from .faults import Faults
 from .grids import CornerPointGrid, Grid, OrthogonalGrid, specify_grid
-from .parse_utils import (dates_to_str, preprocess_path,
-                          read_dates_from_buffer, tnav_ascii_parser)
+from .parse_utils import (
+    dates_to_str,
+    preprocess_path,
+    read_dates_from_buffer,
+    tnav_ascii_parser,
+)
 from .rates import calc_rates, calc_rates_multiprocess
 from .rock import Rock
 from .states import States
 from .tables import Tables
-from .template_models import (CORNERPOINT_GRID, DEFAULT_ECL_MODEL,
-                              DEFAULT_TN_MODEL, ORTHOGONAL_GRID)
-from .utils import (get_single_path, get_spatial_cf_and_perf,
-                    get_spatial_well_control, get_well_mask)
+from .template_models import (
+    CORNERPOINT_GRID,
+    DEFAULT_ECL_MODEL,
+    DEFAULT_TN_MODEL,
+    ORTHOGONAL_GRID,
+)
+from .utils import (
+    get_single_path,
+    get_spatial_cf_and_perf,
+    get_spatial_well_control,
+    get_well_mask,
+)
 from .wells import Wells
+from ._data_getters import DATA_GETTERS
 
 ACTOR = None
 
@@ -1326,6 +1340,42 @@ class Field:
         plotter.show_grid(show_xlabels=show_labels, show_ylabels=show_labels, show_zlabels=show_labels)
         plotter.show()
 
+    def _get_keyword_data(self, section, keyword):
+        return DATA_GETTERS[section][keyword](self)
+
+    def _get_section_data(self, section):
+        section_data = []
+        for entry in DATA_DIRECTORY[section]:
+            data = self._get_keyword_data(section, entry.keyword)
+            if data[0]:
+                section_data.append((entry, data[1]))
+        return section_data
+
+    def _export_runspec(self):
+        return '\n\n'.join([
+            "RUNSPEC",
+            *[dump_keyword(*entry) for entry in self._get_section_data()]
+        ])
+
+    def _export_section(self, section, buf, include_path):
+        buf_tmp = buf
+        data = self._get_section_data(section)
+        buf.write(f'{section}\n\n')
+        for entry in data:
+            buf_tmp = dump_keyword(*entry, buf_tmp, include_path)
+        return buf_tmp
+
+    def _export(self, path):
+        title = self.meta['TITLE']
+        dir_path = os.path.join(path, title)
+        if not os.path.exists(dir_path):
+            os.mkdir(dir_path)
+        include_path = os.path.join(dir_path, 'include')
+        if not os.path.exists(include_path):
+            os.mkdir(include_path)
+        with open(os.path.join(dir_path, f'{title}.data'), 'w') as buf:
+            for section in ['RUNSPEC', 'GRID', 'PROPS']:
+                buf = self._export_section(section, buf, include_path)
 
 def create_mesh(plotter, grid, attribute, opacity, threshold, slice_xyz, timestamp, plot_params, scaling):
     """Create mesh for pyvista visualisation."""
