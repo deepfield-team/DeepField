@@ -253,6 +253,52 @@ TEST_DATA = {
                     ),
                 )
             )
+        ),
+        (
+            (
+                '\n'.join((
+                    'GPTABLEN',
+                    '1 2*',
+                    '0.0  0.0   0.0   0.0    0.0002   0.0516  0.1886   0.2747  0.9801  0.9991  1.00   1.00  1.00  6*1.00',
+                    '0.0   0.0   0.0    0.0075   0.9437  0.8114   0.7253  0.0199  0.0009  0.00   0.00  0.00  6*0.00',
+                    '1.0  0.0   0.0   0.0    0.0002   0.0516  0.1886   0.2747  0.9801  0.9991  1.00   1.00  1.00  6*1.00',
+                    '0.0   0.0   0.0    0.0075   0.9437  0.8114   0.7253  0.0199  0.0009  0.00   0.00  0.00  6*0.00',
+                        '/',
+                )),
+                KeywordSpecification(
+                    'GPTABLEN',
+                    DataTypes.TABLE_SET,
+                    TableSpecification(
+                        ['C_HEAVY'] + [f'OIL_RECOVERY_FRACTION{i}' for i in range(1, 19)] +
+                            [f'NGL_RECOVERY_FRACTION{i}' for i in range(1, 19)],
+                        domain=[0],
+                        header=StatementSpecification(['GPTABLE_NUM', 'HEAVY_C1', 'HEAVY_CLAST'], ['int']*3)
+                    ), (SECTIONS.SCHEDULE,)
+                )
+            ),
+            (
+                'GPTABLEN',
+                (
+                    (
+                        pd.DataFrame(
+                            [[0.0, 0.00, 0.00, 0.00, 0.0002, 0.0516, 0.1886, 0.2747, 0.9801, 0.9991, 1.0, 1.0, 1.0,
+                              1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+                              0.0, 0.0, 0.0, 0.0075, 0.9437, 0.8114, 0.7253, 0.0199, 0.0009, 0.000, 0.00, 0.00,
+                              0.00, 0.00, 0.00, 0.00, 0.00, 0.00],
+                             [1.0, 0.00, 0.00, 0.00, 0.0002, 0.0516, 0.1886, 0.2747, 0.9801, 0.9991, 1.0, 1.0, 1.0,
+                              1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+                              0.0, 0.0, 0.0, 0.0075, 0.9437, 0.8114, 0.7253, 0.0199, 0.0009, 0.000, 0.00, 0.00,
+                              0.00, 0.00, 0.00, 0.00, 0.00, 0.00]],
+                            columns=(['C_HEAVY'] + [f'OIL_RECOVERY_FRACTION{i}' for i in range(1, 19)] +
+                                [f'NGL_RECOVERY_FRACTION{i}' for i in range(1, 19)])
+                        ).set_index(['C_HEAVY']),
+                        pd.DataFrame(
+                            [[1, INT_NAN, INT_NAN]],
+                            columns=['GPTABLE_NUM', 'HEAVY_C1', 'HEAVY_CLAST']
+                        )
+                    ),
+                )
+            )
         )
     ],
     DataTypes.SINGLE_STATEMENT: [

@@ -233,12 +233,15 @@ def _read_table_data(buffer, depth):
         data = list(data)
     ind = [0] * depth
     group_end = True
-    expr = re.compile(r'(\d*)\*')
+    expr = re.compile(r'(\d*)\*(([^\s]*))')
 
     def _repl(match):
         num = match.groups()[0]
+        val = match.groups()[1]
+        if len(val) == 0:
+            val = 'nan'
         num = int(num) if num else 1
-        return ' '.join(['nan']*num)
+        return ' '.join([val]*num)
 
     for line in buffer:
         line = line.strip()
