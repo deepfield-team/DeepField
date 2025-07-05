@@ -21,9 +21,9 @@ class States(SpatialComponent):
         super().__init__(*args, **{k:v for k, v in kwargs.items() if k != 'dates'})
 
     def copy(self):
-        cp = super().copy()
-        cp.dates = copy.deepcopy(self.dates)
-        return cp
+        states_copy = super().copy()
+        states_copy.dates = copy.deepcopy(self.dates)
+        return states_copy
 
     def _dump_hdf5_group(self, grp, compression, state, **kwargs):
         super()._dump_hdf5_group(grp, compression, state, **kwargs)

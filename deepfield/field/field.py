@@ -1005,9 +1005,9 @@ class Field:
             for attr in comp.attributes:
                 val = getattr(comp, attr)
                 if val.ndim == 3:
-                    array = numpy_to_vtk(val[grid.actnum])
+                    array = numpy_to_vtk(val[grid.actnum].astype('float32'))
                 elif val.ndim == 4:
-                    array = numpy_to_vtk(val[:, grid.actnum].T)
+                    array = numpy_to_vtk(val[:, grid.actnum].T.astype('float32'))
                 else:
                     raise ValueError('Attribute {attr} in component {comp_name}' +
                                      'should be 3 or 4 dimensional array to be dumped.')

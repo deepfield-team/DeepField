@@ -4,6 +4,7 @@ import warnings
 import numpy as np
 import vtk
 from vtkmodules.util import numpy_support
+from vtkmodules.vtkFiltersCore import vtkStaticCleanUnstructuredGrid # pylint: disable=no-name-in-module
 
 from .decorators import cached_property, apply_to_each_input
 from .base_spatial import SpatialComponent
@@ -286,7 +287,7 @@ class Grid(SpatialComponent):
         n_cells = cells.shape[0]
         cells = cells.reshape(-1, cells.shape[-1], order='C')
 
-        cells = numpy_support.numpy_to_vtk(cells, deep=True)
+        cells = numpy_support.numpy_to_vtk(cells.astype('float32'), deep=False)
 
         points = vtk.vtkPoints()
         points.SetNumberOfPoints(8*n_cells)
@@ -298,9 +299,16 @@ class Grid(SpatialComponent):
         connectivity = np.insert(range(8 * n_cells), range(0, 8 * n_cells, 8), 8).astype(np.int64)
         cell_array.SetCells(n_cells, numpy_support.numpy_to_vtkIdTypeArray(connectivity, deep=True))
 
-        self._vtk_grid = vtk.vtkUnstructuredGrid()
-        self._vtk_grid.SetPoints(points)
-        self._vtk_grid.SetCells(cell.GetCellType(), cell_array)
+        ugrid = vtk.vtkUnstructuredGrid()
+        ugrid.SetPoints(points)
+        ugrid.SetCells(cell.GetCellType(), cell_array)
+
+        cleaner = vtkStaticCleanUnstructuredGrid()
+        cleaner.SetInputData(ugrid)
+        cleaner.RemoveUnusedPointsOn()
+        cleaner.Update()
+
+        self._vtk_grid = cleaner.GetOutput()
 
 
 class OrthogonalGrid(Grid):
