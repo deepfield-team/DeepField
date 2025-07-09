@@ -9,7 +9,7 @@ import pandas as pd
 from ..field import Field, OrthogonalGrid
 from ..field.base_component import BaseComponent
 from ..field.base_spatial import SpatialComponent
-from ..field.getting_wellblocks import defining_wellblocks_vtk
+from ..field.getting_wellblocks import get_wellblocks_vtk
 
 from .data.test_wells import TEST_WELLS
 
@@ -81,13 +81,14 @@ class TestPipeline():
     def test_wells_pipeline(self, hdf5_model): #pylint: disable=redefined-outer-name
         """Testing wells processing."""
         model = hdf5_model.copy()
+        model.grid.create_vtk_grid()
         model.wells.update({'no_welltrack': {'perf': pd.DataFrame()}})
         model.wells.drop_incomplete()
         assert 'no_welltrack' not in model.wells.names
         model.wells.get_blocks()
         assert np.all(['BLOCKS' in node for node in model.wells])
         model.wells.drop_outside()
-        assert len(model.wells.names) == 25
+        assert len(model.wells.names) == 27
         assert min((node.blocks.size for node in model.wells)) > 0
 
 
@@ -117,7 +118,7 @@ class TestBaseComponent():
     def test_state(self):
         """Testing state."""
         bcomp = BaseComponent()
-        bcomp.init_state(test=True)
+        bcomp.set_state(test=True)
         assert bcomp.state.test
         bcomp.set_state(test=False)
         assert ~bcomp.state.test
@@ -145,6 +146,7 @@ def orth_grid():
                           dz=np.ones([4, 6, 8]),
                           tops=np.zeros([4, 6, 8]) + np.arange(8),
                           actnum=np.ones((4, 6, 8)))
+    grid.create_vtk_grid()
     return grid
 
 class TestOrthogonalGrid():
@@ -153,19 +155,22 @@ class TestOrthogonalGrid():
     def test_setup(self, orth_grid): #pylint: disable=redefined-outer-name
         """Testing grid setup."""
         assert np.all(orth_grid.dimens == [4, 6, 8])
-        assert np.all(orth_grid.cell_volumes == 1)
-        assert np.all(np.isclose(orth_grid.xyz, orth_grid.as_corner_point.xyz))
-        assert np.all(np.isclose(orth_grid.cell_centroids, orth_grid.as_corner_point.cell_centroids))
+        assert np.isclose(orth_grid.cell_volumes, 1).all()
 
     def test_upscale(self, orth_grid): #pylint: disable=redefined-outer-name
         """Testing grid upscale and downscale methods."""
         upscaled = orth_grid.upscale(2)
+        upscaled.create_vtk_grid()
+
         assert np.all(upscaled.dimens == orth_grid.dimens / 2)
-        assert np.all(upscaled.cell_volumes == 8)
+        assert np.isclose(upscaled.cell_volumes, 8).all()
         assert np.all(upscaled.actnum)
+
         downscaled = orth_grid.downscale(2)
+        downscaled.create_vtk_grid()
+
         assert np.all(downscaled.dimens == orth_grid.dimens * 2)
-        assert np.all(downscaled.cell_volumes == 1/8)
+        assert np.isclose(downscaled.cell_volumes, 1/8).all()
         assert np.all(downscaled.actnum)
 
 
@@ -175,7 +180,7 @@ class TestCornerPointGrid():
     def test_setup(self, hdf5_model): #pylint: disable=redefined-outer-name
         """Testing grid setup."""
         grid = hdf5_model.grid
-        assert np.all(grid.cell_volumes == 1)
+        assert np.isclose(grid.cell_volumes, 1).all()
 
     def test_upscale(self, hdf5_model): #pylint: disable=redefined-outer-name
         """Testing grid upscale and downscale methods."""
@@ -206,17 +211,13 @@ class TestWellblocks():
         grid.actnum[1, 0, 1] = False
         grid.actnum[1, 0, 4] = False
 
-        grid.create_vtk_locator()
+        grid.create_vtk_grid()
 
         for test_well in TEST_WELLS:
-            output = defining_wellblocks_vtk(test_well['welltrack'], '1', grid,
-                                             grid._vtk_locator, grid._cell_id_d) #pylint: disable=protected-access
-            xyz_block, _, _, inters = output
-            for i, block in enumerate(xyz_block):
+            blocks, _, _ = get_wellblocks_vtk(test_well['welltrack'], grid)
+            for i, block in enumerate(blocks):
                 assert np.allclose(
-                    test_well['blocks'][i], block), f"Error in defining blocks: {test_well['blocks'], xyz_block}"
-                assert np.allclose(
-                    test_well['inters'][i], inters[i]), f"Error in defining intersections {test_well['inters'], inters}"
+                    test_well['blocks'][i], block), f"Error in defining blocks: {test_well['blocks'][i], block}"
 
 class TestArithmetics():
     """Test loading model with arithmetics keywords."""

@@ -1,15 +1,12 @@
 """Classes and routines for handling model grids."""
-import warnings
-
 import numpy as np
 import vtk
-from vtkmodules.util import numpy_support
-from vtkmodules.vtkFiltersCore import vtkStaticCleanUnstructuredGrid # pylint: disable=no-name-in-module
+from vtkmodules.util.numpy_support import vtk_to_numpy
 
 from .decorators import cached_property, apply_to_each_input
 from .base_spatial import SpatialComponent
-from .grid_utils import get_top_z_coords, numba_get_volumes, numba_get_xyz, get_connectivity_matrix
-from .utils import rolling_window, mk_vtk_id_list, get_single_path
+from .grid_utils import calc_cells, numba_get_xyz
+from .utils import rolling_window, get_single_path
 from .parse_utils import read_ecl_bin
 
 
@@ -18,11 +15,9 @@ class Grid(SpatialComponent):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._vtk_grid = None
-        self._cell_id_d = None
-        self._vtk_grid_params = {'use_only_active': True, 'cell_size': None, 'scaling': True}
-        self._vtk_grid_scales = [1, 1, 1]
+        self._vtk_grid = vtk.vtkUnstructuredGrid()
         self._vtk_locator = None
+        self._actnum_ids = None
         self.to_spatial()
         if 'MAPAXES' not in self:
             setattr(self, 'MAPAXES', np.array([0, 1, 0, 0, 1, 0]))
@@ -30,25 +25,88 @@ class Grid(SpatialComponent):
             self.actnum = np.ones(self.dimens, dtype=bool)
 
     @property
+    def vtk_grid(self):
+        """VTK unstructured grid."""
+        return self._vtk_grid
+
+    @property
+    def locator(self):
+        """VTK locator."""
+        if self._vtk_locator is None:
+            self.create_vtk_locator()
+        return self._vtk_locator
+
+    def create_vtk_grid(self):
+        """Creates VTK instructured grid."""
+        self._create_vtk_grid()
+        self._vtk_locator = None
+        return self
+
+    def create_vtk_locator(self):
+        """Creates VTK localor."""
+        self._vtk_locator = vtk.vtkModifiedBSPTree()
+        self._vtk_locator.SetDataSet(self.vtk_grid)
+        self._vtk_locator.AutomaticOn()
+        self._vtk_locator.BuildLocator()
+        return self
+
+    def _create_vtk_grid(self):
+        """Grid-dependend method that creates VTK instructured grid."""
+        _ = self
+        raise NotImplementedError()
+
+    def id_to_ijk(self, idx):
+        """Convert raveled positional index of active cell to ijk."""
+        idx = self.actnum_ids[np.asarray(idx)]
+        k = idx // (self.dimens[0]*self.dimens[1])
+        r = idx - k*self.dimens[0]*self.dimens[1]
+        j = r // self.dimens[0]
+        i = r - j*self.dimens[0]
+        return np.stack([i, j, k], axis=-1)
+
+    def ijk_to_id(self, ijk):
+        """Convert ijk index of active cell to raveled positional index."""
+        ids = []
+        for x in np.asarray(ijk).reshape(-1, 3):
+            i, j, k = x
+            n = k*self.dimens[0]*self.dimens[1] + j*self.dimens[0] + i
+            try:
+                ids.append(np.where(self.actnum_ids == n)[0][0])
+            except IndexError as exc:
+                raise IndexError("Can not compute index: cell ({}, {}, {}) is inactive.".format(i, j, k)) from exc
+        return ids
+
+    @property
+    def actnum_ids(self):
+        """Raveled indices of active cells."""
+        return self._actnum_ids
+
+    @property
+    def xyz(self):
+        """Get x, y, z coordinates of cell vertices for all cells in a grid, including inactive."""
+        raise NotImplementedError()
+
+    @property
     def origin(self):
         """Grid axes origin relative to the map coordinates."""
         return np.array([self.mapaxes[2], self.mapaxes[3], self.tops.ravel()[0]])
 
     @property
-    def xyz(self):
-        """Cell vertices coordinates."""
-        raise NotImplementedError()
-
-    @property
     def cell_centroids(self):
         """Centroids of cells."""
-        return self.xyz.mean(axis=-2)
+        filt = vtk.vtkCellCenters()
+        filt.SetInputDataObject(self.vtk_grid)
+        filt.Update()
+        return vtk_to_numpy(filt.GetOutput().GetPoints().GetData())
 
     @property
     def cell_volumes(self):
         """Volumes of cells."""
-        grid = specify_grid(self)
-        return grid.cell_volumes
+        filt = vtk.vtkCellSizeFilter()
+        filt.ComputeVolumeOn()
+        filt.SetInputDataObject(self.vtk_grid)
+        filt.Update()
+        return vtk_to_numpy(filt.GetOutput().GetCellData().GetArray("Volume"))
 
     def to_corner_point(self):
         """Corner-point representation of the grid."""
@@ -62,9 +120,8 @@ class Grid(SpatialComponent):
     @cached_property
     def bounding_box(self):
         """Pair of diagonal corner points for grid's bounding box."""
-        min_vals = self.xyz.min(axis=-2).min(axis=(0, 1, 2))
-        max_vals = self.xyz.max(axis=-2).max(axis=(0, 1, 2))
-        return np.array([min_vals, max_vals])
+        bounds = self.vtk_grid.GetBounds()
+        return np.hstack([bounds[::2], bounds[1::2]])
 
     @property
     def ex(self):
@@ -126,10 +183,17 @@ class Grid(SpatialComponent):
         """Apply MINPV threshold to ACTNUM."""
         minpv_value = self.minpv[0]
         volumes = self.cell_volumes
-        poro = self.field.rock.poro
-        ntg = getattr(self.field.rock, "ntg", 1)
-        mask = poro * volumes*ntg >= minpv_value
-        self.actnum = self.actnum * mask
+        poro = self.field.rock.poro.ravel(order='F')[self.actnum_ids]
+        if 'NTG' in self.field.rock:
+            ntg = self.field.rock.ntg.ravel(order='F')[self.actnum_ids]
+        else:
+            ntg = 1
+        mask = poro*volumes*ntg >= minpv_value
+        if not mask.all():
+            new_actnum = np.full(self.actnum.size, False)
+            new_actnum[self.actnum_ids[mask]] = True
+            self.actnum = new_actnum.reshape(self.dimens, order='F')
+            self.create_vtk_grid()
 
     @apply_to_each_input
     def _to_spatial(self, attr, **kwargs):
@@ -183,133 +247,6 @@ class Grid(SpatialComponent):
             return data.astype(int)
         return data
 
-    def minimal_active_slices(self):
-        """Get minimal cube slice that contains all active cells."""
-        pos = np.where(self.actnum)
-        return tuple(slice(p.min(), p.max() + 1) for p in pos)
-
-    def crop_minimal_cube(self):
-        """Crop to minimal cube containing active cells."""
-        raise NotImplementedError()
-
-    def get_neighbors_matrix(self, connectivity=1, fill_value=-1, ravel_index=False):
-        """Get indices of neighbors for all active cells.
-
-        Parameters
-        ----------
-        connectivity : int, optional
-            Maximum number of orthogonal hops to consider a cell is
-            as a neighbor, by default 1.
-        fill_value : int, optional
-            Value to fill indices of inactive or absent neighbors, by default -1.
-        ravel_index : bool, optional
-            Indices in raveled form, by default False.
-
-        Returns
-        -------
-        res : misc
-            Matrix of active neighbors and matrix of distances if 'calculate_distances'.
-        """
-        actnum = self.actnum
-        res, invalid_cells = get_connectivity_matrix(actnum, connectivity)
-        if ravel_index:
-            res = np.ravel_multi_index((res[..., 0], res[..., 1], res[..., 2]), self.dimens, order='F')
-        res[invalid_cells] = fill_value
-        return res
-
-    def calculate_neighbours_distances(self, connectivity=1, fill_value=-1, neighbours_matrix=None):
-        """Calculate distances between neighbors for all active cells.
-
-        Parameters
-        ----------
-        connectivity : int, optional
-            Maximum number of orthogonal hops to consider a cell is
-            as a neighbor., by default 1.
-        fill_value : int, optional
-            Value to fill indices of inactive or absent neighbors, by default -1.
-        neighbours_matrix: numpy.ndarray, optional
-            Matrix with indices of neighbors in unraveled form.
-
-        Returns
-        -------
-        numpy.ndarray
-            Matrix of distances.
-        """
-        actnum = self.actnum
-        if neighbours_matrix is None:
-            neighbours_matrix = self.get_neighbors_matrix(
-                connectivity=connectivity,
-                fill_value=fill_value,
-                ravel_index=False
-            )
-        invalid_cells = np.where(
-            np.any(neighbours_matrix == fill_value, axis=-1),
-            np.ones(shape=neighbours_matrix.shape[:2]),
-            np.zeros(shape=neighbours_matrix.shape[:2])
-        ).astype(bool)
-        neighbor_centers = self.cell_centroids[
-            neighbours_matrix[..., 0], neighbours_matrix[..., 1], neighbours_matrix[..., 2]
-        ]
-        active_cells_centers = self.cell_centroids[actnum]
-        distances = np.linalg.norm(
-            neighbor_centers - np.tile(active_cells_centers[:, np.newaxis, :],
-                                       (1, neighbor_centers.shape[1], 1)),
-            axis=2
-        )
-        distances[invalid_cells] = fill_value
-        return distances
-
-    def create_vtk_grid(self, use_only_active=True, scaling=True, **kwargs):
-        """Creates pyvista unstructured grid object.
-
-        Returns
-        -------
-        grid : `pyvista.core.pointset.UnstructuredGrid` object
-        """
-        _ = kwargs
-        self._vtk_grid_params = {'use_only_active': use_only_active, 'cell_size': None, 'scaling': scaling}
-
-        cells = self.xyz
-        indexes = np.moveaxis(np.indices(self.dimens), 0, -1)
-
-        if use_only_active:
-            cells = cells[self.actnum]
-            indexes = indexes[self.actnum]
-        else:
-            cells = cells.reshape((-1,) + cells.shape[3:])
-            indexes = indexes.reshape((-1,) + indexes.shape[3:])
-
-        self._cell_id_d = dict(enumerate(indexes))
-
-        cells[:, [2, 3]] = cells[:, [3, 2]]
-        cells[:, [6, 7]] = cells[:, [7, 6]]
-
-        n_cells = cells.shape[0]
-        cells = cells.reshape(-1, cells.shape[-1], order='C')
-
-        cells = numpy_support.numpy_to_vtk(cells.astype('float32'), deep=False)
-
-        points = vtk.vtkPoints()
-        points.SetNumberOfPoints(8*n_cells)
-        points.SetData(cells)
-
-        cell_array = vtk.vtkCellArray()
-        cell = vtk.vtkHexahedron()
-
-        connectivity = np.insert(range(8 * n_cells), range(0, 8 * n_cells, 8), 8).astype(np.int64)
-        cell_array.SetCells(n_cells, numpy_support.numpy_to_vtkIdTypeArray(connectivity, deep=True))
-
-        ugrid = vtk.vtkUnstructuredGrid()
-        ugrid.SetPoints(points)
-        ugrid.SetCells(cell.GetCellType(), cell_array)
-
-        cleaner = vtkStaticCleanUnstructuredGrid()
-        cleaner.SetInputData(ugrid)
-        cleaner.RemoveUnusedPointsOn()
-        cleaner.Update()
-
-        self._vtk_grid = cleaner.GetOutput()
-
 
 class OrthogonalGrid(Grid):
     """Orthogonal uniform grid."""
@@ -322,13 +259,8 @@ class OrthogonalGrid(Grid):
             setattr(self, 'TOPS', tops)
 
     @property
-    def cell_volumes(self):
-        """Volumes of cells."""
-        return self.dx * self.dy * self.dz
-
-    @property
     def xyz(self):
-        """Cells' vertices coordinates."""
+        """Get x, y, z coordinates of cell vertices for all cells in a grid, including inactive."""
         xyz = np.zeros(tuple(self.dimens) + (8, 3))
         px = np.cumsum(self.dx, axis=0) + self.origin[0]
         py = np.cumsum(self.dy, axis=1) + self.origin[1]
@@ -340,30 +272,13 @@ class OrthogonalGrid(Grid):
         xyz[:, :, :, 4:, 2] = (self.tops + self.dz)[..., None]
         return xyz
 
-    def cell_sizes(self, cell_indices):
-        """Cell sizes."""
-        return np.array([self.dx[cell_indices],
-                         self.dy[cell_indices],
-                         self.dz[cell_indices]])
-
-    def crop_minimal_cube(self):
-        """Crop to minimal cube containing active cells.
-
-        Returns
-        -------
-        grid : OrthoghonalGrid
-            New grid.
-        """
-        min_slices = self.minimal_active_slices()
-        actnum = self.actnum[min_slices]
-        grid = self.__class__(
-            actnum=actnum,
-            dx=self.dx[min_slices],
-            dy=self.dy[min_slices],
-            dz=self.dz[min_slices],
-            tops=self.tops[min_slices],
-            dimens=actnum.shape)
-        return grid
+    def _create_vtk_grid(self):
+        """Creates vtk unstructured grid."""
+        grid = self.to_corner_point()
+        grid.create_vtk_grid()
+        self._vtk_grid = grid.vtk_grid
+        self._actnum_ids = grid.actnum_ids
+        return self
 
     def upscale(self, factors=(2, 2, 2), actnum_upscale='vote'):
         """Merge grid cells according to factors given.
@@ -495,27 +410,33 @@ class CornerPointGrid(Grid):
         """Grid axes origin relative to the map coordinates."""
         return np.array([self.mapaxes[2], self.mapaxes[3], self.zcorn[0, 0, 0, 0]])
 
-    @cached_property
-    def _xyz(self):
-        """Cached xyz property with x, y, z coordinates of cells vertices."""
-        return numba_get_xyz(self.dimens, self.zcorn, self.coord)
-
     @property
     def xyz(self):
-        """x, y, z coordinates of cells vertices."""
-        return self._xyz
+        "Get x, y, z coordinates of cell vertices for all cells in a grid, including inactive."
+        return numba_get_xyz(self.dimens, self.zcorn, self.coord)
 
-    @property
-    def cell_volumes(self):
-        """Volumes of cells."""
-        return numba_get_volumes(self.xyz)
+    def _create_vtk_grid(self, use_only_active=True):
+        """Creates vtk unstructured grid."""
+        points, conn = calc_cells(self.zcorn, self.coord)
 
-    def minimal_active_bounds(self):
-        """Get z coordinates of top and bottom bounds of active cells."""
-        zcorn = self.zcorn.reshape(self.zcorn.shape[:3] + (2, 4))
-        z_top = get_top_z_coords(zcorn, self.actnum)
-        z_bottom = -get_top_z_coords(-zcorn[:, :, ::-1, ::-1], self.actnum[:, :, ::-1])
-        return z_top, z_bottom
+        cell_array = vtk.vtkCellArray()
+
+        order = [0, 1, 3, 2, 4, 5, 7, 6]
+        actnum = self.actnum.ravel(order='F')
+        for i, x in enumerate(conn):
+            if use_only_active and not actnum[i]:
+                continue
+            cell_array.InsertNextCell(8, [x[k] for k in order])
+
+        vtk_points = vtk.vtkPoints()
+        for i, point in enumerate(points):
+            vtk_points.InsertPoint(i, point)
+
+        self.vtk_grid.SetPoints(vtk_points)
+        self.vtk_grid.SetCells(vtk.vtkHexahedron().GetCellType(), cell_array)
+
+        self._actnum_ids = np.where(actnum)[0]
+        return self
 
     def upscale(self, factors=(2, 2, 2), actnum_upscale='vote'):
         """Upscale grid according to factors given.
@@ -563,100 +484,6 @@ class CornerPointGrid(Grid):
                               mapaxes=self.mapaxes, actnum=actnum)
         return grid
 
-    def orthogonalize(self, dimens, only_active=False):
-        """Construct orthogonal grid. Actnum tranfer should be made separately.
-
-        Parameters
-        ----------
-        dimens : tuple, int
-            Dimensions of the output orthogonal grid.
-        only_active : bool
-            Limits the new grid to active cells.
-
-        Returns
-        -------
-        grid : OrthogonalGrid
-            Orthogonal grid.
-        """
-        nx, ny, nz = dimens
-        xyz_corn = self.xyz[self.actnum] if only_active else self.xyz
-        x_min = xyz_corn[..., 0].min()
-        x_max = xyz_corn[..., 0].max()
-        y_min = xyz_corn[..., 1].min()
-        y_max = xyz_corn[..., 1].max()
-        z_min = xyz_corn[..., 2].min()
-        z_max = xyz_corn[..., 2].max()
-        dx = np.full(dimens, (x_max - x_min) / nx)
-        dy = np.full(dimens, (y_max - y_min) / ny)
-        dz = np.full(dimens, (z_max - z_min) / nz)
-        tops = np.full(dimens, z_min)
-        tops[..., 1:] += np.cumsum(dz, axis=2)[..., :-1]
-        mapaxes = np.array([x_min, y_min + 1, x_min, y_min, x_min + 1, y_min])
-        grid = OrthogonalGrid(dimens=dimens, dx=dx, dy=dy, dz=dz,
-                              tops=tops, mapaxes=mapaxes)
-        return grid
-
-    def crop_minimal_cube(self):
-        """Crop to minimal cube containing active cells.
-
-        Returns
-        -------
-        (grid, min_slices) : tuple
-            New grid and slices for active cube.
-        """
-        min_slices = self.minimal_active_slices()
-        actnum = self.actnum[min_slices]
-        zcorn = self.zcorn[min_slices]
-        min_coord_slices = tuple(slice(s.start, s.stop + 1) for s in min_slices[:2])
-        coord = self.coord[min_coord_slices]
-
-        grid = self.__class__(actnum=actnum, coord=coord,
-                              dimens=actnum.shape,
-                              zcorn=zcorn, mapaxes=self.mapaxes)
-        return grid, min_slices
-
-    def crop_minimal_grid(self, nz, fillna=None):
-        """Create a new grid in a region between upper and bottom surfaces enclosing active cells.
-        Actnum transfer should be made separately.
-
-        Parameters
-        ----------
-        nz : int
-            Third dimension of the cunstructed grid.
-        fillna : scalar
-            Filling value for nan coordinates.
-
-        Returns
-        -------
-        (grid, grid_mask, z_top, z_bottom) : tuple
-        """
-        z_top, z_bottom = self.minimal_active_bounds()
-        with warnings.catch_warnings():  # ignore comparison with np.nan
-            warnings.simplefilter("ignore")
-            grid_mask = ((self.zcorn[:, :, :, 0] >= np.expand_dims(z_top[:-1, :-1], -1)) &
-                         (self.zcorn[:, :, :, 4] <= np.expand_dims(z_bottom[:-1, :-1], -1)))
-
-        def _fillna(x):
-            """Replace np.nan with value if value is given."""
-            if not np.isnan(x):
-                return x
-            return x if fillna is None else fillna
-
-        grid_points = np.stack([np.linspace(_fillna(start), _fillna(stop), nz + 1)
-                                for start, stop in zip(z_top.ravel(), z_bottom.ravel())])
-        grid_points = grid_points.reshape(z_top.shape + (nz + 1,))
-        zcorn = np.stack([grid_points[:-1, :-1, :-1],  # 0
-                          grid_points[1:, :-1, :-1],  # 1
-                          grid_points[:-1, 1:, :-1],  # 2
-                          grid_points[1:, 1:, :-1],  # 3
-                          grid_points[:-1, :-1, 1:],  # 4
-                          grid_points[1:, :-1, 1:],  # 5
-                          grid_points[:-1, 1:, 1:],  # 6
-                          grid_points[1:, 1:, 1:]], axis=-1)
-        grid = self.__class__(coord=self.coord, dimens=zcorn.shape[:3],
-                              zcorn=zcorn, mapaxes=self.mapaxes)
-        return grid, grid_mask, z_top, z_bottom
-
     def to_corner_point(self):
         """Returns itself."""
         return self
@@ -665,152 +492,6 @@ class CornerPointGrid(Grid):
     def as_corner_point(self):
         """Returns itself."""
         return self
-
-    def create_vtk_locator(self, use_only_active=True, scaling=False, **kwargs):
-        """Creates locator and mapping dictionary.
-
-        Returns
-        -------
-        grid : `pyvista.core.pointset.UnstructuredGrid` object
-        """
-        _ = kwargs
-        grid_params = {'use_only_active': use_only_active, 'cell_size': None, 'scaling': scaling}
-        if self._vtk_grid is None or self._vtk_grid_params != grid_params:
-            self.create_vtk_grid(**grid_params)
-
-        geo_filter = vtk.vtkGeometryFilter()
-        geo_filter.SetInputData(self._vtk_grid)
-        geo_filter.Update()
-        polydata = geo_filter.GetOutput()
-
-        locator = vtk.vtkModifiedBSPTree()
-        locator.SetDataSet(polydata)
-        locator.AutomaticOn()
-        locator.BuildLocator()
-
-        self._vtk_locator = locator
-
-    def point_inside_cell(self, point, cell_idx, tolerance=1e-8):
-        """Determines whether point is inside cell or not.
-
-        Returns
-        -------
-        inside : bool
-
-        Notes
-        -----
-        Result might be inconsistent due to the stochastic nature of the algorithm.
-        Decreasing the tolerance might help.
-        """
-        x = self.xyz[cell_idx[0], cell_idx[1], cell_idx[2]].copy()
-
-        x[[2, 3]] = x[[3, 2]]
-        x[[6, 7]] = x[[7, 6]]
-
-        pts = [(0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4),
-               (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]
-
-        cube = vtk.vtkPolyData()
-        points = vtk.vtkPoints()
-        points.SetDataTypeToDouble()
-        polys = vtk.vtkCellArray()
-
-        for i in range(8):
-            points.InsertPoint(i, x[i])
-        for i in range(6):
-            polys.InsertNextCell(mk_vtk_id_list(pts[i]))
-
-        cube.SetPoints(points)
-        cube.SetPolys(polys)
-
-        points = np.array([point])
-        vtk_pts = vtk.vtkPoints()
-        vtk_pts.SetDataTypeToDouble()
-        vtk_pts.SetData(numpy_support.numpy_to_vtk(points, deep=1))
-        # Make the poly data
-        poly_pts_vtp = vtk.vtkPolyData()
-        poly_pts_vtp.SetPoints(vtk_pts)
-
-        enclosed_points_filter = vtk.vtkSelectEnclosedPoints()
-        enclosed_points_filter.SetTolerance(tolerance)
-        enclosed_points_filter.SetSurfaceData(cube)
-        enclosed_points_filter.SetInputData(poly_pts_vtp)
-        enclosed_points_filter.Update()
-
-        return enclosed_points_filter.IsInside(0)
-
-    def faces_centers(self, cells_indices):
-        """Calculate coordinates of cell faces centers.
-
-        Parameters
-        ----------
-        cells_indices : List[np.ndarray]
-            Indices of the cells.
-
-        Returns
-        -------
-        np.ndarray
-            coordinates of cell faces centers.
-        """
-        xyz = self.xyz[cells_indices[0], cells_indices[1], cells_indices[2]]
-        centers = []
-        for vertices in (
-                (0, 2, 4, 6), # left
-                (1, 3, 5, 7), # right
-                (0, 1, 4, 5), # back
-                (2, 3, 6, 7), # front
-                (0, 1, 2, 3), # top
-                (4, 5, 6, 7)  # bottom
-            ):
-            centers.append(xyz[..., vertices, :].mean(axis=-2))
-        centers = np.array(centers)
-        if centers.ndim == 3:
-            return np.moveaxis(centers, (0, 1), (1, 0))
-        return centers
-
-    def cell_sizes(self, cell_indices):
-        """Calculate approximate sizes of cells.
-
-        Parameters
-        ----------
-        cells_indices : List[np.ndarray]
-            Indices of the cells.
-
-        Returns
-        -------
-        np.ndarray
-            Sizes of cells.
-        """
-        faces_centers = self.faces_centers(cell_indices)
-        n_cells = cell_indices[0].size if isinstance(cell_indices[0], np.ndarray) else 1
-        sizes = np.zeros((n_cells, 3))
-        for i in range(3):
-            sizes[:, i] = np.sqrt((((faces_centers[..., 2*i+1, :] - faces_centers[..., 2*i+0, :])**2)).sum(axis=-1))
-        return sizes
-
-    def cell_bases(self, cell_indices):
-        """Calculate basis vectors of coordinate systems connected to cells.
-
-        Parameters
-        ----------
-        cells_indices : List[np.ndarray]
-            Indices of the cells.
-
-        Returns
-        -------
-        np.ndarray
-            Basis vectors of coordinate systems connected to cells.
-        """
-        faces_centers = self.faces_centers(cell_indices)
-        i = faces_centers[..., 1, :] - faces_centers[..., 0, :]
-        j = faces_centers[..., 3, :] - faces_centers[..., 2, :]
-        z = np.cross(i, j)
-        hat3 = (z.T / np.linalg.norm(z, axis=-1)).T
-        x = i + np.cross(j, hat3)
-        y = j - np.cross(i, hat3)
-        hat1 = (x.T / np.linalg.norm(x, axis=-1)).T
-        hat2 = (y.T / np.linalg.norm(y, axis=-1)).T
-        return np.moveaxis(np.stack((hat1, hat2, hat3)), (0, 1), (1, 0))
 
     def map_grid(self):
         """Map pillars (`COORD`) to axis defined by `MAPAXES'.

@@ -97,20 +97,12 @@ class BaseComponent:
         for comp, value in self.items():
             if issubclass(value.__class__, BaseComponent):
                 empty[comp] = value.empty_like()
-        empty.init_state(**self.state.as_dict())
+        empty.set_state(**self.state.as_dict())
         return empty
-
-    def init_state(self, **kwargs):
-        """Init state attributes."""
-        for k, v in kwargs.items():
-            setattr(self.state, k, v)
-        return self
 
     def set_state(self, **kwargs):
         """State setter."""
         for k, v in kwargs.items():
-            if not hasattr(self.state, k):
-                raise AttributeError('{} has no state {}'.format(self.class_name, k))
             setattr(self.state, k, v)
         return self
 
@@ -157,7 +149,7 @@ class BaseComponent:
             **{k: deepcopy(v) if not issubclass(v.__class__, BaseComponent) else v.copy() for k, v in self.items()},
             field = self.field,
         )
-        copy.init_state(**self.state.as_dict())
+        copy.set_state(**self.state.as_dict())
         copy.class_name = self.class_name
         return copy
 
@@ -329,7 +321,7 @@ class BaseComponent:
                 state[k] = v if not np.isnan(v) else None
             except TypeError:
                 state[k] = v
-        self.init_state(**state)
+        self.set_state(**state)
         for att in grp.keys() if attrs is None else attrs:
             try:
                 val = grp[att.upper()]

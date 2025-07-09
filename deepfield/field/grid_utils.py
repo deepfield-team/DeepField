@@ -1,57 +1,6 @@
 """Grid utils."""
-import itertools
-
 import numpy as np
 from numba import njit
-
-
-@njit
-def add_det(array_of_a, results):
-    """Add determinat of matrices stacked in input array to result array."""
-    for i in range(len(array_of_a)):  # pylint: disable=consider-using-enumerate
-        results[i] += abs(np.linalg.det(array_of_a[i]))
-
-
-@njit
-def numba_get_volumes(xyz_corn):
-    """Compute cell volumes."""
-    volumes = np.zeros(xyz_corn.shape[:3]).ravel()
-    v1 = xyz_corn[:, :, :, 1] - xyz_corn[:, :, :, 0]
-    v2 = xyz_corn[:, :, :, 2] - xyz_corn[:, :, :, 0]
-    v3 = xyz_corn[:, :, :, 4] - xyz_corn[:, :, :, 0]
-    a = np.stack((v1, v2, v3), axis=-1).reshape((-1, 3, 3))
-    add_det(a, volumes)
-
-    v1 = xyz_corn[:, :, :, 1] - xyz_corn[:, :, :, 5]
-    v2 = xyz_corn[:, :, :, 4] - xyz_corn[:, :, :, 5]
-    v3 = xyz_corn[:, :, :, 6] - xyz_corn[:, :, :, 5]
-    a = np.stack((v1, v2, v3), axis=-1).reshape((-1, 3, 3))
-    add_det(a, volumes)
-
-    v1 = xyz_corn[:, :, :, 2] - xyz_corn[:, :, :, 1]
-    v2 = xyz_corn[:, :, :, 4] - xyz_corn[:, :, :, 1]
-    v3 = xyz_corn[:, :, :, 6] - xyz_corn[:, :, :, 1]
-    a = np.stack((v1, v2, v3), axis=-1).reshape((-1, 3, 3))
-    add_det(a, volumes)
-
-    v1 = xyz_corn[:, :, :, 1] - xyz_corn[:, :, :, 3]
-    v2 = xyz_corn[:, :, :, 2] - xyz_corn[:, :, :, 3]
-    v3 = xyz_corn[:, :, :, 7] - xyz_corn[:, :, :, 3]
-    a = np.stack((v1, v2, v3), axis=-1).reshape((-1, 3, 3))
-    add_det(a, volumes)
-
-    v1 = xyz_corn[:, :, :, 1] - xyz_corn[:, :, :, 5]
-    v2 = xyz_corn[:, :, :, 7] - xyz_corn[:, :, :, 5]
-    v3 = xyz_corn[:, :, :, 6] - xyz_corn[:, :, :, 5]
-    a = np.stack((v1, v2, v3), axis=-1).reshape((-1, 3, 3))
-    add_det(a, volumes)
-
-    v1 = xyz_corn[:, :, :, 2] - xyz_corn[:, :, :, 1]
-    v2 = xyz_corn[:, :, :, 7] - xyz_corn[:, :, :, 1]
-    v3 = xyz_corn[:, :, :, 6] - xyz_corn[:, :, :, 1]
-    a = np.stack((v1, v2, v3), axis=-1).reshape((-1, 3, 3))
-    add_det(a, volumes)
-    return volumes.reshape(xyz_corn.shape[:3]) / 6
 
 
 @njit
@@ -59,6 +8,155 @@ def isclose(a, b, rtol=1e-05, atol=1e-08):
     """np.isclose."""
     return abs(a - b) <= (atol + rtol * abs(b))
 
+@njit
+def reshape(i, j, k, nx, ny):
+    """Ravel index."""
+    return k*nx*ny + j*nx + i
+
+@njit
+def calc_point(i, j, z, n, coord):
+    """Compute xyz from COORD."""
+    if n in [0, 4]:
+        ik, jk = i, j
+    elif n in [1, 5]:
+        ik, jk = i+1, j
+    elif n in [2, 6]:
+        ik, jk = i, j+1
+    else:
+        ik, jk = i+1, j+1
+
+    line = coord[ik, jk]
+    top_point = list(line[:3])
+    vec = list(line[3:] - line[:3])
+    is_degenerated = False
+    if isclose(vec[2], 0):
+        if not isclose(vec[0], 0) & isclose(vec[1], 0):
+            vec[2] = 1e-10
+        else:
+            is_degenerated = True
+    if is_degenerated:
+        return [top_point[0], top_point[1], z]
+
+    z_along_line = (z - top_point[2]) / vec[2]
+    return [top_point[0] + vec[0]*z_along_line, top_point[1] + vec[1]*z_along_line, z]
+
+@njit
+def calc_cells(zcorn, coord):
+    """Get points and connectivity arrays for vtk grid."""
+    points = []
+    conn = []
+
+    a = zcorn
+    nx, ny, nz, _ = a.shape
+
+    for k in range(nz):
+        for j in range(ny):
+            for i in range(nx):
+                conn.append([0]*8)
+                #0
+                if a[i, j, k, 0] == a[i-1, j, k, 1] and i>0:
+                    conn[-1][0] = conn[reshape(i-1, j, k, nx, ny)][1]
+                elif a[i, j, k, 0] == a[i, j-1, k, 2] and j>0:
+                    conn[-1][0] = conn[reshape(i, j-1, k, nx, ny)][2]
+                elif a[i, j, k, 0] == a[i-1, j-1, k, 3] and i>0 and j>0:
+                    conn[-1][0] = conn[reshape(i-1, j-1, k, nx, ny)][3]
+                elif a[i, j, k, 0] == a[i, j, k-1, 4] and k>0:
+                    conn[-1][0] = conn[reshape(i, j, k-1, nx, ny)][4]
+                elif a[i, j, k, 0] == a[i-1, j, k-1, 5] and i>0 and k>0:
+                    conn[-1][0] = conn[reshape(i-1, j, k-1, nx, ny)][5]
+                elif a[i, j, k, 0] == a[i, j-1, k-1, 6] and j>0 and k>0:
+                    conn[-1][0] = conn[reshape(i, j-1, k-1, nx, ny)][6]
+                elif a[i, j, k, 0] == a[i-1, j-1, k-1, 7] and i>0 and j>0 and k>0:
+                    conn[-1][0] = conn[reshape(i-1, j-1, k-1, nx, ny)][7]
+                else:
+                    z = a[i, j, k, 0]
+                    points.append(calc_point(i, j, z, 0, coord))
+                    conn[-1][0] = len(points)-1
+
+                #1
+                if i<nx-1 and j>0 and a[i, j, k, 1] == a[i+1, j-1, k, 2]:
+                    conn[-1][1] = conn[reshape(i+1, j-1, k, nx, ny)][2]
+                elif a[i, j, k, 1] == a[i, j-1, k, 3] and j>0:
+                    conn[-1][1] = conn[reshape(i, j-1, k, nx, ny)][3]
+                elif i<nx-1 and k>0 and a[i, j, k, 1] == a[i+1, j, k-1, 4]:
+                    conn[-1][1] = conn[reshape(i+1, j, k-1, nx, ny)][4]
+                elif a[i, j, k, 1] == a[i, j, k-1, 5] and k>0:
+                    conn[-1][1] = conn[reshape(i, j, k-1, nx, ny)][5]
+                elif a[i, j, k, 1] == a[i-1, j-1, k-1, 6] and i>0 and j>0 and k>0:
+                    conn[-1][1] = conn[reshape(i-1, j-1, k-1, nx, ny)][6]
+                elif a[i, j, k, 1] == a[i, j-1, k-1, 7] and j>0 and k>0:
+                    conn[-1][1] = conn[reshape(i, j-1, k-1, nx, ny)][7]
+                else:
+                    z = a[i, j, k, 1]
+                    points.append(calc_point(i, j, z, 1, coord))
+                    conn[-1][1] = len(points)-1
+
+                #2
+                if a[i, j, k, 2] == a[i-1, j, k, 3] and i>0:
+                    conn[-1][2] = conn[reshape(i-1, j, k, nx, ny)][3]
+                elif j<ny-1 and k>0 and a[i, j, k, 2] == a[i, j+1, k-1, 4]:
+                    conn[-1][2] = conn[reshape(i, j+1, k-1, nx, ny)][4]
+                elif i>0 and j<ny-1 and k>0 and a[i, j, k, 2] == a[i-1, j+1, k-1, 5]:
+                    conn[-1][2] = conn[reshape(i-1, j+1, k-1, nx, ny)][5]
+                elif a[i, j, k, 2] == a[i, j, k-1, 6] and k>0:
+                    conn[-1][2] = conn[reshape(i, j, k-1, nx, ny)][6]
+                elif a[i, j, k, 2] == a[i-1, j, k-1, 7] and i>0 and k>0:
+                    conn[-1][2] = conn[reshape(i-1, j, k-1, nx, ny)][7]
+                else:
+                    z = a[i, j, k, 2]
+                    points.append(calc_point(i, j, z, 2, coord))
+                    conn[-1][2] = len(points)-1
+
+                #3
+                if i<nx-1 and j<ny-1 and k>0 and a[i, j, k, 3] == a[i+1, j+1, k-1, 4]:
+                    conn[-1][3] = conn[reshape(i+1, j+1, k-1, nx, ny)][4]
+                elif j<ny-1 and k>0 and a[i, j, k, 3] == a[i, j+1, k-1, 5]:
+                    conn[-1][3] = conn[reshape(i, j+1, k-1, nx, ny)][5]
+                elif i<nx-1 and k>0 and a[i, j, k, 3] == a[i+1, j, k-1, 6]:
+                    conn[-1][3] = conn[reshape(i+1, j, k-1, nx, ny)][6]
+                elif a[i, j, k, 3] == a[i, j, k-1, 7] and k>0:
+                    conn[-1][3] = conn[reshape(i, j, k-1, nx, ny)][7]
+                else:
+                    z = a[i, j, k, 3]
+                    points.append(calc_point(i, j, z, 3, coord))
+                    conn[-1][3] = len(points)-1
+
+                #4
+                if a[i, j, k, 4] == a[i-1, j, k, 5] and i>0:
+                    conn[-1][4] = conn[reshape(i-1, j, k, nx, ny)][5]
+                elif a[i, j, k, 4] == a[i, j-1, k, 6] and j>0:
+                    conn[-1][4] = conn[reshape(i, j-1, k, nx, ny)][6]
+                elif a[i, j, k, 4] == a[i-1, j-1, k, 7] and i>0 and j>0:
+                    conn[-1][4] = conn[reshape(i-1, j-1, k, nx, ny)][7]
+                else:
+                    z = a[i, j, k, 4]
+                    points.append(calc_point(i, j, z, 4, coord))
+                    conn[-1][4] = len(points)-1
+
+                #5
+                if i<nx-1 and j>0 and a[i, j, k, 5] == a[i+1, j-1, k, 6]:
+                    conn[-1][5] = conn[reshape(i+1, j-1, k, nx, ny)][6]
+                elif a[i, j, k, 5] == a[i, j-1, k, 7] and j>0:
+                    conn[-1][5] = conn[reshape(i, j-1, k, nx, ny)][7]
+                else:
+                    z = a[i, j, k, 5]
+                    points.append(calc_point(i, j, z, 5, coord))
+                    conn[-1][5] = len(points)-1
+
+                #6
+                if a[i, j, k, 6] == a[i-1, j, k, 7] and i>0:
+                    conn[-1][6] = conn[reshape(i-1, j, k, nx, ny)][7]
+                else:
+                    z = a[i, j, k, 6]
+                    points.append(calc_point(i, j, z, 6, coord))
+                    conn[-1][6] = len(points)-1
+
+                #7
+                z = a[i, j, k, 7]
+                points.append(calc_point(i, j, z, 7, coord))
+                conn[-1][7] = len(points)-1
+
+    return points, conn
 
 @njit
 def numba_get_xyz(dimens, zcorn, coord):
@@ -90,96 +188,3 @@ def numba_get_xyz(dimens, zcorn, coord):
                     z_along_line = (zcorn[ik, jk, :, k] - top_point[2]) / vec[2]
                     xyz[ik, jk, :, k, :2] = top_point[:2] + vec[:2] * z_along_line.reshape((-1, 1))
     return xyz
-
-
-def get_top_z_coords(zcorn, actnum):
-    """For each coordinate line get z coordinate of the less deepest active cell.
-    If coordinate line contains no active cells, the result is NaN."""
-    if actnum.dtype is not np.dtype(bool):
-        actnum = actnum.astype(bool)
-    nx, ny = actnum.shape[:2]
-    z_top = np.zeros((nx + 1, ny + 1))
-    global_depth = zcorn.max()  # z increases with depth
-
-    top_z_indices = np.argmax(actnum, axis=-1)
-    x, y = np.indices((nx, ny))
-    top_faces = zcorn[x, y, top_z_indices, 0]
-    top_faces_act_mask = actnum[x, y, top_z_indices]
-    top_faces[~top_faces_act_mask] = global_depth
-
-    z_arrs = np.stack([top_faces[1:, 1:, 0],
-                       top_faces[:-1, 1:, 1],
-                       top_faces[1:, :-1, 2],
-                       top_faces[:-1, :-1, 3]], axis=-1)
-    z_top[1:-1, 1:-1] = z_arrs.min(axis=-1)
-
-    z_arrs = np.stack([top_faces[0, :-1, 2], top_faces[0, 1:, 0]], axis=-1)
-    z_top[0, 1:-1] = z_arrs.min(axis=-1)
-
-    z_arrs = np.stack([top_faces[-1, :-1, 3], top_faces[-1, 1:, 1]], axis=-1)
-    z_top[-1, 1:-1] = z_arrs.min(axis=-1)
-
-    z_arrs = np.stack([top_faces[:-1, 0, 1], top_faces[1:, 0, 0]], axis=-1)
-    z_top[1:-1, 0] = z_arrs.min(axis=-1)
-
-    z_arrs = np.stack([top_faces[:-1, -1, 3], top_faces[1:, -1, 2]], axis=-1)
-    z_top[1:-1, -1] = z_arrs.min(axis=-1)
-
-    z_top[0, 0] = top_faces[0, 0, 0]
-    z_top[0, -1] = top_faces[0, -1, 2]
-    z_top[-1, 0] = top_faces[-1, 0, 1]
-    z_top[-1, -1] = top_faces[-1, -1, 3]
-
-    act_lines = np.zeros_like(z_top, dtype=bool)
-    act_lines[:-1, :-1][top_faces_act_mask] = True
-    act_lines[1:, :-1][top_faces_act_mask] = True
-    act_lines[:-1, 1:][top_faces_act_mask] = True
-    act_lines[1:, 1:][top_faces_act_mask] = True
-
-    z_top[~act_lines] = np.nan
-    return z_top
-
-
-def get_connectivity_matrix(actnum, connectivity):
-    """Get connectivity matrix.
-
-    Parameters
-    ----------
-    actnum : numpy.ndarray
-        Active cells mask.
-    connectivity : int
-        Connectivity index.
-
-    Returns
-    -------
-    (numpy.ndarray, numpy.ndarray)
-        Tuple consisted of connectivity matrix and invalid cells mask.
-    """
-    dimens = actnum.shape
-    active_indices = np.where(actnum)
-    res = []
-    invalid_cells = []
-    for d in itertools.product(*[(-1, 0, 1)] * 3):
-        n = np.sum(np.abs(d))
-        if 0 < n <= connectivity:
-            tmp = np.stack(active_indices)
-            invalid_cells_tmp = np.zeros(tmp.shape[1:], bool)
-            for i, z in enumerate(d):
-                tmp[i] += z
-
-            for i in range(3):
-                invalid_cells_tmp[tmp[i] > (dimens[i] - 1)] = True
-                tmp[:, tmp[i] > (dimens[i] - 1)] = 0
-
-            invalid_cells_tmp[(tmp < 0).any(axis=0)] = True
-            tmp[:, (tmp < 0).any(axis=0)] = 0
-            invalid_cells_tmp[np.logical_not(actnum[tmp[0], tmp[1], tmp[2]])] = True
-            tmp[:, np.logical_not(actnum[tmp[0], tmp[1], tmp[2]])] = 0
-            res.append(tmp)
-            invalid_cells.append(invalid_cells_tmp)
-
-    res = np.stack(res)
-    invalid_cells = np.stack(invalid_cells)
-    invalid_cells = np.moveaxis(invalid_cells, (0, 1), (1, 0))
-    res = np.moveaxis(res, (0, 1, 2), (1, 2, 0))
-    return res, invalid_cells
