@@ -261,6 +261,7 @@ class Wells(BaseTree):
                 compdat = segment.compdatl
             else:
                 logger.warning('Well {}: can not get blocks from COMPDATL data.'.format(segment.name))
+                return self
 
             segment.blocks = get_wellblocks_compdat(compdat)
             if isinstance(self.field.grid, OrthogonalGrid):
