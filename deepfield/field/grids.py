@@ -5,7 +5,7 @@ from vtkmodules.util.numpy_support import vtk_to_numpy
 
 from .decorators import cached_property, apply_to_each_input
 from .base_spatial import SpatialComponent
-from .grid_utils import calc_cells, numba_get_xyz
+from .grid_utils import calc_cells, get_xyz, get_xyz_ijk, get_xyz_ijk_orth
 from .utils import rolling_window, get_single_path
 from .parse_utils import read_ecl_bin
 
@@ -81,9 +81,9 @@ class Grid(SpatialComponent):
         """Raveled indices of active cells."""
         return self._actnum_ids
 
-    @property
-    def xyz(self):
-        """Get x, y, z coordinates of cell vertices for all cells in a grid, including inactive."""
+
+    def get_xyz(self, ijk=None):
+        """Get x, y, z coordinates of cell vertices."""
         raise NotImplementedError()
 
     @property
@@ -258,19 +258,23 @@ class OrthogonalGrid(Grid):
             tops[..., 1:] = np.cumsum(self.dz, axis=-1)[..., :-1]
             setattr(self, 'TOPS', tops)
 
-    @property
-    def xyz(self):
-        """Get x, y, z coordinates of cell vertices for all cells in a grid, including inactive."""
-        xyz = np.zeros(tuple(self.dimens) + (8, 3))
-        px = np.cumsum(self.dx, axis=0) + self.origin[0]
-        py = np.cumsum(self.dy, axis=1) + self.origin[1]
-        xyz[1:, :, :, [0, 2, 4, 6], 0] = px[:-1, :, :, None]
-        xyz[:, :, :, [1, 3, 5, 7], 0] = px[..., None]
-        xyz[:, 1:, :, [0, 1, 4, 5], 1] = py[:, :-1, :, None]
-        xyz[:, :, :, [2, 3, 6, 7], 1] = py[..., None]
-        xyz[:, :, :, :4, 2] = self.tops[..., None]
-        xyz[:, :, :, 4:, 2] = (self.tops + self.dz)[..., None]
-        return xyz
+    def get_xyz(self, ijk=None):
+        """Get x, y, z coordinates of cell vertices."""
+        if ijk is None:
+            xyz = np.zeros(tuple(self.dimens) + (8, 3))
+            xyz[..., 0] = self.origin[0]
+            xyz[..., 1] = self.origin[1]
+            px = np.cumsum(self.dx, axis=0)
+            py = np.cumsum(self.dy, axis=1)
+            xyz[1:, :, :, [0, 2, 4, 6], 0] += px[:-1, :, :, None]
+            xyz[:, :, :, [1, 3, 5, 7], 0] += px[..., None]
+            xyz[:, 1:, :, [0, 1, 4, 5], 1] += py[:, :-1, :, None]
+            xyz[:, :, :, [2, 3, 6, 7], 1] += py[..., None]
+            xyz[:, :, :, :4, 2] = self.tops[..., None]
+            xyz[:, :, :, 4:, 2] = (self.tops + self.dz)[..., None]
+            return xyz
+        return get_xyz_ijk_orth(self.dx, self.dy, self.dz,
+                                self.tops, self.origin, ijk)
 
     def _create_vtk_grid(self):
         """Creates vtk unstructured grid."""
@@ -410,10 +414,11 @@ class CornerPointGrid(Grid):
         """Grid axes origin relative to the map coordinates."""
         return np.array([self.mapaxes[2], self.mapaxes[3], self.zcorn[0, 0, 0, 0]])
 
-    @property
-    def xyz(self):
-        "Get x, y, z coordinates of cell vertices for all cells in a grid, including inactive."
-        return numba_get_xyz(self.dimens, self.zcorn, self.coord)
+    def get_xyz(self, ijk=None):
+        "Get x, y, z coordinates of cell vertices."
+        if ijk is None:
+            return get_xyz(self.dimens, self.zcorn, self.coord)
+        return get_xyz_ijk(self.zcorn, self.coord, ijk)
 
     def _create_vtk_grid(self, use_only_active=True):
         """Creates vtk unstructured grid."""

@@ -90,16 +90,14 @@ class Faults(BaseTree):
         _ = kwargs
         blocks_fault = []
         xyz_fault = []
-        xyz = self.field.grid.xyz #TODO: xyz can be avoided.
+        grid = self.field.grid
         for idx in segment.faults.index:
             cells = segment.faults.loc[idx, ['IX1', 'IX2', 'IY1', 'IY2', 'IZ1', 'IZ2', 'FACE']]
             x_range = range(cells['IX1']-1, cells['IX2'])
             y_range = range(cells['IY1']-1, cells['IY2'])
             z_range = range(cells['IZ1']-1, cells['IZ2'])
             blocks_segment = np.array(list(product(x_range, y_range, z_range)))
-            xyz_segment = xyz[blocks_segment[:, 0],
-                              blocks_segment[:, 1],
-                              blocks_segment[:, 2]][:, FACES[cells['FACE']]]
+            xyz_segment = grid.get_xyz(blocks_segment)[:, FACES[cells['FACE']]]
             blocks_fault.extend(blocks_segment)
             xyz_fault.extend(xyz_segment)
 

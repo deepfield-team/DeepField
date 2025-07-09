@@ -222,16 +222,17 @@ class Wells(BaseTree):
         j0 = j0 if j0 is not None else 0
         root = np.array([i0, j0, 0])
         track = []
-        centroids = grid.xyz.mean(axis=-2) #TODO: xyz can be avoided.
         for _ in range(len(df)):
             dist = np.linalg.norm(df[['I', 'J', 'K1']] - root, axis=1)
             row = df.iloc[[dist.argmin()]]
-            track.append(centroids[int(row.iloc[0]['I'])-1,
-                                   int(row.iloc[0]['J'])-1,
-                                   int(row.iloc[0]['K1'])-1])
-            track.append(centroids[int(row.iloc[0]['I'])-1,
-                                   int(row.iloc[0]['J'])-1,
-                                   int(row.iloc[0]['K2'])-1])
+            xyz = grid.get_xyz([int(row.iloc[0]['I'])-1,
+                                int(row.iloc[0]['J'])-1,
+                                int(row.iloc[0]['K1'])-1])
+            track.append(xyz[:, :4].mean(axis=-2).ravel())
+            xyz = grid.get_xyz([int(row.iloc[0]['I'])-1,
+                                int(row.iloc[0]['J'])-1,
+                                int(row.iloc[0]['K2'])-1])
+            track.append(xyz[:, 4:].mean(axis=-2).ravel())
             root = row[['I', 'J', 'K2']].values.astype(float).ravel()
             df = df.drop(row.index)
         track = pd.DataFrame(track).drop_duplicates().values

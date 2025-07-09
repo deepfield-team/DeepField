@@ -159,7 +159,7 @@ def calc_cells(zcorn, coord):
     return points, conn
 
 @njit
-def numba_get_xyz(dimens, zcorn, coord):
+def get_xyz(dimens, zcorn, coord):
     """Get x, y, z coordinates of cell vertices."""
     nx, ny, _ = dimens
     xyz = np.zeros(zcorn.shape[:3] + (8, 3))
@@ -187,4 +187,39 @@ def numba_get_xyz(dimens, zcorn, coord):
                 else:
                     z_along_line = (zcorn[ik, jk, :, k] - top_point[2]) / vec[2]
                     xyz[ik, jk, :, k, :2] = top_point[:2] + vec[:2] * z_along_line.reshape((-1, 1))
+    return xyz
+
+@njit
+def get_xyz_ijk(zcorn, coord, ijk):
+    """Get x, y, z coordinates of cell vertices for cells at ijk positions."""
+    ijk = np.asarray(ijk).reshape(-1, 3)
+    xyz = np.zeros((len(ijk),) + (8, 3))
+    for p, (i,j,k) in enumerate(ijk):
+        for n in range(8):
+            z = zcorn[i, j, k, n]
+            xyz[p, n] = calc_point(i, j, z, n, coord)
+    return xyz
+
+@njit
+def get_xyz_ijk_orth(dx, dy, dz, tops, origin, ijk):
+    """Get x, y, z coordinates of cell vertices for cells at ijk positions in orthogonal grid."""
+    ijk = np.asarray(ijk).reshape(-1, 3)
+    xyz = np.zeros((len(ijk),) + (8, 3))
+    xyz[..., 0] = origin[0]
+    xyz[..., 1] = origin[1]
+    for p, (i,j,k) in enumerate(ijk):
+        px = np.cumsum(dx[:, j, k])
+        py = np.cumsum(dy[i, :, k])
+        for t in [0, 2, 4, 6]:
+            xyz[p, t, 0] = px[i]
+        if i > 0:
+            for t in [1, 3, 5, 7]:
+                xyz[p, t, 0] = px[i-1]
+        for t in [0, 1, 4, 5]:
+            xyz[p, t, 1] = py[j]
+        if j > 0:
+            for t in [2, 3, 6, 7]:
+                xyz[p, t, 1] = py[j-1]
+        xyz[p, :4, 2] = tops[i, j, k]
+        xyz[p, 4:, 2] = tops[i, j, k] + dz[i, j, k]
     return xyz

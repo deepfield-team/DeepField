@@ -944,7 +944,7 @@ class Field:
         vertices = []
         faces = []
 
-        vertices_labels = []
+        vertices_connectors = []
         labeled_points = {}
 
         size = 0
@@ -960,20 +960,20 @@ class Field:
             faces.append(np.stack([0*ids[:-1]+2, ids[:-1], ids[1:]]).T)
             size += len(well.welltrack)
 
-            vertices_labels.extend([first_point, well.welltrack[0, :3]])
+            vertices_connectors.extend([first_point, well.welltrack[0, :3]])
             labeled_points[well.name] = first_point
 
-        vertices_labels = np.array(vertices_labels)
-        count = len(vertices_labels)
-        faces_labels = np.stack([np.full(count//2, 2),
-                                 np.arange(0, count, 2),
-                                 np.arange(1, count, 2)]).T
+        vertices_connectors = np.array(vertices_connectors)
+        count = len(vertices_connectors)
+        faces_connectors = np.stack([np.full(count//2, 2),
+                                     np.arange(0, count, 2),
+                                     np.arange(1, count, 2)]).T
 
         mesh = pv.PolyData(np.vstack(vertices), lines=np.vstack(faces))
         plotter.add_mesh(mesh, name='wells', color='b', line_width=3)
 
-        mesh = pv.PolyData(vertices_labels, lines=faces_labels)
-        plotter.add_mesh(mesh, name='wells_labels', color='k', line_width=2)
+        mesh = pv.PolyData(vertices_connectors, lines=faces_connectors)
+        plotter.add_mesh(mesh, name='well_connectors', color='k', line_width=2)
 
         return labeled_points
 
@@ -983,9 +983,9 @@ class Field:
         vertices = []
         labeled_points = {}
         size = 0
-        for segment in self.faults:
-            blocks = segment.blocks
-            xyz = segment.faces_verts
+        for fault in self.faults:
+            blocks = fault.blocks
+            xyz = fault.faces_verts
             if use_only_active:
                 active = self.grid.actnum[blocks[:, 0], blocks[:, 1], blocks[:, 2]]
                 xyz = xyz[active]
@@ -997,7 +997,7 @@ class Field:
             faces2 = np.stack([0*ids[::4]+3, ids[::4], ids[2::4], ids[3::4]]).T
             size += 4*len(xyz)
             faces.extend([faces1, faces2])
-            labeled_points[segment.name] = xyz[0, 0]
+            labeled_points[fault.name] = xyz[0, 0]
 
         if faces:
             mesh = pv.PolyData(np.vstack(vertices), np.vstack(faces))
@@ -1153,7 +1153,7 @@ class Field:
             else:
                 plotter.remove_actor('well_names')
                 plotter.remove_actor('wells')
-                plotter.remove_actor('wells_labels')
+                plotter.remove_actor('well_connectors')
         show_wells()
 
         if not notebook:
