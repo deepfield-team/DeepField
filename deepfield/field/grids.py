@@ -5,7 +5,7 @@ from vtkmodules.util.numpy_support import vtk_to_numpy
 
 from .decorators import cached_property, apply_to_each_input
 from .base_spatial import SpatialComponent
-from .grid_utils import calc_cells, get_xyz, get_xyz_ijk, get_xyz_ijk_orth
+from .grid_utils import calc_cells, get_xyz, get_xyz_ijk, get_xyz_ijk_orth, process_grid
 from .utils import rolling_window, get_single_path
 from .parse_utils import read_ecl_bin
 
@@ -58,18 +58,14 @@ class Grid(SpatialComponent):
     def id_to_ijk(self, idx):
         """Convert raveled positional index of active cell to ijk."""
         idx = self.actnum_ids[np.asarray(idx)]
-        k = idx // (self.dimens[0]*self.dimens[1])
-        r = idx - k*self.dimens[0]*self.dimens[1]
-        j = r // self.dimens[0]
-        i = r - j*self.dimens[0]
-        return np.stack([i, j, k], axis=-1)
+        return np.stack(np.unravel_index(idx, self.dimens), axis=-1)
 
     def ijk_to_id(self, ijk):
         """Convert ijk index of active cell to raveled positional index."""
         ids = []
-        for x in np.asarray(ijk).reshape(-1, 3):
-            i, j, k = x
-            n = k*self.dimens[0]*self.dimens[1] + j*self.dimens[0] + i
+        ijk = np.asarray(ijk).reshape(-1, 3)
+        raveled = np.ravel_multi_index(ijk.T, self.dimens)
+        for n in raveled:
             try:
                 ids.append(np.where(self.actnum_ids == n)[0][0])
             except IndexError as exc:
@@ -183,16 +179,16 @@ class Grid(SpatialComponent):
         """Apply MINPV threshold to ACTNUM."""
         minpv_value = self.minpv[0]
         volumes = self.cell_volumes
-        poro = self.field.rock.poro.ravel(order='F')[self.actnum_ids]
+        poro = self.field.rock.poro.ravel()[self.actnum_ids]
         if 'NTG' in self.field.rock:
-            ntg = self.field.rock.ntg.ravel(order='F')[self.actnum_ids]
+            ntg = self.field.rock.ntg.ravel()[self.actnum_ids]
         else:
             ntg = 1
         mask = poro*volumes*ntg >= minpv_value
         if not mask.all():
             new_actnum = np.full(self.actnum.size, False)
             new_actnum[self.actnum_ids[mask]] = True
-            self.actnum = new_actnum.reshape(self.dimens, order='F')
+            self.actnum = new_actnum.reshape(self.dimens)
             self.create_vtk_grid()
 
     @apply_to_each_input
@@ -349,7 +345,7 @@ class OrthogonalGrid(Grid):
         for i in range(1,factors[2]):
             tops[:, :, i::factors[2]] += i*dz[:, :, :-i:factors[2]]
 
-        actnum = np.kron(self.actnum, np.ones(factors))
+        actnum = np.kron(self.actnum, np.ones(factors)).astype(bool)
 
         grid = self.__class__(dimens=dimens, dx=dx, dy=dy, dz=dz,
                               actnum=actnum, tops=tops, mapaxes=self.mapaxes)
@@ -422,16 +418,12 @@ class CornerPointGrid(Grid):
 
     def _create_vtk_grid(self, use_only_active=True):
         """Creates vtk unstructured grid."""
-        points, conn = calc_cells(self.zcorn, self.coord)
+        points, conn = process_grid(self.zcorn, self.coord, self.actnum)
 
         cell_array = vtk.vtkCellArray()
 
-        order = [0, 1, 3, 2, 4, 5, 7, 6]
-        actnum = self.actnum.ravel(order='F')
-        for i, x in enumerate(conn):
-            if use_only_active and not actnum[i]:
-                continue
-            cell_array.InsertNextCell(8, [x[k] for k in order])
+        for x in conn:
+            cell_array.InsertNextCell(8, x)
 
         vtk_points = vtk.vtkPoints()
         for i, point in enumerate(points):
@@ -440,7 +432,7 @@ class CornerPointGrid(Grid):
         self.vtk_grid.SetPoints(vtk_points)
         self.vtk_grid.SetCells(vtk.vtkHexahedron().GetCellType(), cell_array)
 
-        self._actnum_ids = np.where(actnum)[0]
+        self._actnum_ids = np.where(self.actnum.ravel())[0]
         return self
 
     def upscale(self, factors=(2, 2, 2), actnum_upscale='vote'):

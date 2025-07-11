@@ -145,7 +145,7 @@ def orth_grid():
                           dy=np.ones([4, 6, 8]),
                           dz=np.ones([4, 6, 8]),
                           tops=np.zeros([4, 6, 8]) + np.arange(8),
-                          actnum=np.ones((4, 6, 8)))
+                          actnum=np.full((4, 6, 8), True))
     grid.create_vtk_grid()
     return grid
 
@@ -203,7 +203,7 @@ class TestWellblocks():
                               dx=np.ones([2, 1, 6]),
                               dy=np.ones([2, 1, 6]),
                               dz=np.ones([2, 1, 6]),
-                              actnum=np.ones([2, 1, 6]).astype(bool))
+                              actnum=np.full([2, 1, 6], True))
         grid = grid.to_corner_point()
 
         grid.actnum[0, 0, 1] = False

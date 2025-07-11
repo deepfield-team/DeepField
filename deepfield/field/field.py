@@ -1200,9 +1200,9 @@ class Field:
 
         name = attribute if timestamp is None else '%s_%d' % (attribute, timestamp)
         if attribute is not None and name not in grid.cell_data:
-            actnum = self.grid.actnum.ravel(order='F')
+            actnum = self.grid.actnum.ravel()#(order='F')
             data = self.rock[attribute] if timestamp is None else self.states[attribute][timestamp]
-            data = data.ravel(order='F')[actnum]
+            data = data.ravel()[actnum]#(order='F')[actnum]
             grid.cell_data[name] = data
         grid.set_active_scalars(name)
 

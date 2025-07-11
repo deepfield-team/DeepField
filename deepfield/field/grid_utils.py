@@ -2,6 +2,166 @@
 import numpy as np
 from numba import njit
 
+_SHIFTS = {
+    (1, 0): (1, 0, 0),
+    (2, 0): (0, 1, 0),
+    (2, 1): (-1, 1, 0),
+    (3, 0): (1, 1, 0),
+    (3, 1): (0, 1, 0),
+    (3, 2): (1, 0, 0),
+    (4, 0): (0, 0, 1),
+    (4, 1): (-1, 0, 1),
+    (4, 2): (0, -1, 1),
+    (4, 3): (-1, -1, 1),
+    (5, 0): (1, 0, 1),
+    (5, 1): (0, 0, 1),
+    (5, 2): (1, -1, 1),
+    (5, 3): (0, -1, 1),
+    (5, 4): (1, 0, 0),
+    (6, 0): (0, 1, 1),
+    (6, 1): (-1, 1, 1),
+    (6, 2): (0, 0, 1),
+    (6, 3): (-1, 0, 1),
+    (6, 4): (0, 1, 0),
+    (6, 5): (-1, 1, 0),
+    (7, 0): (1, 1, 1),
+    (7, 1): (0, 1, 1),
+    (7, 2): (1, 0, 1),
+    (7, 3): (0, 0, 1),
+    (7, 4): (1, 1, 0),
+    (7, 5): (0, 1, 0),
+    (7, 6): (1, 0, 0)
+}
+
+def common_indices(indices, shape):
+    """Mask common indices."""
+    mask = np.zeros(shape, dtype=bool)
+    mask[*indices[0]] = True
+    for ind in indices[1:]:
+        mask_tmp = np.zeros(shape, dtype=bool)
+        mask_tmp[*ind] = True
+        mask = np.logical_and(mask, mask_tmp)
+    return np.where(mask)
+
+def process_grid(zcorn, coord, actnum, active_points=True):
+    """Get points and connectivity arrays for vtk grid."""
+
+    def _get_slices(sh, size):
+        x0 = 1 if sh==1 else 0
+        x1 = size-1 if sh==-1 else size 
+        return slice(x0, x1)
+
+    def _process_indices(indices, shifts):
+        return [(ind + 1 if sh==-1 else ind) for ind, sh in zip(indices, shifts)]
+
+    def _get_default_mask(shifts, size, i):
+        mask_tmp = np.zeros(size, dtype=bool)
+        if shifts[0] == 1:
+            mask_tmp[-1, :, :] = True
+        elif shifts[0] == -1:
+            mask_tmp[0, :, :] = True
+        if shifts[1] == 1:
+            mask_tmp[:, -1, :] = True
+        elif shifts[1] == -1:
+            mask_tmp[:, 0, :] = True
+        if shifts[2] == 1:
+            mask_tmp[:, :, -1] = True
+        elif shifts[2] == -1:
+            mask_tmp[:, :, 0] = True
+        if i == 1:
+            mask_tmp[-1, :, :] = False
+        elif i == 2:
+            mask_tmp[:, -1, :] = False
+        elif i == 3:
+            mask_tmp[-1, -1, :] = False
+        elif i == 4:
+            mask_tmp[:, :, -1] = False
+        elif i == 5:
+            mask_tmp[-1, :, -1] = False
+        elif  i == 6:
+            mask_tmp[:, -1, -1] = False
+        elif i == 7:
+            mask_tmp[-1, -1, -1] = False
+        return mask_tmp
+
+    nx, ny, nz = zcorn.shape[:3]
+    points = np.zeros((nx+1, ny+1, nz+1), dtype=int)
+    indices = np.indices((nx, ny, nz))
+
+    points[:-1, :-1, :-1] = np.ravel_multi_index(
+        [*indices, np.full((nx, ny, nz), 0)], (nx, ny, nz, 8))
+    points[-1, :-1, :-1] = np.ravel_multi_index(
+        [*indices[:, -1, :, :], np.full((ny, nz), 1)], (nx, ny, nz, 8))
+    points[:-1, -1, :-1] = np.ravel_multi_index(
+        [*indices[:, :, -1, :], np.full((nx, nz), 2)], (nx, ny, nz, 8))
+    points[-1, -1, :-1] = np.ravel_multi_index(
+        [*indices[:, -1, -1, :], np.full((nz,), 3)], (nx, ny, nz, 8))
+    points[:-1, :-1, -1] = np.ravel_multi_index(
+        [*indices[:, :, : , -1], np.full((nx, ny), 4)], (nx, ny, nz, 8))
+    points[-1, :-1, -1] = np.ravel_multi_index(
+        [*indices[:, -1, :, -1], np.full(ny, 5)], (nx, ny, nz, 8))
+    points[:-1, -1, -1] = np.ravel_multi_index(
+        [*indices[:, :, -1, -1], np.full(nx, 6)], (nx, ny, nz, 8))
+    points[-1, -1, -1] = np.ravel_multi_index(
+        [*indices[:, -1, -1, -1], 7], (nx, ny, nz, 8))
+
+    points = points.reshape(-1, order='F')
+
+    indices = np.indices((nx, ny, nz))
+    connectivity = np.zeros((nx, ny, nz, 8), int)
+    connectivity[:, :, :, 0] = indices[2] * (ny+1)*(nx+1) + indices[1]*(nx+1) + indices[0]
+    connectivity[:, :, :, 1] = connectivity[..., 0] + 1
+    connectivity[:, :, :, 2] = connectivity[..., 0] + (nx+1)
+    connectivity[:, :, :, 3] = connectivity[..., 2] + 1
+    connectivity[:, :, :, 4:8] = connectivity[..., 0:4] + (ny+1)*(nx+1)
+    n_nodes = (nx+1) * (ny+1) * (nz+1)
+
+    for i in range(1, 8):
+        ind_dif = []
+        for j in range(i):
+            shifts = _SHIFTS[(i, j)]
+            slices0 = [_get_slices(sh, s) for sh, s in zip(shifts, (nx, ny, nz))]
+            slices1 = [_get_slices(-sh, s) for sh, s in zip(shifts, (nx, ny, nz))]
+            ind_tmp = _process_indices(
+                np.where(zcorn[*slices1, i] != zcorn[*slices0, j]), shifts)
+            mask_tmp = _get_default_mask(shifts, (nx, ny, nz), i)
+            mask_tmp[*ind_tmp] = True
+            ind_dif.append(np.where(mask_tmp))
+        nodes_to_add = common_indices((ind_dif), (nx, ny, nz))
+        points_to_add = np.ravel_multi_index(
+            [*nodes_to_add, np.full(nodes_to_add[0].shape,i)], (nx, ny, nz, 8))
+        n_nodes_to_add = nodes_to_add[0].size
+        connectivity[*nodes_to_add, i] = n_nodes + np.arange(n_nodes_to_add)
+        n_nodes = n_nodes + n_nodes_to_add
+        points = np.concatenate((points, points_to_add), axis=0)
+ 
+        for j in range(i+1, 8):
+            shifts = _SHIFTS[(j, i)]
+            slices0 = [_get_slices(sh, s) for sh, s in zip(shifts, (nx, ny, nz))]
+            slices1 = [_get_slices(-sh, s) for sh, s in zip(shifts, (nx, ny, nz))]
+            ind_to_repl0= _process_indices(
+                np.where(zcorn[*slices1, j] == zcorn[*slices0, i]), shifts)
+            ind_to_repl1 = _process_indices(
+                np.where(zcorn[*slices1, j] == zcorn[*slices0, i]), [-s for s in shifts])
+            connectivity[*ind_to_repl0, j] = connectivity[*ind_to_repl1, i]
+
+    connectivity[:, :, :, [2, 3]] = connectivity[:, :, :, [3, 2]]
+    connectivity[:, :, :, [6, 7]] = connectivity[:, :, :, [7, 6]]
+
+    indices = np.unravel_index(points, (nx, ny, nz, 8))
+    coord_indices = np.empty((2, points.size), dtype=int)
+
+    coord_indices[0] = indices[0] + indices[3] % 2
+    coord_indices[1] = indices[1] + ((indices[3] % 4) >= 2).astype(int)
+    points = np.empty((coord_indices.shape[1], 3))
+    points[:, 2] = zcorn[indices]
+    coord_points = coord[*coord_indices]
+    points[:, [0, 1]] = (coord_points[:, [0, 1]] +
+                         (coord_points[:, [3, 4]] - coord_points[:, [0,1]]) * 
+                         ((points[:, 2] - coord_points[:, 2]) /
+                         (coord_points[:, 5] - coord_points[:, 2]))[..., np.newaxis])
+
+    return points, connectivity[actnum]
 
 @njit
 def isclose(a, b, rtol=1e-05, atol=1e-08):
