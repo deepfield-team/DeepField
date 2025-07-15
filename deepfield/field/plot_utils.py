@@ -43,6 +43,9 @@ def get_slice_vtk(grid, slice_name, slice_val):
     threshold.Update()
     grid_slice = threshold.GetOutput()
 
+    if grid_slice.GetNumberOfCells() == 0:
+        return None, None, None, None
+
     points = vtk_to_numpy(grid_slice.GetPoints().GetData())
 
     conn = vtk_to_numpy(grid_slice.GetCells().GetData())
@@ -173,6 +176,7 @@ def show_slice_static(component, att, i=None, j=None, k=None, t=None,
     """
     grid = component.field.grid
     actnum = grid.actnum
+    nx, ny, nz = grid.dimens
 
 
     # lines = []
@@ -182,8 +186,8 @@ def show_slice_static(component, att, i=None, j=None, k=None, t=None,
         xlabel = 'y'
         ylabel = 'z'
         invert_y = True
-    #     if j_line is not None:
-    #         lines.append(xyz[i, j_line, :,][..., (0, 4), 1:][actnum[i, j_line, :]].reshape(-1, 2))
+        # if j_line is not None:
+        #     lines.append(xyz[i, j_line, :,][..., (0, 4), 1:][actnum[i, j_line, :]].reshape(-1, 2))
     #     if k_line is not None:
     #         lines.append(xyz[i,:, k_line][..., (0, 2), 1:][actnum[i, :, k_line]].reshape(-1, 2))
     #     if i_line is not None:
@@ -208,8 +212,8 @@ def show_slice_static(component, att, i=None, j=None, k=None, t=None,
     #         lines.append(xyz[:, j_line, k, :2, :2][actnum[:, j_line, k]].reshape(-1, 2))
     #     if k_line is not None:
     #         raise ValueError('`k_line` should be None for i-slice')
-    # else:
-    #     raise ValueError('One of i, j, or k slices should be defined.')
+    else:
+        raise ValueError('One of i, j, or k slices should be defined.')
 
     x, y, triangles, colors, _ = get_slice_trisurf(component, att, i, j, k, t)
     if triangles is not None:

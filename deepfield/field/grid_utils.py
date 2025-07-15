@@ -187,10 +187,12 @@ def process_grid_orthogonal(tops, dx, dy, dz, actnum):
     points = np.zeros((nx+1, ny+1, nz+1, 3), dtype=float)
     points[:, :, :, 0] = np.linspace(0, dx[0, 0, 0]*nx, (nx+1))[:, np.newaxis, np.newaxis]
     points[:, :, :, 1] = np.linspace(0, dy[0, 0, 0]*ny, (ny+1))[np.newaxis, :, np.newaxis]
-    points[:, :, :, 2] = np.linspace(0, dz[0, 0, 0]*nz, (nz+1))[np.newaxis, np.newaxis, :]
+    points[:, :, :, 2] = tops[0, 0, 0] + np.linspace(0, dz[0, 0, 0]*nz, (nz+1))[np.newaxis, np.newaxis, :]
     points = points.reshape(-1, 3, order='F')
+    connectivity[:, :, :, [2, 3]] = connectivity[:, :, :, [3, 2]]
+    connectivity[:, :, :, [6, 7]] = connectivity[:, :, :, [7, 6]]
 
-    return points, connectivity[actnum]    
+    return points, connectivity[actnum]   
 
 @njit
 def isclose(a, b, rtol=1e-05, atol=1e-08):

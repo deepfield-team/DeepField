@@ -292,11 +292,11 @@ class OrthogonalGrid(Grid):
 
     def get_points_and_coonectivity(self):
         """Get points and connectivity arrays."""
-        # try: 
-            # return process_grid_orthogonal(self.tops, self.dx, self.dy, self.dz, self.actnum)
-        # except ValueError:
-        grid = self.to_corner_point()
-        return grid.get_points_and_coonectivity()
+        try: 
+            return process_grid_orthogonal(self.tops, self.dx, self.dy, self.dz, self.actnum)
+        except ValueError:
+            grid = self.to_corner_point()
+            return grid.get_points_and_coonectivity()
 
     def upscale(self, factors=(2, 2, 2), actnum_upscale='vote'):
         """Merge grid cells according to factors given.
