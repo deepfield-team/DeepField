@@ -33,6 +33,17 @@ _SHIFTS = {
     (7, 6): (1, 0, 0)
 }
 
+def default_connectivity_tensor(nx, ny, nz):
+    """Default connectivity tensor."""
+    indices = np.indices((nx, ny, nz))
+    connectivity = np.zeros((nx, ny, nz, 8), int)
+    connectivity[:, :, :, 0] = indices[2] * (ny+1)*(nx+1) + indices[1]*(nx+1) + indices[0]
+    connectivity[:, :, :, 1] = connectivity[..., 0] + 1
+    connectivity[:, :, :, 2] = connectivity[..., 0] + (nx+1)
+    connectivity[:, :, :, 3] = connectivity[..., 2] + 1
+    connectivity[:, :, :, 4:8] = connectivity[..., 0:4] + (ny+1)*(nx+1)
+    return connectivity
+
 def common_indices(indices, shape):
     """Mask common indices."""
     mask = np.zeros(shape, dtype=bool)
@@ -107,13 +118,8 @@ def process_grid(zcorn, coord, actnum, active_points=True):
 
     points = points.reshape(-1, order='F')
 
-    indices = np.indices((nx, ny, nz))
-    connectivity = np.zeros((nx, ny, nz, 8), int)
-    connectivity[:, :, :, 0] = indices[2] * (ny+1)*(nx+1) + indices[1]*(nx+1) + indices[0]
-    connectivity[:, :, :, 1] = connectivity[..., 0] + 1
-    connectivity[:, :, :, 2] = connectivity[..., 0] + (nx+1)
-    connectivity[:, :, :, 3] = connectivity[..., 2] + 1
-    connectivity[:, :, :, 4:8] = connectivity[..., 0:4] + (ny+1)*(nx+1)
+    connectivity = default_connectivity_tensor(nx, ny, nz)
+
     n_nodes = (nx+1) * (ny+1) * (nz+1)
 
     for i in range(1, 8):
@@ -157,11 +163,34 @@ def process_grid(zcorn, coord, actnum, active_points=True):
     points[:, 2] = zcorn[indices]
     coord_points = coord[*coord_indices]
     points[:, [0, 1]] = (coord_points[:, [0, 1]] +
-                         (coord_points[:, [3, 4]] - coord_points[:, [0,1]]) * 
+                         (coord_points[:, [3, 4]] - coord_points[:, [0, 1]]) * 
                          ((points[:, 2] - coord_points[:, 2]) /
                          (coord_points[:, 5] - coord_points[:, 2]))[..., np.newaxis])
 
     return points, connectivity[actnum]
+
+def process_grid_orthogonal(tops, dx, dy, dz, actnum):
+    """Get points and connectivity arrays for orthogonal vtk grid."""
+    nx, ny, nz = tops.shape
+
+    connectivity = default_connectivity_tensor(nx, ny, nz)
+    if (tops != tops[0:1, 0:1, :]).any():
+        raise ValueError('`tops` values shoud be consistent for each layer.')
+    if not (dx == dx[0, 0, 0]).all():
+        raise ValueError('All `dx` values should be the same.')
+    if not (dy == dy[0, 0, 0]).all():
+        raise ValueError('All `dy` values should be the same.')
+    if not (dz == dz[0, 0, 0]).all():
+        raise ValueError('All `dz` values should be the same.')
+    if not (tops[:, :, 1:] == tops[:, :, 0:1] + np.cumsum(dz, axis=2)[:, :, :-1]).all():
+        raise ValueError('`tops` should be consistent with dz.')
+    points = np.zeros((nx+1, ny+1, nz+1, 3), dtype=float)
+    points[:, :, :, 0] = np.linspace(0, dx[0, 0, 0]*nx, (nx+1))[:, np.newaxis, np.newaxis]
+    points[:, :, :, 1] = np.linspace(0, dy[0, 0, 0]*ny, (ny+1))[np.newaxis, :, np.newaxis]
+    points[:, :, :, 2] = np.linspace(0, dz[0, 0, 0]*nz, (nz+1))[np.newaxis, np.newaxis, :]
+    points = points.reshape(-1, 3, order='F')
+
+    return points, connectivity[actnum]    
 
 @njit
 def isclose(a, b, rtol=1e-05, atol=1e-08):

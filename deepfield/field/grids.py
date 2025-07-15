@@ -5,7 +5,8 @@ from vtkmodules.util.numpy_support import vtk_to_numpy
 
 from .decorators import cached_property, apply_to_each_input
 from .base_spatial import SpatialComponent
-from .grid_utils import calc_cells, get_xyz, get_xyz_ijk, get_xyz_ijk_orth, process_grid
+from .grid_utils import (calc_cells, get_xyz, get_xyz_ijk, get_xyz_ijk_orth,
+                         process_grid, process_grid_orthogonal)
 from .utils import rolling_window, get_single_path
 from .parse_utils import read_ecl_bin
 
@@ -51,8 +52,25 @@ class Grid(SpatialComponent):
         return self
 
     def _create_vtk_grid(self):
-        """Grid-dependend method that creates VTK instructured grid."""
-        _ = self
+        """Create vtk grid from points and connectivity arrays."""
+        points, conn = self.get_points_and_coonectivity()
+        cell_array = vtk.vtkCellArray()
+
+        for x in conn:
+            cell_array.InsertNextCell(8, x)
+
+        vtk_points = vtk.vtkPoints()
+        for i, point in enumerate(points):
+            vtk_points.InsertPoint(i, point)
+
+        self.vtk_grid.SetPoints(vtk_points)
+        self.vtk_grid.SetCells(vtk.vtkHexahedron().GetCellType(), cell_array)
+
+        self._actnum_ids = np.where(self.actnum.ravel())[0]
+        return self
+
+    def get_points_and_coonectivity(self):
+        """Get points and connectivity arrays."""
         raise NotImplementedError()
 
     def id_to_ijk(self, idx):
@@ -272,13 +290,13 @@ class OrthogonalGrid(Grid):
         return get_xyz_ijk_orth(self.dx, self.dy, self.dz,
                                 self.tops, self.origin, ijk)
 
-    def _create_vtk_grid(self):
-        """Creates vtk unstructured grid."""
+    def get_points_and_coonectivity(self):
+        """Get points and connectivity arrays."""
+        # try: 
+            # return process_grid_orthogonal(self.tops, self.dx, self.dy, self.dz, self.actnum)
+        # except ValueError:
         grid = self.to_corner_point()
-        grid.create_vtk_grid()
-        self._vtk_grid = grid.vtk_grid
-        self._actnum_ids = grid.actnum_ids
-        return self
+        return grid.get_points_and_coonectivity()
 
     def upscale(self, factors=(2, 2, 2), actnum_upscale='vote'):
         """Merge grid cells according to factors given.
@@ -416,24 +434,9 @@ class CornerPointGrid(Grid):
             return get_xyz(self.dimens, self.zcorn, self.coord)
         return get_xyz_ijk(self.zcorn, self.coord, ijk)
 
-    def _create_vtk_grid(self, use_only_active=True):
-        """Creates vtk unstructured grid."""
-        points, conn = process_grid(self.zcorn, self.coord, self.actnum)
-
-        cell_array = vtk.vtkCellArray()
-
-        for x in conn:
-            cell_array.InsertNextCell(8, x)
-
-        vtk_points = vtk.vtkPoints()
-        for i, point in enumerate(points):
-            vtk_points.InsertPoint(i, point)
-
-        self.vtk_grid.SetPoints(vtk_points)
-        self.vtk_grid.SetCells(vtk.vtkHexahedron().GetCellType(), cell_array)
-
-        self._actnum_ids = np.where(self.actnum.ravel())[0]
-        return self
+    def get_points_and_coonectivity(self):
+        """Get points and connectivity arrays."""
+        return process_grid(self.zcorn, self.coord, self.actnum)
 
     def upscale(self, factors=(2, 2, 2), actnum_upscale='vote'):
         """Upscale grid according to factors given.
