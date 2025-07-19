@@ -1,7 +1,8 @@
 import pandas as pd
 import pytest
 from deepfield.field.data_directory.data_directory import (SECTIONS, DataTypes, StatementSpecification,
-    get_dynamic_keyword_specification, KeywordSpecification, TableSpecification)
+    get_dynamic_keyword_specification, KeywordSpecification, TableSpecification,
+    _get_eos_regions_number, _get_gptable_number, _get_eql_regions_number)
 TEST_DATA = (
     (
         (
@@ -16,7 +17,8 @@ TEST_DATA = (
             }
         ),
         KeywordSpecification('ZMFVD', DataTypes.TABLE_SET, TableSpecification(
-            ['DEPTH'] + [f'C{i}' for i in range(1, 6)], [0], ['float'] * 6
+            ['DEPTH'] + [f'C{i}' for i in range(1, 6)], [0], ['float'] * 6,
+            number=_get_eql_regions_number,
         ), (SECTIONS.PROPS,)),
     ),
     (
@@ -44,7 +46,8 @@ TEST_DATA = (
             'COMPVD', DataTypes.TABLE_SET, TableSpecification(
                 ['DEPTH'] + [f'Z{i}' for i in range(1, 6)] + ['LIQUID_FLAG', 'P_SAT'],
                 [0],
-                ['float'] * (6) + ['int', 'float']
+                ['float'] * (6) + ['int', 'float'],
+                number=_get_eql_regions_number
             ), (SECTIONS.PROPS,)
         )
     ),
@@ -68,7 +71,8 @@ TEST_DATA = (
                 header=StatementSpecification(
                     ['GPTABLE_NUM', 'HEAVY_C1', 'HEAVY_CLAST'],
                     ['int']*3
-                )
+                ),
+                number=_get_gptable_number
             ), (SECTIONS.SOLUTION, SECTIONS.SCHEDULE)
         )
     )

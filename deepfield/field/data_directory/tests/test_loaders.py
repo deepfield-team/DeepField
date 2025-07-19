@@ -1,76 +1,123 @@
 import itertools
-from typing import NamedTuple
 import pytest
 import numpy as np
 import pandas as pd
 from deepfield.field.data_directory.load_utils import LOADERS, decompress_array, parse_vals
 
-from deepfield.field.data_directory.data_directory import SECTIONS, ArrayWithUnits, DataTypes, DATA_DIRECTORY, KeywordSpecification, StatementSpecification, TableSpecification
+from deepfield.field.data_directory.data_directory import SECTIONS, ArrayWithUnits, DataTypes, DATA_DIRECTORY, KeywordSpecification, StatementSpecification, TableSpecification, get_dynamic_keyword_specification
 from deepfield.field.parse_utils.ascii import INT_NAN
 
 TEST_DATA = {
     DataTypes.STRING: [
         (
-            '\n'.join(('TITLE', 'abc /', '', '')),
+            (
+                '\n'.join(('TITLE', 'abc /', '', '')),
+                None
+            ),
             ('TITLE', 'abc')
         ),
         (
-            '\n'.join(('TITLE', 'abc', '/', '')),
+            (
+                '\n'.join(('TITLE', 'abc', '/', '')),
+                None
+            ),
             ('TITLE', 'abc')
         ),
         (
-            '\n'.join(('TITLE', 'abc', '', '')),
+            (
+                '\n'.join(('TITLE', 'abc', '', '')),
+                None
+            ),
             ('TITLE', 'abc')
         ),
         (
-            '\n'.join((
-                'TITLE',
-                'MODEL COMP FAULT TEST',
-                '',
-                'abc'
-            )),
+            (
+                '\n'.join((
+                    'TITLE',
+                    'MODEL COMP FAULT TEST',
+                    '',
+                    'abc'
+                )),
+                None
+            ),
             ('TITLE', 'MODEL COMP FAULT TEST')
         ),
         (
-            '\n'.join(('INCLUDE', '"abc/abc"', '/')),
+            (
+                '\n'.join(('INCLUDE', '"abc/abc"', '/')),
+                None
+            ),
             ('INCLUDE', 'abc/abc')
         ),
         (
-            '\n'.join(('INCLUDE', '"abc/abc" /')),
+            (
+                '\n'.join(('INCLUDE', '"abc/abc" /')),
+                None
+            ),
             ('INCLUDE', 'abc/abc')
         ),
         (
-            '\n'.join(('INCLUDE', "'abc/abc'", '/')),
+            (
+                '\n'.join(('INCLUDE', "'abc/abc'", '/')),
+                None
+            ),
             ('INCLUDE', 'abc/abc')
         ),
         (
-            '\n'.join(('INCLUDE', "a'abc/abc'", '/')),
+            (
+                '\n'.join(('INCLUDE', "a'abc/abc'", '/')),
+                None
+            ),
             ('INCLUDE', "aabc/abc")
         ),
         (
-            '\n'.join(('INCLUDE', "'abc/abc'a", '/')),
+            (
+                '\n'.join(('INCLUDE', "'abc/abc'a", '/')),
+                None
+            ),
             ('INCLUDE', "abc/abca")
         ),
         (
-            '\n'.join(('START', '01 JUL 1984 /', '/')),
+            (
+                '\n'.join(('START', '01 JUL 1984 /', '/')),
+                None
+            ),
             ('START', (pd.to_datetime('1984-07-01')))
         ),
         (
-            '\n'.join((
-                'START',
-                "01 'JUN' 2010 /"
-            )),
+            (
+                '\n'.join((
+                    'START',
+                    "01 'JUN' 2010 /"
+                )),
+                None
+            ),
             ('START', pd.to_datetime('2010-06-01'))
         )
     ],
     DataTypes.TABLE_SET: [
         (
-            '\n'.join((
-                'EQUIL',
-                '2300 200 2500 0.1 2300 0.001 /',
-                '2310 205 2520 0.05 2310 0.0 /'
-                '2305 210 2510 1* 2305 1* /'
-            )),
+            (
+                '\n'.join((
+                    'EQUIL',
+                    '2300 200 2500 0.1 2300 0.001 /',
+                    '2310 205 2520 0.05 2310 0.0 /',
+                    '2305 210 2510 1* 2305 1* /'
+                )),
+                {
+                    'RUNSPEC': [
+                        (
+                            'EQLDIMS',
+                            pd.DataFrame(
+                                [[3, INT_NAN, INT_NAN, INT_NAN, INT_NAN]],
+                                columns=['EQL_NUM', 'EQL_NODE_NUM', 'DEPTH_NODE_MAX_NUM',
+                                         'INIT_TRAC_CONC_NUM', 'INIT_TRAC_CONC_NODE_NUM']
+                            )
+                        )
+                    ]
+                }
+            
+            ),
             (
                 'EQUIL',
                 (
@@ -87,12 +134,27 @@ TEST_DATA = {
             )
         ),
         (
-            '\n'.join((
-                'EQUIL',
-                '1450 141 1475 0 638 0 1 1* 10 /',
-                '1450 141 1475 0 965 0 1 1* 10 /',
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'EQUIL',
+                    '1450 141 1475 0 638 0 1 1* 10 /',
+                    '1450 141 1475 0 965 0 1 1* 10 /',
+                    '/'
+                )),
+                {
+                    'RUNSPEC': [
+                        (
+                            'EQLDIMS',
+                            pd.DataFrame(
+                                [[2, INT_NAN, INT_NAN, INT_NAN, INT_NAN]],
+                                columns=['EQL_NUM', 'EQL_NODE_NUM', 'DEPTH_NODE_MAX_NUM',
+                                         'INIT_TRAC_CONC_NUM', 'INIT_TRAC_CONC_NODE_NUM']
+                            )
+                        )
+                    ]
+                }
+                
+            ),
             (
                 'EQUIL',
                 (
@@ -106,28 +168,31 @@ TEST_DATA = {
             ),
         ),
         (
-            '\n'.join((
-                'SWOF',
-                '0.42 0 0.737 0',
-                '0.48728 0.000225 0.610213 0',
-                '0.55456 0.00438 0.310527 0',
-                '0.62184 0.023012 0.072027 0',
-                '0.68912 0.069122 0.003178 0',
-                '0.7564 0.151 0 0',
-                '0.82368 0.267672 0 0',
-                '0.89096 0.408671 0 0',
-                '0.95824 0.557237 0 0',
-                '1 0.645099 0 0',
-                '/',
-                '0 0 1 0',
-                '0.3 0.002 0.81 0',
-                '0.4 0.018 0.49 0',
-                '0.5 0.05 0.25 0',
-                '0.6 0.098 0.09 0',
-                '0.7 0.162 0.01 0',
-                '1 0.2 0 0',
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'SWOF',
+                    '0.42 0 0.737 0',
+                    '0.48728 0.000225 0.610213 0',
+                    '0.55456 0.00438 0.310527 0',
+                    '0.62184 0.023012 0.072027 0',
+                    '0.68912 0.069122 0.003178 0',
+                    '0.7564 0.151 0 0',
+                    '0.82368 0.267672 0 0',
+                    '0.89096 0.408671 0 0',
+                    '0.95824 0.557237 0 0',
+                    '1 0.645099 0 0',
+                    '/',
+                    '0 0 1 0',
+                    '0.3 0.002 0.81 0',
+                    '0.4 0.018 0.49 0',
+                    '0.5 0.05 0.25 0',
+                    '0.6 0.098 0.09 0',
+                    '0.7 0.162 0.01 0',
+                    '1 0.2 0 0',
+                    '/'
+                )),
+                None
+            ),
             (
                 'SWOF',
                 (
@@ -162,27 +227,30 @@ TEST_DATA = {
             )
         ),
         (
-            '\n'.join((
-                'PVTO',
-                '1 5 1.031 5.81 /',
-                '12.33 52 1.080 5.03 /',
-                '21.65 73 1.1021 4.23',
-                '\t204 1.092 4.62',
-                '\t321 1.016 6.02 /',
-                '/',
-                '1 5 1.0002 3.58 /',
-                '14.87 58 1.086 2.93 /',
-                '27.7 90 1.113 2.25',
-                '\t234 1.1 2.88',
-                '\t387 1.121 3.96 /',
-                '/',
-                '1 5 1.0002 3.58 /',
-                '18.67 57 1.0730 2.89 /',
-                '31.65 88 1.1083 2.2',
-                '\t248 1.093 2.57',
-                '\t334 1.073 4.23 /',
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'PVTO',
+                    '1 5 1.031 5.81 /',
+                    '12.33 52 1.080 5.03 /',
+                    '21.65 73 1.1021 4.23',
+                    '\t204 1.092 4.62',
+                    '\t321 1.016 6.02 /',
+                    '/',
+                    '1 5 1.0002 3.58 /',
+                    '14.87 58 1.086 2.93 /',
+                    '27.7 90 1.113 2.25',
+                    '\t234 1.1 2.88',
+                    '\t387 1.121 3.96 /',
+                    '/',
+                    '1 5 1.0002 3.58 /',
+                    '18.67 57 1.0730 2.89 /',
+                    '31.65 88 1.1083 2.2',
+                    '\t248 1.093 2.57',
+                    '\t334 1.073 4.23 /',
+                    '/'
+                )),
+                None
+            ),
             (
                 'PVTO',
                 (
@@ -225,16 +293,15 @@ TEST_DATA = {
                     '\t0.02\t0.03\t0.01\t0.0520\t0.02\t0.01\t0.0\t0.0',
                     '/'
                 )),
-                KeywordSpecification(
-                    'GPTABLEN',
-                    DataTypes.TABLE_SET,
-                    TableSpecification(
-                        ['C_HEAVY'] + [f'OIL_RECOVERY_FRACTION{i}' for i in range(1, 9)] +
-                            [f'NGL_RECOVERY_FRACTION{i}' for i in range(1, 9)],
-                        domain=[0],
-                        header=StatementSpecification(['GPTABLE_NUM', 'HEAVY_C1', 'HEAVY_CLAST'], ['int']*3)
-                    ), (SECTIONS.SCHEDULE,)
-                )
+                {
+                    'RUNSPEC': [
+                        ('COMPS',
+                         pd.DataFrame(
+                             [[8]], columns=['N']
+                         ))
+                    ]
+
+                }
             ),
             (
                 'GPTABLEN',
@@ -263,18 +330,17 @@ TEST_DATA = {
                     '0.0   0.0   0.0    0.0075   0.9437  0.8114   0.7253  0.0199  0.0009  0.00   0.00  0.00  6*0.00',
                     '1.0  0.0   0.0   0.0    0.0002   0.0516  0.1886   0.2747  0.9801  0.9991  1.00   1.00  1.00  6*1.00',
                     '0.0   0.0   0.0    0.0075   0.9437  0.8114   0.7253  0.0199  0.0009  0.00   0.00  0.00  6*0.00',
-                        '/',
+                    '/',
                 )),
-                KeywordSpecification(
-                    'GPTABLEN',
-                    DataTypes.TABLE_SET,
-                    TableSpecification(
-                        ['C_HEAVY'] + [f'OIL_RECOVERY_FRACTION{i}' for i in range(1, 19)] +
-                            [f'NGL_RECOVERY_FRACTION{i}' for i in range(1, 19)],
-                        domain=[0],
-                        header=StatementSpecification(['GPTABLE_NUM', 'HEAVY_C1', 'HEAVY_CLAST'], ['int']*3)
-                    ), (SECTIONS.SCHEDULE,)
-                )
+                {
+                    'RUNSPEC': [
+                        ('COMPS',
+                         pd.DataFrame(
+                             [[18]], columns=['N']
+                         ))
+                    ]
+
+                }
             ),
             (
                 'GPTABLEN',
@@ -298,16 +364,56 @@ TEST_DATA = {
                         )
                     ),
                 )
+            ),
+        ),
+        (
+            (
+                '\n'.join((
+                    'OILVISCC',
+                    'ASTM FORMULA',
+                    '0.4 0.5 0.6',
+                    '12 18 20',
+                    '11 21 24',
+                    '/'
+                )),
+                {
+                    'PROPS': (
+                        (
+                            'NCOMPS',
+                            pd.DataFrame([[3]], columns=['N'])
+                        ),
+                    )
+                }
+            ),
+            (
+                'OILVISCC',
+                (
+                    (
+                        pd.DataFrame(
+                            [[0.4, 0.5, 0.6, 12., 18., 20., 11., 21., 24.]],
+                            columns=([f'A{i}' for i in range(1, 4)] +
+                                [f'B{i}' for i in range(1, 4)] +
+                                [f'C{i}' for i in range(1, 4)])
+                        ),
+                        pd.DataFrame(
+                            [['ASTM', 'FORMULA']],
+                            columns=['NAME', 'TYPE']
+                        )
+                    ),
+                )
             )
         )
     ],
     DataTypes.SINGLE_STATEMENT: [
         (
-            '\n'.join((
-                'TABDIMS',
-                '2 4 2* 3',
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'TABDIMS',
+                    '2 4 2* 3',
+                    '/'
+                )),
+                None
+            ),
             (
                 'TABDIMS',
                 pd.DataFrame(
@@ -319,10 +425,13 @@ TEST_DATA = {
             )
         ),
         (
-            '\n'.join((
-                'TABDIMS',
-                '2 4 2* 3/',
-            )),
+            (
+                '\n'.join((
+                    'TABDIMS',
+                    '2 4 2* 3/',
+                )),
+                None
+            ),
             (
                 'TABDIMS',
                 pd.DataFrame(
@@ -334,10 +443,13 @@ TEST_DATA = {
             )
         ),
         (
-            '\n'.join((
-                'ENDSCALE',
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'ENDSCALE',
+                    '/'
+                )),
+                None
+            ),
             (
                 'ENDSCALE',
                 pd.DataFrame(
@@ -347,28 +459,37 @@ TEST_DATA = {
             )
         ),
         (
-            '\n'.join((
-                'TABDIMS',
-                '2 4 2* 3',
-            )),
+            (
+                '\n'.join((
+                    'TABDIMS',
+                    '2 4 2* 3',
+                )),
+                None
+            ),
             ValueError()
         ),
         (
-            '\n'.join((
-                'TABDIMS',
-                '2 4 2* 3',
-                'abc'
-            )),
+            (
+                '\n'.join((
+                    'TABDIMS',
+                    '2 4 2* 3',
+                    'abc'
+                )),
+                None
+            ),
             ValueError()
         )
     ],
     DataTypes.PARAMETERS: [
         (
-            '\n'.join((
-                'RPTSOL',
-                'RESTART=2 /'
-                'abc'
-            )),
+            (
+                '\n'.join((
+                    'RPTSOL',
+                    'RESTART=2 /'
+                    'abc'
+                )),
+                None
+            ),
             (
                 'RPTSOL',
                 {
@@ -377,12 +498,15 @@ TEST_DATA = {
             )
         ),
         (
-            '\n'.join((
-                'RPTSOL',
-                'RESTART=2',
-                '/'
-                'abc'
-            )),
+            (
+                '\n'.join((
+                    'RPTSOL',
+                    'RESTART=2',
+                    '/'
+                    'abc'
+                )),
+                None
+            ),
             (
                 'RPTSOL',
                 {
@@ -391,11 +515,14 @@ TEST_DATA = {
             )
         ),
         (
-            '\n'.join((
-                'RPTSCHED',
-                'FIP WELSPECS WELLS /',
-                'abc'
-            )),
+            (
+                '\n'.join((
+                    'RPTSCHED',
+                    'FIP WELSPECS WELLS /',
+                    'abc'
+                )),
+                None
+            ),
             (
                 'RPTSCHED',
                 {
@@ -406,14 +533,17 @@ TEST_DATA = {
             )
         ),
         (
-            '\n'.join((
-                'RPTSCHED',
-                'FIP',
-                'WELSPECS',
-                'WELLS',
-                '/',
-                'abc'
-            )),
+            (
+                '\n'.join((
+                    'RPTSCHED',
+                    'FIP',
+                    'WELSPECS',
+                    'WELLS',
+                    '/',
+                    'abc'
+                )),
+                    None
+            ),
             (
                 'RPTSCHED',
                 {
@@ -424,12 +554,15 @@ TEST_DATA = {
             )
         ),
         (
-            '\n'.join((
-                'REPORTSCREEN',
-                'WELL LOW',
-                'ITERS MEDIUM',
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'REPORTSCREEN',
+                    'WELL LOW',
+                    'ITERS MEDIUM',
+                    '/'
+                )),
+                None
+            ),
             (
                 'REPORTSCREEN',
                 {
@@ -439,19 +572,25 @@ TEST_DATA = {
             )
         ),
         (
-            '\n'.join((
-                'REPORTSCREEN',
-                'WELL LOW abc',
-                'ITERS MEDIUM',
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'REPORTSCREEN',
+                    'WELL LOW abc',
+                    'ITERS MEDIUM',
+                    '/'
+                )),
+                None
+            ),
             ValueError()
         ),
         (
-            '\n'.join((
-                'RPTSCHED',
-                "'WELLS=2' 'SUMMARY=2' 'fip=3' 'RESTART=1' 'WELSPECS' 'CPU=2' /"
-            )),
+            (
+                '\n'.join((
+                    'RPTSCHED',
+                    "'WELLS=2' 'SUMMARY=2' 'fip=3' 'RESTART=1' 'WELSPECS' 'CPU=2' /"
+                )),
+                None
+            ),
             (
                 'RPTSCHED',
                 {
@@ -468,24 +607,30 @@ TEST_DATA = {
     ],
     DataTypes.ARRAY: [
         (
-            '\n'.join((
-                'ACTNUM',
-                '3*0 2*1',
-                '5*0',
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'ACTNUM',
+                    '3*0 2*1',
+                    '5*0',
+                    '/'
+                )),
+                None
+            ),
             (
                 'ACTNUM',
                 np.array([False]*3 + [True]*2 + [False]*5)
             )
         ),
         (
+            (
             '\n'.join((
                 'PERMX',
                 '3*0 2*1',
                 '5*0.5 6',
                 '/'
             )),
+                None
+            ),
             (
                 'PERMX',
                 np.array([0]*3 + [1]*2 + [0.5]*5 + [6])
@@ -494,55 +639,70 @@ TEST_DATA = {
     ],
     DataTypes.OBJECT_LIST: [
         (
-            '\n'.join((
-                'WOPR',
-                "'PROD1'",
-                'PROD2',
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'WOPR',
+                    "'PROD1'",
+                    'PROD2',
+                    '/'
+                )),
+                None
+            ),
             (
                 'WOPR',
                 ['PROD1', 'PROD2'],
             )
         ),
         (
-            '\n'.join((
-                'WOPR',
-                "'PROD1'",
-                'PROD2/',
-                ''
-            )),
+            (
+                '\n'.join((
+                    'WOPR',
+                    "'PROD1'",
+                    'PROD2/',
+                    ''
+                )),
+                None,
+            ),
             (
                 'WOPR',
                 ['PROD1', 'PROD2'],
             )
         ),
         (
-            '\n'.join((
-                'WOPR',
-                "'PROD1'",
-                'PROD2',
-                ''
-            )),
+            (
+                '\n'.join((
+                    'WOPR',
+                    "'PROD1'",
+                    'PROD2',
+                    ''
+                )),
+                None
+            ),
             ValueError(),
         ),
         (
-            '\n'.join((
-                'WOPR',
-                "'PROD1'",
-                "",
-                'PROD2',
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'WOPR',
+                    "'PROD1'",
+                    "",
+                    'PROD2',
+                    '/'
+                )),
+                None,
+            ),
             ValueError(),
         ),
         (
-            '\n'.join((
-                'DATES',
-                '01 JUL 2011/',
-                '01 AUG 2012/',
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'DATES',
+                    '01 JUL 2011/',
+                    '01 AUG 2012/',
+                    '/'
+                )),
+                None
+            ),
             (
                 'DATES',
                 [
@@ -552,25 +712,31 @@ TEST_DATA = {
             )
         ),
         (
-            '\n'.join((
+            (
+                '\n'.join((
                 'DATES',
                 '01 JUL 2011/',
                 '01 AUG 2012',
                 '/'
-            )),
+                )),
+                None
+            ),
             ValueError()
 
         )
     ],
     DataTypes.RECORDS: [
         (
-            '\n'.join((
-                'TUNING',
-                '1 365 0.1 0.15 3 0.3 0.1 1.25 0.75 /',
-                '0.1 0.001 1E-7 0.0001',
-                '10 0.01 1E-6 0.001 0.001 /',
-                '12 1 25 1 8 8 4*1E6 /'
-            )),
+            (
+                '\n'.join((
+                    'TUNING',
+                    '1 365 0.1 0.15 3 0.3 0.1 1.25 0.75 /',
+                    '0.1 0.001 1E-7 0.0001',
+                    '10 0.01 1E-6 0.001 0.001 /',
+                    '12 1 25 1 8 8 4*1E6 /'
+                )),
+                None
+            ),
             (
                 'TUNING',
                 (
@@ -592,36 +758,42 @@ TEST_DATA = {
             )
         ),
         (
-            '\n'.join((
-                'TUNING',
-                '1 365 0.1 0.15 3 0.3 0.1 1.25 0.75 /',
-                '0.1 0.001 1E-7 0.0001',
-                '10 0.01 1E-6 0.001 0.001 /',
-            )),
+            (
+                '\n'.join((
+                    'TUNING',
+                    '1 365 0.1 0.15 3 0.3 0.1 1.25 0.75 /',
+                    '0.1 0.001 1E-7 0.0001',
+                    '10 0.01 1E-6 0.001 0.001 /',
+                )),
+                None
+            ),
             ValueError()
         ),
         (
-            '\n'.join((
-                'VFPPROD',
-                "1 2200 'OIL' 'WCT' 'GOR' 'THP' ' ' 'METRIC' 'BHP' /",
-                '1 30 300 /',
-                '10 20 /',
-                '0 0.7 /',
-                '1 100 500 /',
-                '0 /',
-                '1 1 1 1 1.75243E+002 1.75243E+002 1.75244E+002 /',
-                '2 1 1 1 1.80749E+002 1.80749E+002 1.80750E+002 /',
-                '1 2 1 1 1.91358E+002 1.91359E+002 1.91362E+002 /',
-                '2 2 1 1 1.96743E+002 1.96744E+002 1.96747E+002 /' ,
-                '1 1 2 1 1.71599E+002 1.71599E+002 1.71601E+002 /',
-                '2 1 2 1 1.77093E+002 1.77093E+002 1.77095E+002 /',
-                '1 2 2 1 1.88482E+002 1.88483E+002 1.88487E+002 /',
-                '2 2 2 1 1.93865E+002 1.93866E+002 1.93869E+002 /',
-                '1 1 3 1 1.45582E+002 1.45526E+002 1.45462E+002 /',
-                '2 1 3 1 1.50977E+002 1.50978E+002 1.50979E+002 /',
-                '1 2 3 1 1.71277E+002 1.71278E+002 1.71282E+002 /',
-                '2 2 3 1 1.71277E+002 1.71278E+002 1.71282E+002 /',
-            )),
+            (
+                '\n'.join((
+                    'VFPPROD',
+                    "1 2200 'OIL' 'WCT' 'GOR' 'THP' ' ' 'METRIC' 'BHP' /",
+                    '1 30 300 /',
+                    '10 20 /',
+                    '0 0.7 /',
+                    '1 100 500 /',
+                    '0 /',
+                    '1 1 1 1 1.75243E+002 1.75243E+002 1.75244E+002 /',
+                    '2 1 1 1 1.80749E+002 1.80749E+002 1.80750E+002 /',
+                    '1 2 1 1 1.91358E+002 1.91359E+002 1.91362E+002 /',
+                    '2 2 1 1 1.96743E+002 1.96744E+002 1.96747E+002 /' ,
+                    '1 1 2 1 1.71599E+002 1.71599E+002 1.71601E+002 /',
+                    '2 1 2 1 1.77093E+002 1.77093E+002 1.77095E+002 /',
+                    '1 2 2 1 1.88482E+002 1.88483E+002 1.88487E+002 /',
+                    '2 2 2 1 1.93865E+002 1.93866E+002 1.93869E+002 /',
+                    '1 1 3 1 1.45582E+002 1.45526E+002 1.45462E+002 /',
+                    '2 1 3 1 1.50977E+002 1.50978E+002 1.50979E+002 /',
+                    '1 2 3 1 1.71277E+002 1.71278E+002 1.71282E+002 /',
+                    '2 2 3 1 1.71277E+002 1.71278E+002 1.71282E+002 /',
+                )),
+                None
+            ),
             (
                 'VFPPROD',
                 (
@@ -688,12 +860,15 @@ TEST_DATA = {
     ],
     DataTypes.STATEMENT_LIST: [
         (
-            '\n'.join((
-                'WCONPROD',
-                '1043 OPEN LRAT 18.19 0 0 18.99 2* /',
-                '1054 OPEN ORAT 16.38 1.765 0 18.14 1* 50 /',
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'WCONPROD',
+                    '1043 OPEN LRAT 18.19 0 0 18.99 2* /',
+                    '1054 OPEN ORAT 16.38 1.765 0 18.14 1* 50 /',
+                    '/'
+                )),
+                None
+            ),
             (
                 'WCONPROD',
                 pd.DataFrame({key: (value, value2) for key, value, value2 in zip(
@@ -706,27 +881,36 @@ TEST_DATA = {
             )
         ),
         (
-            '\n'.join((
-                'WCONPROD',
-                '1043 OPEN LRAT 18.19 0 0 18.99 2* /',
-                '1054 OPEN ORAT 16.38 1.765 0 18.14 1* 50 /',
-            )),
+            (
+                '\n'.join((
+                    'WCONPROD',
+                    '1043 OPEN LRAT 18.19 0 0 18.99 2* /',
+                    '1054 OPEN ORAT 16.38 1.765 0 18.14 1* 50 /',
+                )),
+                None
+            ),
             ValueError()
         ),
         (
-            '\n'.join((
-                'WCONPROD',
-                '1043 OPEN LRAT 18.19 0 0 18.99 2* /',
-                '1054 OPEN ORAT 16.38 1.765 0 18.14 1* 50 /',
+            (
+                '\n'.join((
+                    'WCONPROD',
+                    '1043 OPEN LRAT 18.19 0 0 18.99 2* /',
+                    '1054 OPEN ORAT 16.38 1.765 0 18.14 1* 50 /',
                 '')),
+                None
+            ),
             ValueError()
         ),
         (
-            '\n'.join((
-                'WELSPECS',
-                "'3' 'GROUP 1' 22 20 1* 'OIL' 1* 1* 1* 1* 1* 1* 1* 1* 1* 1* 1* /",
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'WELSPECS',
+                    "'3' 'GROUP 1' 22 20 1* 'OIL' 1* 1* 1* 1* 1* 1* 1* 1* 1* 1* 1* /",
+                    '/'
+                )),
+                None
+            ),
             (
                 'WELSPECS',
                 pd.DataFrame(
@@ -736,11 +920,14 @@ TEST_DATA = {
             )
         ),
         (
-            '\n'.join((
-                'WECON',
-                'P*    2*  0.9 2*  WELL/',
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'WECON',
+                    'P*    2*  0.9 2*  WELL/',
+                    '/'
+                )),
+                None
+            ),
             (
                 'WECON',
                 pd.DataFrame([[
@@ -753,12 +940,15 @@ TEST_DATA = {
     ],
     DataTypes.ARRAY_WITH_UNITS: [
         (
-            '\n'.join((
-                'RPTRSTT',
-                'MONTH',
-                '2 3 4',
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'RPTRSTT',
+                    'MONTH',
+                    '2 3 4',
+                    '/'
+                )),
+                None
+            ),
             (
                 'RPTRSTT',
                 ArrayWithUnits(
@@ -770,20 +960,26 @@ TEST_DATA = {
     ],
     None: [
         (
-            '\n'.join((
-                'RPTRSTL',
-                '/'
-            )),
+            (
+                '\n'.join((
+                    'RPTRSTL',
+                    '/'
+                )),
+                None
+            ),
             (
                 'RPTRSTL',
                 None
             ),
         ),
         (
-            '\n'.join((
-                'RPTRSTL',
-                'abc'
-            )),
+            (
+                '\n'.join((
+                    'RPTRSTL',
+                    'abc'
+                )),
+                None
+            ),
             ValueError()
         )
     ]
@@ -810,24 +1006,23 @@ def test_load(data_type, input, expected):
                 self._last = None
             else:
                 raise ValueError('Can not get previous line.')
-    if isinstance(input, tuple | list):
-        inp_text, specification = input
-    else:
-        specification = None
-        inp_text = input
+    # if isinstance(input, tuple | list):
+    #     inp_text, specification = input
+    inp_text, data = input
 
     buf = iter(inp_text.splitlines())
 
     buf = IterPrev(buf)
 
     keyword = next(buf)
+    specification = DATA_DIRECTORY[keyword]
     if specification is None:
-        specification = DATA_DIRECTORY[keyword]
+        specification = get_dynamic_keyword_specification(keyword, data)
     if isinstance(expected, Exception):
         with pytest.raises(type(expected)):
-            LOADERS[data_type](specification.specification, buf)
+            LOADERS[data_type](specification.specification, buf, data)
     else:
-        res = LOADERS[data_type](specification.specification, buf)
+        res = LOADERS[data_type](specification.specification, buf, data)
         if not isinstance(expected[1], tuple | list | ArrayWithUnits):
             expected_res = [expected[1]]
             res = [res]
@@ -848,7 +1043,6 @@ def _test_val(r, e):
         pd.testing.assert_frame_equal(r, e)
     else:
         assert r == e
-
 
 DECOMPRESS_TEST_DATA = [
     (

@@ -79,7 +79,7 @@ def _load_object_list(keyword_spec, buf):
 def _parse_date(s):
     return pd.to_datetime(s)
 
-def _load_table(keyword_spec, buf):
+def _load_table(keyword_spec, buf, data=None):
     def _parse_val(val, t):
         if t == 'int':
             if val == 'nan':
@@ -87,6 +87,7 @@ def _load_table(keyword_spec, buf):
             return int(val)
         if t == 'float':
             return float(val)
+        return val
 
     def _empty_val(t):
         if t == 'int':
@@ -94,16 +95,19 @@ def _load_table(keyword_spec, buf):
         if t == 'float':
             return np.NaN
 
-    n_attrs = len(keyword_spec.columns)
-    dtypes = keyword_spec.dtypes
-    if isinstance(dtypes, str):
-        dtypes = [keyword_spec.dtypes] * n_attrs
+        colum
 
     if keyword_spec.domain is None:
         depth = 1
     else:
         depth = len(keyword_spec.domain)
-    data = _read_table_data(buf, depth)
+    if keyword_spec.number is None:
+        n = 1
+    if isinstance(keyword_spec.number, int):
+        n = keyword_spec.number
+    else:
+        n = keyword_spec.number(data)
+    data = _read_table_data(buf, depth, n)
     tables = []
     for region_table_data in data:
         header = None
@@ -113,6 +117,14 @@ def _load_table(keyword_spec, buf):
             header_data = [_parse_val(v, t) for v, t in zip(header_data, keyword_spec.header.dtypes)]
             header = pd.DataFrame([header_data], columns=keyword_spec.header.columns)
             region_table_data = region_table_data[n_header:]
+        if callable(keyword_spec.columns):
+            columns = keyword_spec.columns(header)
+        else:
+            columns = keyword_spec.columns
+        n_attrs = len(columns)
+        dtypes = keyword_spec.dtypes
+        if isinstance(dtypes, str):
+            dtypes = [keyword_spec.dtypes] * n_attrs
         if depth == 2:
             table_parts = []
             for d in region_table_data:
@@ -125,7 +137,7 @@ def _load_table(keyword_spec, buf):
                         [_parse_val(v, t) for v, t in zip(d[i * (n_attrs-1) + 1 : (i + 1) * (n_attrs-1) + 1],
                                                 dtypes[1:])])
                 table_parts += (data_tmp)
-            table = pd.DataFrame(table_parts, columns=keyword_spec.columns)
+            table = pd.DataFrame(table_parts, columns=columns)
         else:
             if len(region_table_data) < n_attrs:
                 tmp = [_empty_val(t) for t in dtypes[len(region_table_data):]]
@@ -134,22 +146,21 @@ def _load_table(keyword_spec, buf):
                 raise ValueError('Number of values in table is not consistent wit number of columns.')
             n_rows = int(len(region_table_data) / n_attrs)
             data_tmp = [list(map(_parse_val,region_table_data[i * n_attrs : (i+1) * n_attrs], dtypes)) for i in range(n_rows)]
-            table = pd.DataFrame(data_tmp, columns=keyword_spec.columns)
+            table = pd.DataFrame(data_tmp, columns=columns)
         if 'int' in dtypes:
-            int_columns = [col for col, t  in zip(keyword_spec.columns, dtypes) if t=='int']
+            int_columns = [col for col, t  in zip(columns, dtypes) if t=='int']
             for col in int_columns:
                 table[col] = table[col].fillna(INT_NAN)
                 if (np.mod(table[col], 1) > 0).any():
                     raise ValueError('Noninteger value in integer column.')
                 table[col] = table[col].astype(int)
         if  keyword_spec.domain is not None:
-            domain_attrs = [keyword_spec.columns[i] for i in keyword_spec.domain]
+            domain_attrs = [columns[i] for i in keyword_spec.domain]
             table = table.set_index(domain_attrs)
         if header is not None:
             tables.append((table, header))
         else:
             tables.append(table)
-
     return tables
 
 def _load_single_statement(keyword_spec, buffer):
@@ -204,7 +215,7 @@ def _load_records(keyword_spec, buffer):
         res.append(_load_record(spec, buffer))
     return res
 
-def _read_table_data(buffer, depth):
+def _read_table_data(buffer, depth, n):
     """Read numerical data for table.
 
     Parameters
@@ -254,9 +265,6 @@ def _read_table_data(buffer, depth):
                 if len(cur_item) == i:
                     cur_item.append([])
                 cur_item = cur_item[i]
-            if not (line[0].isdigit() or line[0]=='.' or line[:3]=='nan'): # line can start from `.`, e.g `.123`
-                buffer.prev()
-                break
             values = line.split()
             cur_item.append(values)
             group_end = False
@@ -264,21 +272,18 @@ def _read_table_data(buffer, depth):
             if group_end:
                 try:
                     ind[1] += 1
+                    if len(data) == n:
+                        break
                 except IndexError:
-                    data.append([])
                     buffer.prev()
-                    break
+                    raise ValueError('Unexpected closing slash.')
                 ind[0] = 0
             else:
                 ind[0] += 1
+                if len(data)==n and depth==1:
+                    break
             group_end = True
-    if data[-1] and (len(data[-1][0])):
-        if ind[-1] == len(data)-1:
-            raise ValueError('Table block was not properly closed.')
-    else:
-        del data[-1]
-        ind[-1] -= 1
-
+    
     if depth == 1:
         tmp_iter = [data]
     else:
@@ -286,6 +291,7 @@ def _read_table_data(buffer, depth):
     for d in (tmp_iter):
         for i, vals in enumerate(d):
             d[i] = list(itertools.chain(*vals))
+    assert len(data) == n
     return data
 
 def _load_array(keyword_spec, buf):
@@ -298,7 +304,6 @@ def _load_array_with_units(keyword_spec, buf):
     buf.prev()
     array = read_array(buf, dtype=keyword_spec.dtype, skip_first_word=True)
     return ArrayWithUnits(units, array)
-
 
 def read_array(buffer, dtype=None, compressed=True, skip_first_word=False, **kwargs):
     """Read array data from a string buffer before first occurrence of '/' symbol.
@@ -447,16 +452,16 @@ def _load_no_data(keyword_spec, buf):
         raise ValueError('Data is not properly terminated.')
 
 LOADERS = {
-    None: _load_no_data,
-    DataTypes.STRING: _load_string,
-    DataTypes.OBJECT_LIST: _load_object_list,
-    DataTypes.TABLE_SET: _load_table,
-    DataTypes.ARRAY: _load_array,
-    DataTypes.PARAMETERS: _load_parameters,
-    DataTypes.SINGLE_STATEMENT: _load_single_statement,
-    DataTypes.STATEMENT_LIST: _load_statement_list,
-    DataTypes.RECORDS: _load_records,
-    DataTypes.ARRAY_WITH_UNITS: _load_array_with_units,
+    None: lambda keyword_spec, buf, _: _load_no_data(keyword_spec, buf),
+    DataTypes.STRING: lambda keyword_spec, buf, _: _load_string(keyword_spec, buf),
+    DataTypes.OBJECT_LIST: lambda keyword_spec, buf, _: _load_object_list(keyword_spec, buf),
+    DataTypes.TABLE_SET: lambda keyword_spec, buf, data: _load_table(keyword_spec, buf, data),
+    DataTypes.ARRAY: lambda keyword_spec, buf, _: _load_array(keyword_spec, buf ),
+    DataTypes.PARAMETERS: lambda keyword_spec, buf, _: _load_parameters(keyword_spec, buf),
+    DataTypes.SINGLE_STATEMENT: lambda keyword_spec, buf, _: _load_single_statement(keyword_spec, buf),
+    DataTypes.STATEMENT_LIST: lambda keyword_spec, buf, _: _load_statement_list(keyword_spec, buf),
+    DataTypes.RECORDS: lambda keyword_spec, buf, _: _load_records(keyword_spec, buf),
+    DataTypes.ARRAY_WITH_UNITS: lambda keyword_spec, buf, _: _load_array_with_units(keyword_spec, buf),
 }
 
 class StringIteratorIO:
@@ -525,7 +530,7 @@ class StringIteratorIO:
         self._line_number += 1
         if line:
             if line == 'INCLUDE':
-                path = LOADERS[DataTypes.STRING](DATA_DIRECTORY['INCLUDE'].specification, self)
+                path = LOADERS[DataTypes.STRING](DATA_DIRECTORY['INCLUDE'].specification, self, None)
                 self.include_file(path)
                 return next(self)
             self._last_line = line
@@ -602,7 +607,6 @@ def _get_expected_line(buf):
     return line
 
 def load(path, logger=None, encoding=None):
-
     res = {
     }
     sections = [sec.value for sec in SECTIONS]
@@ -636,7 +640,7 @@ def load(path, logger=None, encoding=None):
                         f'is not supported (skipping): line {lines.line_number}')
                     continue
                 logger.info(f'Start reading keyword {firstword}: line {lines.line_number}.')
-                data = LOADERS[keyword_spec.type](keyword_spec.specification, lines)
+                data = LOADERS[keyword_spec.type](keyword_spec.specification, lines, res)
                 if cur_section not in res:
                     res[cur_section] = []
                 res[cur_section].append((firstword, data))

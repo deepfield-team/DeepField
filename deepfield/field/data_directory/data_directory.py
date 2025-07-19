@@ -1,10 +1,9 @@
 from collections.abc import Sequence, Callable
 from enum import Enum, auto
-import os
-from typing import NamedTuple
+import itertools
+from typing import Any, NamedTuple
 
 import pandas as pd
-import numpy as np
 import numpy.typing as npt
 
 
@@ -38,45 +37,6 @@ GROUP_SUMMARY_KEYWORDS = ('GTPRAQW', 'GTPRFW', 'GTPRMW', 'GGOR', 'GGPR', 'GGPRH'
 REGIONS_SUMMARY_KEYWORDS = ()
 
 _ATM_TO_PSI = 14.69
-
-TABLE_INFO = {
-    'PVTO': dict(attrs=['RS', 'PRESSURE', 'FVF', 'VISC'], domain=[0, 1],
-                 defaults=None),
-
-    'PVTG': dict(attrs=['PRESSURE', 'RV', 'FVF', 'VISC'], domain=[0, 1],
-                 defaults=None),
-
-    'PVDG': dict(attrs=['PRESSURE', 'FVF', 'VISC'], domain=[0],
-                 defaults=None),
-
-    'PVDO': dict(attrs=['PRESSURE', 'FVF', 'VISC'], domain=[0],
-                 defaults=None),
-
-    'PVTW': dict(attrs=['PRESSURE', 'FVF', 'COMPR', 'VISC', 'VISCOSIBILITY'], domain=[0],
-                 defaults=[(1, _ATM_TO_PSI), 1, (4e-5, 4e-5/_ATM_TO_PSI), 0.3, 0]),
-
-    'PVCDO': dict(attrs=['PRESSURE', 'FVF', 'COMPR', 'VISC', 'VISCOSIBILITY'], domain=[0],
-                 defaults=[None, None, None, None, 0]),
-
-    'SWOF': dict(attrs=['SW', 'KRWO', 'KROW', 'POW'], domain=[0],
-                 defaults=[None, None, None, 0]),
-
-    'SGOF': dict(attrs=['SG', 'KRGO', 'KROG', 'POG'], domain=[0],
-                 defaults=[None, None, None, 0]),
-
-    'RSVD': dict(attrs=['DEPTH', 'RS'], domain=[0],
-                 defaults=None),
-
-    'ROCK': dict(attrs=['PRESSURE', 'COMPR'], domain=[0],
-                 defaults=[(1.0132, 1.0132*_ATM_TO_PSI), (4.934e-5, 4.934e-5/_ATM_TO_PSI)]),
-
-    'DENSITY': dict(attrs=['DENSO', 'DENSW', 'DENSG'], domain=None,
-                    defaults=[(600, 37.457),  (999.014, 62.366), (1, 0.062428)]),
-
-    'EQUIL': dict(attrs=['DEPTH', 'PRES', 'WOC_DEPTH', 'WOC_PC', 'GOC_DEPTH', 'GOC_PC', 'RSVD_PBVD_TABLE',
-                         'RVVD_PDVD_TABLE', 'ACCURACY', 'INITIALIZTION_TYPE', 'FLAG'], domain=None),
-}
-
 
 class ArrayWithUnits(NamedTuple):
     units: str
@@ -127,10 +87,11 @@ class StatementSpecification(NamedTuple):
     terminated: bool=True
 
 class TableSpecification(NamedTuple):
-    columns: Sequence[str]
-    domain: Sequence[int] | None
+    columns: Sequence[str] | Callable[[pd.DataFrame], Sequence[str]]
+    domain: Sequence[int] | Callable[[pd.DataFrame], Sequence[int] | None] | None
     dtypes: Sequence[str] | str = 'float'
     header: StatementSpecification | None = None
+    number: int | Callable[[dict[str, Sequence[tuple[str, Any]]],], int] = 1
 
 class ArraySpecification(NamedTuple):
     dtype: type
@@ -305,58 +266,40 @@ RECORDS_INFO = {
     ]
 }
 
-DATA_DIRECTORY = {
-    '': {},
-    "RUNSPEC": {
-        'TITLE': DataTypes.STRING,
-        'MULTOUT': None,
-        'MULTOUTS': None,
-        'UNIFOUT': None,
-        'START': DataTypes.STRING,
-        'METRIC': None,
-        **{fluid: None for fluid in FLUID_KEYWORDS},
-        'DIMENS': DataTypes.SINGLE_STATEMENT,
-        'NUMRES': DataTypes.SINGLE_STATEMENT,
-        **{kw: DataTypes.SINGLE_STATEMENT for kw in DIMS_KEYWORDS},
-        'NSTACK': DataTypes.SINGLE_STATEMENT,
-        'RUNCTRL': DataTypes.STATEMENT_LIST,
-        'TNAVCTRL': DataTypes.STATEMENT_LIST,
-        'TUNING': DataTypes.RECORDS
-    },
-    "GRID": {
-        'SPECGRID': DataTypes.SINGLE_STATEMENT,
-        'INIT': None,
-        'MAPAXES': DataTypes.SINGLE_STATEMENT,
-        **{keyword: DataTypes.ARRAY for keyword in ORTHOGONAL_GRID_KEYWORDS},
-        **{keyword: DataTypes.ARRAY for keyword in ROCK_GRID_KEYWORDS},
-        'MULTIPLY': DataTypes.STATEMENT_LIST,
-        'COPY': DataTypes.STATEMENT_LIST
-    },
-    "PROPS": {
-        **{keyword: DataTypes.TABLE_SET for keyword in TABLES_KEYWORDS}
-    },
-    "REGIONS": {
-    },
-    "SOLUTION": {
-        'EQUIL': DataTypes.TABLE_SET,
-        'RPTSOL': DataTypes.PARAMETERS
-    },
-    "SUMMARY": {
-        **{keyword: None for keyword in FIELD_SUMMARY_KEYWORDS},
-        **{keyword: DataTypes.OBJECT_LIST for keyword in WELL_SUMMARY_KEYWORDS},
-        **{keyword: None for keyword in TOTAL_SUMMARY_KEYWORDS},
-        'EXCEL': None,
-        'RPTONLY': None
-    },
-    'SCHEDULE': {
-        'RPTSCHED': DataTypes.PARAMETERS,
-        'RPTRST': DataTypes.PARAMETERS,
-        'WELSPECS': DataTypes.STATEMENT_LIST,
-        'TSTEP': DataTypes.ARRAY,
-        **{keyword: DataTypes.STATEMENT_LIST for keyword in SCHEDULE_KEYWORDS},
-        'TUNING': DataTypes.RECORDS
-    }
-}
+def _get_generic_region_number(data, kw, column, section='RUNSPEC'):
+    if data is None:
+        return 1
+    if section not in data:
+        return 1
+    for d in data[section]:
+        if d[0] == kw:
+            if d[1][column].values[0] > 0:
+                return d[1][column].values[0]
+    return 1
+
+def _get_pvt_regions_number(data=None):
+    return _get_generic_region_number(data, 'TABDIMS', 'PVT_REGIONS_NUM')
+
+def _get_eql_regions_number(data=None):
+    return _get_generic_region_number(data, 'EQLDIMS', 'EQL_NUM')
+
+def _get_sat_fun_regions_number(data=None):
+    return _get_generic_region_number(data, 'TABDIMS', 'SAT_REGIONS_NUM')
+
+def _get_rock_regions_number(data=None):
+    rock_num = _get_generic_region_number(data, 'TABDIMS', 'ROCK_TABLES_NUM')
+    if rock_num == INT_NAN:
+        rock_num = _get_generic_region_number(data, 'TABDIMS', 'PVT_REGIONS_NUM')
+    return rock_num
+
+def _get_eos_regions_number(data=None):
+    return _get_generic_region_number(data, 'TABDIMS', 'EOS_REGIONS_NUM')
+
+def _get_gptable_number(data=None):
+    return _get_generic_region_number(data, 'FIELDSEP', 'GPTABLE_NUM')
+
+def _get_reaction_number(data=None):
+    return _get_generic_region_number(data, 'REACTION', 'REACTIONS_NUM')
 
 DATA_DIRECTORY = {
     'TITLE': KeywordSpecification('TITLE', DataTypes.STRING, None, (SECTIONS.RUNSPEC,)),
@@ -392,13 +335,46 @@ DATA_DIRECTORY = {
     'COPY': KeywordSpecification('COPY', DataTypes.STATEMENT_LIST, StatementSpecification(
         STATEMENT_LIST_INFO['COPY']['columns'], STATEMENT_LIST_INFO['COPY']['dtypes']
     ), (SECTIONS.GRID,) ),
-    **{kw: KeywordSpecification(kw, DataTypes.TABLE_SET, TableSpecification(
-        TABLE_INFO[kw]['attrs'], TABLE_INFO[kw]['domain']
-    ), (SECTIONS.PROPS,)) for kw in TABLES_KEYWORDS},
+    'PVTO': KeywordSpecification('PVTO', DataTypes.TABLE_SET, TableSpecification(
+      ['RS', 'PRESSURE', 'FVF', 'VISC'], domain=[0, 1], number=_get_pvt_regions_number
+    ), (SECTIONS.PROPS,)),
+    'PVTG': KeywordSpecification('PVTG', DataTypes.TABLE_SET, TableSpecification(
+      ['PRESSURE', 'RV', 'FVF', 'VISC'], domain=[0, 1], number=_get_pvt_regions_number
+    ), (SECTIONS.PROPS,)),
+    'PVDG': KeywordSpecification('PVDG', DataTypes.TABLE_SET, TableSpecification(
+      ['PRESSURE', 'FVF', 'VISC'], domain=[0], number=_get_pvt_regions_number
+    ), (SECTIONS.PROPS,)),
+    'PVDO': KeywordSpecification('PVDO', DataTypes.TABLE_SET, TableSpecification(
+      ['PRESSURE', 'FVF', 'VISC'], domain=[0], number=_get_pvt_regions_number
+    ), (SECTIONS.PROPS,)),
+    'PVTW': KeywordSpecification('PVTW', DataTypes.TABLE_SET, TableSpecification(
+      ['PRESSURE', 'FVF', 'COMPR', 'VISC', 'VISCOSIBILITY'], domain=[0], number=_get_pvt_regions_number
+    ), (SECTIONS.PROPS,)),
+    'PVCDO': KeywordSpecification('PVCDO', DataTypes.TABLE_SET, TableSpecification(
+      ['PRESSURE', 'FVF', 'COMPR', 'VISC', 'VISCOSIBILITY'], domain=[0], number=_get_pvt_regions_number
+    ), (SECTIONS.PROPS,)),
+    'SWOF': KeywordSpecification('SWOF', DataTypes.TABLE_SET, TableSpecification(
+      ['SW', 'KRWO', 'KROW', 'POW'], domain=[0], number=_get_sat_fun_regions_number,
+    ), (SECTIONS.PROPS,)),
+    'SGOF': KeywordSpecification('SGOF', DataTypes.TABLE_SET, TableSpecification(
+      ['SW', 'KRGO', 'KROG', 'POG'], domain=[0], number=_get_sat_fun_regions_number,
+    ), (SECTIONS.PROPS,)),
+    'RSVD': KeywordSpecification('RSVD', DataTypes.TABLE_SET, TableSpecification(
+      ['DEPTH', 'RS'], domain=[0], number=_get_eql_regions_number,
+    ), (SECTIONS.SOLUTION,)),
+    'ROCK': KeywordSpecification('ROCK', DataTypes.TABLE_SET, TableSpecification(
+      ['PRESSURE', 'COMPR'], domain=[0], number=_get_pvt_regions_number,
+    ), (SECTIONS.PROPS,)),
+    'DENSITY': KeywordSpecification('DENSITY', DataTypes.TABLE_SET, TableSpecification(
+      ['DENSO', 'DENSW', 'DENSG'], domain=None, number=_get_pvt_regions_number,
+    ), (SECTIONS.PROPS,)),
     'EQUIL': KeywordSpecification('EQUIL', DataTypes.TABLE_SET, TableSpecification(
-        TABLE_INFO['EQUIL']['attrs'],
-        TABLE_INFO['EQUIL']['domain'],
-        ['float'] * 6 + ['int'] * 5
+        ['DEPTH', 'PRES', 'WOC_DEPTH', 'WOC_PC', 'GOC_DEPTH', 'GOC_PC', 'RSVD_PBVD_TABLE',
+         'RVVD_PDVD_TABLE', 'ACCURACY', 'INITIALIZTION_TYPE', 'FLAG'],
+        None,
+        ['float'] * 6 + ['int'] * 5,
+        header=None,
+        number=_get_eql_regions_number
     ), (SECTIONS.SOLUTION,)),
     'RPTSOL': KeywordSpecification('RPTSOL', DataTypes.PARAMETERS, ParametersSpecification(), (SECTIONS.SOLUTION,)),
     **{kw: KeywordSpecification(kw, None, None, (SECTIONS.SUMMARY,)) for kw in FIELD_SUMMARY_KEYWORDS},
@@ -462,15 +438,6 @@ DATA_DIRECTORY = {
     ), (SECTIONS.EDIT,)),
     'STONE1': KeywordSpecification('STONE1', None, None, (SECTIONS.PROPS,)),
     'STONE2': KeywordSpecification('STONE2', None, None, (SECTIONS.PROPS,)),
-    'PVTO': KeywordSpecification('PVTO', DataTypes.TABLE_SET, TableSpecification(TABLE_INFO['PVTO']['attrs'],
-                                                                                 TABLE_INFO['PVTO']['domain']),
-                                 (SECTIONS.PROPS,)),
-    'PVDG': KeywordSpecification('PVDG', DataTypes.TABLE_SET, TableSpecification(TABLE_INFO['PVDG']['attrs'],
-                                                                                 TABLE_INFO['PVDG']['domain']),
-                                 (SECTIONS.PROPS,)),
-    'SGOF': KeywordSpecification('SGOF', DataTypes.TABLE_SET, TableSpecification(TABLE_INFO['SGOF']['attrs'],
-                                                                                 TABLE_INFO['SGOF']['domain']),
-                                 (SECTIONS.PROPS,)),
     'SCALECRS': KeywordSpecification('SCALECRS', DataTypes.SINGLE_STATEMENT, StatementSpecification(
         ['VALUE'], ['text']
     ), (SECTIONS.PROPS,)),
@@ -481,7 +448,7 @@ DATA_DIRECTORY = {
     'SATNUM': KeywordSpecification('SATNUM', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
     'FIPNUM': KeywordSpecification('FIPNUM', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
     'PBVD': KeywordSpecification('PBVD', DataTypes.TABLE_SET, TableSpecification(
-        ['DEPTH', 'PB'], [0]
+        ['DEPTH', 'PB'], [0], number=_get_eql_regions_number
     ), (SECTIONS.SOLUTION,)),
     'THPRES': KeywordSpecification('THPRES', DataTypes.STATEMENT_LIST, StatementSpecification(
         ['REG1', 'REG2', 'TH'], ['int', 'int', 'float']
@@ -528,19 +495,19 @@ DATA_DIRECTORY = {
         ['TEMP', 'PRES'], ['float', 'float']
     ), (SECTIONS.PROPS,)),
     'RTEMP': KeywordSpecification('RTEMP', DataTypes.TABLE_SET, TableSpecification(
-        ['TEMP'], None, ), (SECTIONS.PROPS,)),
+        ['TEMP'], None, number=_get_eos_regions_number), (SECTIONS.PROPS,)),
     'EOS': KeywordSpecification('EOS', DataTypes.SINGLE_STATEMENT, StatementSpecification(
         ['EOS'], ['text']
     ), (SECTIONS.RUNSPEC, SECTIONS.PROPS,)),
     'CNAMES': KeywordSpecification('CNAMES', DataTypes.PARAMETERS, ParametersSpecification(), (SECTIONS.PROPS,)),
-    'TCRIT': KeywordSpecification('TCRIT', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
-    'PCRIT': KeywordSpecification('PCRIT', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
-    'VCRIT': KeywordSpecification('VCRIT', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
-    'ZCRIT': KeywordSpecification('ZCRIT', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
-    'VCRITVIS': KeywordSpecification('VCRITVIS', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
-    'ZCRITVIS': KeywordSpecification('ZCRITVIS', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
-    'MW': KeywordSpecification('MW', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
-    'ACF': KeywordSpecification('ACF', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
+    'TCRIT': None,
+    'PCRIT': None,
+    'VCRIT': None,
+    'ZCRIT': None,
+    'VCRITVIS': None,
+    'ZCRITVIS': None,
+    'MW': None,
+    'ACF': None,
     'BIC': KeywordSpecification('BIC', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
     'ZMFVD': None,
     'VFPPROD': KeywordSpecification('VFPPROD', DataTypes.RECORDS,
@@ -586,8 +553,8 @@ DATA_DIRECTORY = {
     'NEWTRAN': KeywordSpecification('NEWTRAN', None, None, (SECTIONS.GRID,)),
     'COORDSYS': None,
     'COREYWO': KeywordSpecification('COREYWO', DataTypes.TABLE_SET, TableSpecification(
-        ['SWL', 'SWU', 'SWCR', 'SOWCR', 'KROLW', 'KRORW', 'KRWR', 'KRWU', 'PCOW', 'NOW', 'NW', 'NP', 'SPCO'],
-        domain=None
+        ['SWL', 'SWU', 'SWCR', 'SOWCR', 'KROLW', 'KRORW', 'KRWR', 'KRWU', 'PCOW', 'NOW', 'NW',
+         'NP', 'SPCO'], number=_get_sat_fun_regions_number, domain=None
     ), (SECTIONS.PROPS,)),
     'PRESSURE': KeywordSpecification('PRESSURE', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.SOLUTION,)),
     'SWAT': KeywordSpecification('SWAT', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.SOLUTION,)),
@@ -603,22 +570,19 @@ DATA_DIRECTORY = {
     'FIPRPT': KeywordSpecification('FIPRPT', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
     'FIPXXX': KeywordSpecification('FIPXXX', DataTypes.ARRAY, ArraySpecification(int), (SECTIONS.REGIONS,)),
     'RESTART': KeywordSpecification('RESTART', DataTypes.STRING, None, (SECTIONS.SOLUTION,)),
-    'RSVD': KeywordSpecification('RSVD', DataTypes.TABLE_SET, TableSpecification(
-        ["DEPTH", 'GAS_RATIO'], [0,]
-    ), (SECTIONS.SOLUTION,)),
     'RPTRSTL': KeywordSpecification('RPTRSTL', None, NoDataSpecification(True), (SECTIONS.SOLUTION,)),
     'UNIFIN': KeywordSpecification('UINIFIN', None, NoDataSpecification(False), (SECTIONS.RUNSPEC,)),
     'SWFN': KeywordSpecification('SWFN', DataTypes.TABLE_SET, TableSpecification(
-        ['SW', 'KRW', 'POW'], domain=[0]
+        ['SW', 'KRW', 'POW'], domain=[0], number=_get_sat_fun_regions_number
     ), (SECTIONS.PROPS,)),
     'SGFN': KeywordSpecification('SGFN', DataTypes.TABLE_SET, TableSpecification(
-        ['SG', 'KRG', 'POG'], domain=[0]
+        ['SG', 'KRG', 'POG'], domain=[0], number=_get_sat_fun_regions_number
     ), (SECTIONS.PROPS,)),
     'SOF3': KeywordSpecification('SOF3', DataTypes.TABLE_SET, TableSpecification(
-        ['SO', 'KRO_NO_GAS', 'KRO_CONNATE_WATER'], domain=[0]
+        ['SO', 'KRO_NO_GAS', 'KRO_CONNATE_WATER'], domain=[0], number=_get_sat_fun_regions_number
     ), (SECTIONS.PROPS,)),
     'GRAVITY': KeywordSpecification('GRAVITY', DataTypes.TABLE_SET, TableSpecification(
-        ['OIL_API_GRAVITY', 'WATER_GRAVITY', 'GAS_GRAVITY'], domain=None
+        ['OIL_API_GRAVITY', 'WATER_GRAVITY', 'GAS_GRAVITY'], domain=None, number=_get_pvt_regions_number
     ), (SECTIONS.PROPS,)),
     'PRCORR': KeywordSpecification('PRCORR', None, NoDataSpecification(False), (SECTIONS.PROPS,)),
     'OMEGAA': KeywordSpecification('OMEGAA', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.PROPS,)),
@@ -637,9 +601,140 @@ DATA_DIRECTORY = {
         ['int'] + ['float']*2 + ['int']*5
     ), (SECTIONS.SOLUTION,)),
     'GPTABLEN': None,
+    'SOLID': KeywordSpecification('SOLID', None, None, (SECTIONS.RUNSPEC,)),
+    'THERMAL': KeywordSpecification('THERMAL', None, None, (SECTIONS.RUNSPEC,)),
+    'FLASHCTRL': KeywordSpecification('FLASCHCTRL', DataTypes.PARAMETERS, ParametersSpecification(tabulated=True),
+                                       (SECTIONS.RUNSPEC,)),
+    'REACTION': KeywordSpecification('REACTION', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['REACTIONS_NUM', 'EQUIL_CORRECTION_TERM_NUM', 'EQUIL_CONST_NUM', 'TRACER_DEPENDENT_RATE_TERM_NUM',
+         'EQUIL_TABLES_NUM'],
+        ['int', 'int', 'int', 'int', 'int']
+    ), (SECTIONS.RUNSPEC,)),
+    'ROCKDIMS': KeywordSpecification('ROCKDIMS', DataTypes.SINGLE_STATEMENT, StatementSpecification(
+        ['CAP_BASE_ROCK_TYPES_NUM', '_', 'BLOCK_ROCK_CON_NUM'],
+        ['int', 'int', 'int']
+    ), (SECTIONS.RUNSPEC,)),
+    'ALL': KeywordSpecification('ALL', None, None, (SECTIONS.SUMMARY,)),
+    'FULLIMP': KeywordSpecification('FULLIMP', None, None, (SECTIONS.RUNSPEC,)),
+    'HEATCR': KeywordSpecification('HEATCR', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.GRID,)),
+    'THCONR': KeywordSpecification('THCONR', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.GRID,)),
+    'WELLSTRE': None,
+    'CVTYPE': None,
+    'DREF': None,
+    'PREF': None,
+    'TREF': None,
+    'CREF': None,
+    'THERMEX1': None,
+    'PREF': None,
+    'SPECHA': None,
+    'CVTYPE': None,
+    'SDREF': None,
+    'SPECHB': None,
+    'SPECHG': None,
+    'SPECHS': None,
+    'KVCR': None,
+    'OILVISCC': None,
+    'GASVISCF': None,
+    'STOREAC': None,
+    'STOPROD': None,
+    'REACRATE': None,
+    'REACACT': None,
+    'REACENTH': None,
+    'REACPHA': None,
+    'REACCORD': None,
+    'TEMPI': KeywordSpecification(
+        'TEMPI', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.SOLUTION,)
+    ),
+    'XMF': KeywordSpecification(
+        'XMF', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.SOLUTION,)
+    ),
+    'YMF': KeywordSpecification(
+        'YMF', DataTypes.ARRAY, ArraySpecification(float), (SECTIONS.SOLUTION,)
+    ),
+    'BSWAT': KeywordSpecification('BSWAT', DataTypes.OBJECT_LIST, ObjectSpecification(terminated=True),
+                                  (SECTIONS.SUMMARY,)),
+    'BSOIL': KeywordSpecification('BSOIL', DataTypes.OBJECT_LIST, ObjectSpecification(terminated=True),
+                                  (SECTIONS.SUMMARY,)),
+    'BPRES': KeywordSpecification('BPRES', DataTypes.OBJECT_LIST, ObjectSpecification(terminated=True),
+                                  (SECTIONS.SUMMARY,)),
+    'BTEMP': KeywordSpecification('BTEMP', DataTypes.OBJECT_LIST, ObjectSpecification(terminated=True),
+                                  (SECTIONS.SUMMARY,)),
+    'BMLSC': KeywordSpecification('BMLSC', DataTypes.OBJECT_LIST, ObjectSpecification(terminated=True),
+                                  (SECTIONS.SUMMARY,)),
+    'BSSOLID': KeywordSpecification('BSSOLID', DataTypes.OBJECT_LIST, ObjectSpecification(terminated=True),
+                                  (SECTIONS.SUMMARY,)),
+    'BHSOL': KeywordSpecification('BHSOL', DataTypes.OBJECT_LIST, ObjectSpecification(terminated=True),
+                                  (SECTIONS.SUMMARY,)),
+    'BDENS': KeywordSpecification('BDENS', DataTypes.OBJECT_LIST, ObjectSpecification(terminated=True),
+                                  (SECTIONS.SUMMARY,)),
+    'PERFORMANCE': KeywordSpecification('PERFORMANCE', None, None, (SECTIONS.SUMMARY,)),
+    'RUNSUM': KeywordSpecification('RUNSUM', None, None, (SECTIONS.SUMMARY,)),
+    'WINJGAS': KeywordSpecification('WINJGAS', DataTypes.STATEMENT_LIST, StatementSpecification(
+        ['WELL', 'GAS_NATURE', 'SPEC_NAME', 'WELLSTREAM_NAME', 'SEPARATOR_STAGE'],
+        ['text', 'text', 'text', 'text', 'int']
+    ), (SECTIONS.SCHEDULE,)),
+    'WINJTEMP': KeywordSpecification('WINJTEMP', DataTypes.STATEMENT_LIST, StatementSpecification(
+        ['NAME', 'STEAM_QUALITY', 'FLUID_TEMP', 'FLUID_PRES', 'FLUID_ENTHALPY'],
+        ['text', 'float', 'float', 'float', 'float']
+    ), (SECTIONS.SCHEDULE,))
 }
 
+def _get_oilviscc_columns_factory(n_comp):
+    def get_oilviscc_columns(header):
+        if header['TYPE'].values[0] == 'CORRELATION':
+            if header['NAME'].values[0] == 'ASTM':
+                return (['T1'] + [f'MU{i}_T1' for i in range(1, n_comp+1)] +
+                        ['T2'] + [f'MU{i}_T2' for i in range(1, n_comp+1)] +
+                        [f'MU{i}_TINF' for i in range(1, n_comp+1)])
+            if header['NAME'].values[0] == 'ANDRADE':
+                return (['T1'] + [f'MU{i}_T1' for i in range(1, n_comp+1)] +
+                        [f'MU{i}_TINF' for i in range(1, n_comp+1)])
+            if header['NAME'].values[0] == 'VOGEL':
+                return (['T1'] + [f'MU{i}_T1' for i in range(1, n_comp+1)] +
+                        ['T2'] + [f'MU{i}_T2' for i in range(1, n_comp+1)] +
+                        [f'MU{i}_TINF' for i in range(1, n_comp+1)])
+            if header['NAME'].values[0] == 'LOG':
+                return (['T1'] + [f'MU{i}_T1' for i in range(1, n_comp+1)] +
+                        ['T2'] + [f'MU{i}_T2' for i in range(1, n_comp+1)])
+            raise ValueError(f'`NAME` should be `ASTM`, `ANDRADE`, `VOGEL`, `LOG` not `{header["NAME"].values[0]}`')
+        if header['TYPE'].values[0] == 'FORMULA':
+            if header['NAME'].values[0] == 'ASTM':
+                return ([f'A{i}' for i in range(1, n_comp+1)] +
+                    [f'B{i}' for i in range(1, n_comp+1)] +
+                    [f'C{i}' for i in range(1, n_comp+1)])
+            if header['NAME'].values[0] == 'ANDRADE':
+                return ([f'A{i}' for i in range(1, n_comp+1)] +
+                    [f'B{i}' for i in range(1, n_comp+1)])
+            if header['NAME'].values[0] == 'VOGEL':
+                return ([f'A{i}' for i in range(1, n_comp+1)] +
+                    [f'B{i}' for i in range(1, n_comp+1)] +
+                    [f'C{i}' for i in range(1, n_comp+1)])
+            if header['NAME'].values[0] == 'LOG':
+                return ([f'A{i}' for i in range(1, n_comp+1)] +
+                    [f'B{i}' for i in range(1, n_comp+1)])
+            raise ValueError(f'`NAME` should be `ASTM`, `ANDRADE`, `VOGEL`, `LOG` not `{header["NAME"].values[0]}`')
+        raise ValueError(f'`TYPE` should be `FORMULA` or `CORRELATION` not `{header["TYPE"].values[0]}`')
+    return get_oilviscc_columns
+
 def get_dynamic_keyword_specification(keyword, data):
+    def _compositional_table(kw, column_name, data, number=_get_eos_regions_number):
+        n_comp = _get_ncomp(data)
+        if n_comp is None:
+            raise ValueError('No number of components information in `data`.')
+        return KeywordSpecification(kw, DataTypes.TABLE_SET, TableSpecification(
+            [column_name + f'{i}' for i in range(1, n_comp+1)], domain=None,
+            number=number
+        ), (SECTIONS.PROPS,))
+    def _compositional_statement(kw, column_name, dtype, data):
+        n_comp = _get_ncomp(data)
+        if n_comp is None:
+            raise ValueError('No number of components information in `data`.')
+
+        return KeywordSpecification(kw, DataTypes.SINGLE_STATEMENT, StatementSpecification(
+            [column_name + f'{i}' for i in range(1, n_comp+1)],
+            [dtype for i in range(n_comp)]
+        ), (SECTIONS.PROPS,))
+
     if keyword == 'ZMFVD':
         n_comp = _get_ncomp(data)
         if n_comp is None:
@@ -647,7 +742,7 @@ def get_dynamic_keyword_specification(keyword, data):
         spec = KeywordSpecification('ZMFVD', DataTypes.TABLE_SET, TableSpecification(
             ['DEPTH'] + [f'C{i}' for i in range(1, n_comp+1)],
             [0],
-            ['float'] * (n_comp+1),
+            ['float'] * (n_comp+1), number=_get_eql_regions_number
         ), (SECTIONS.PROPS,))
         return spec
     if keyword == 'COORDSYS':
@@ -673,7 +768,8 @@ def get_dynamic_keyword_specification(keyword, data):
         return KeywordSpecification('COMPVD', DataTypes.TABLE_SET, TableSpecification(
             ['DEPTH'] + [f'Z{i}' for i in range(1, n_comp+1)] + ['LIQUID_FLAG'] + ['P_SAT'],
             domain=[0],
-            dtypes=['float']*(n_comp+1) + ['int', 'float']
+            dtypes=['float']*(n_comp+1) + ['int', 'float'],
+            number=_get_eql_regions_number
         ),(SECTIONS.PROPS,))
     if keyword == 'GPTABLEN':
         n_comp = _get_ncomp(data)
@@ -686,11 +782,124 @@ def get_dynamic_keyword_specification(keyword, data):
             header=StatementSpecification(
                 ['GPTABLE_NUM', 'HEAVY_C1', 'HEAVY_CLAST'],
                 ['int', 'int', 'int']
-            )
+            ), number=_get_gptable_number
         ), (SECTIONS.SOLUTION, SECTIONS.SCHEDULE))
+    if keyword == 'PCRIT':
+        return _compositional_table('PCRIT', 'P', data)
+    if keyword == 'VCRIT':
+        return _compositional_table('VCRIT', 'V', data)
+    if keyword == 'ZCRIT':
+        return _compositional_table('ZCRIT', 'Z', data)
+    if keyword == 'VCRITVIS':
+        return _compositional_table('VCRITVIS', 'V', data)
+    if keyword == 'ZCRITVIS':
+        return _compositional_table('ZCRITVIS', 'Z', data)
+    if keyword == 'MW':
+        return _compositional_table('MW', 'MW', data)
+    if keyword == 'ACF':
+        return _compositional_table('ACF', 'ACF', data)
+    if keyword == 'TCRIT':
+        return _compositional_table('TCRIT', 'T', data)
+    if keyword == 'DREF':
+        return _compositional_statement('DREF', 'D', 'float', data)
+    if keyword == 'PREF':
+        return _compositional_statement('PREF', 'P', 'float', data)
+    if keyword == 'TREF':
+        return _compositional_statement('TREF', 'T', 'float', data)
+    if keyword == 'CREF':
+        return _compositional_statement('CREF', 'C', 'float', data)
+    if keyword == 'THERMEX1':
+        return _compositional_statement('THERMEX1', 'X', 'float', data)
+    if keyword == 'SPECHA':
+        return _compositional_table('SPECHA', 'X', data)
+    if keyword == 'SPECHB':
+        return _compositional_table('SPECHB', 'X', data)
+    if keyword == 'SPECHG':
+        return _compositional_table('SPECHG', 'X', data)
+    if keyword == 'SPECHS':
+        return _compositional_table('SPECHG', 'X', data)
+    if keyword == 'CVTYPE':
+        return _compositional_statement('CVTYPE', 'T', 'text', data)
+    if keyword == 'SDREF':
+        return _compositional_table('SDREF', 'SD', data)
+    if keyword == 'GASVISCF':
+        n_comp = _get_ncomp(data)
+        if n_comp is None:
+            raise ValueError('No number of components information in `data`.')
+        return KeywordSpecification('GASVISCF', DataTypes.TABLE_SET, TableSpecification(
+            [f'{c}{i}' for c, i in itertools.product(['A', 'B'], range(1, n_comp+1))],
+            domain=None,
+            number=_get_eos_regions_number
+        ), (SECTIONS.PROPS,))
+    if keyword == 'KVCR':
+        n_comp = _get_ncomp(data)
+        if n_comp is None:
+            raise ValueError('No number of components information in `data`.')
+        return KeywordSpecification('KVCR', DataTypes.TABLE_SET, TableSpecification(
+            [f'{c}{i}' for c, i in itertools.product(['A', 'B', 'C', 'D', 'E'], range(1, n_comp+1))],
+            domain=None,
+            number=_get_eos_regions_number
+        ), (SECTIONS.PROPS,))
+    if keyword == 'BIC':
+        n_comp = _get_ncomp(data)
+        if n_comp is None:
+            raise ValueError('No number of components information in `data`.')
+        columns = []
+        for i in range(2, n_comp+1):
+            for j in range(1, i):
+                columns.append(f'BIC{i}_{j}')
+        return KeywordSpecification('BIC', DataTypes.TABLE_SET, TableSpecification(
+            columns, domain=None, number=_get_eos_regions_number
+        ), (SECTIONS.PROPS,))
+    if keyword == 'WELLSTRE':
+        n_comp = _get_ncomp(data)
+        if n_comp is None:
+            raise ValueError('No number of components information in `data`.')
+        return KeywordSpecification('WELLSTRE', DataTypes.STATEMENT_LIST, StatementSpecification(
+            ['STREAM'] + [f'X{i}' for i in range(1, n_comp+1)],
+            ['text'] + ['float'] * n_comp
+        ), (SECTIONS.SCHEDULE,))
+    if keyword =='OILVISCC':
+        n_comp = _get_ncomp(data)
+        if n_comp is None:
+            raise ValueError('No number of components information in `data`.')
+        return KeywordSpecification('OILVISCC', DataTypes.TABLE_SET, TableSpecification(
+            _get_oilviscc_columns_factory(n_comp), None, header=StatementSpecification(
+                ['NAME', 'TYPE'], ['text', 'text']
+            ), number=_get_eos_regions_number
+        ), (SECTIONS.PROPS,))
+    for kw, c, t in zip(('STOREAC', 'STOPROD', 'REACPHA', 'REACCORD'),
+                        ('C', 'C', 'P', 'O'), ('float', 'float', 'text', 'int')):
+        if keyword == kw:
+            n_comp = _get_ncomp(data)
+            if n_comp is None:
+                raise ValueError('No number of components information in `data`.')
+            return KeywordSpecification(keyword, DataTypes.TABLE_SET, TableSpecification(
+                columns=[f'{t}{i}' for i in range(1, n_comp+1)] + [f'{t}W'],
+                domain=None,
+                number=_get_reaction_number,
+                dtypes=[t]*(n_comp+1)
+            ), (SECTIONS.PROPS,))
+    if keyword == 'REACPHA':
+        n_comp = _get_ncomp(data)
+        if n_comp is None:
+            raise ValueError('No number of components information in `data`.')
+        return KeywordSpecification(keyword, DataTypes.TABLE_SET, TableSpecification(
+            columns=[f'P{i}' for i in range(1, n_comp+1)],
+            domain=None,
+            number=_get_reaction_number,
+            dtypes=['text']*n_comp
+        ), (SECTIONS.PROPS,))
+    for kw, c in zip(('REACRATE', 'REACACT', 'REACENTH'), ('R', 'E', 'E')):
+        if kw == keyword:
+            n_react = _get_reaction_number(data)
+            return KeywordSpecification(keyword, DataTypes.SINGLE_STATEMENT, StatementSpecification(
+                columns=[f'{c}{i}' for i in range(1, n_react+1)],
+                dtypes=['float']*n_react
+            ), (SECTIONS.PROPS,))
     else:
         raise ValueError(f'Specification can not be defined for keyword {keyword}.')
-        
+
 def _get_ncomp(data):
     """
     Number of fluid components.
