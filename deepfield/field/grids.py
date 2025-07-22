@@ -5,7 +5,7 @@ from vtkmodules.util.numpy_support import vtk_to_numpy
 
 from .decorators import cached_property, apply_to_each_input
 from .base_spatial import SpatialComponent
-from .grid_utils import (calc_cells, get_xyz, get_xyz_ijk, get_xyz_ijk_orth,
+from .grid_utils import (get_xyz, get_xyz_ijk, get_xyz_ijk_orth,
                          process_grid, process_grid_orthogonal)
 from .utils import rolling_window, get_single_path
 from .parse_utils import read_ecl_bin
@@ -83,11 +83,11 @@ class Grid(SpatialComponent):
         ids = []
         ijk = np.asarray(ijk).reshape(-1, 3)
         raveled = np.ravel_multi_index(ijk.T, self.dimens)
-        for n in raveled:
+        for i, n in enumerate(raveled):
             try:
                 ids.append(np.where(self.actnum_ids == n)[0][0])
             except IndexError as exc:
-                raise IndexError("Can not compute index: cell ({}, {}, {}) is inactive.".format(i, j, k)) from exc
+                raise IndexError("Can not compute index: cell ({}, {}, {}) is inactive.".format(*ijk[i])) from exc
         return ids
 
     @property
@@ -292,7 +292,7 @@ class OrthogonalGrid(Grid):
 
     def get_points_and_coonectivity(self):
         """Get points and connectivity arrays."""
-        try: 
+        try:
             return process_grid_orthogonal(self.tops, self.dx, self.dy, self.dz, self.actnum)
         except ValueError:
             grid = self.to_corner_point()

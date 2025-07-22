@@ -10,7 +10,7 @@ from vtkmodules.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 COLORS = ['r', 'b', 'm', 'g']
 
 def get_slice_vtk(grid, slice_name, slice_val):
-    """Get slice surface triangulaution for further plotting.
+    """Get slice surface.
 
     Parameters
     ----------
@@ -25,11 +25,11 @@ def get_slice_vtk(grid, slice_name, slice_val):
 
     Returns
     -------
-    (x, y, tri) : tuple
-        x-coordinates of vertices, y-coordinate of vertices, triangles
+    (x, y, mesh, indices) : tuple
+        x-coordinates of vertices, y-coordinate of vertices, mesh, indices
     """
     if grid.vtk_grid.GetCellData().GetArray('I') is None:
-        ind_i, ind_j, ind_k = np.unravel_index(grid.actnum_ids, grid.dimens)
+        ind_i, ind_j, ind_k = np.unravel_index(grid.actnum_ids, grid.dimens) #pylint:disable=unbalanced-tuple-unpacking)
         for name, val in zip(('I', 'J', 'K'), (ind_i, ind_j, ind_k)):
             array = numpy_to_vtk(val)
             array.SetName(name)
@@ -56,17 +56,37 @@ def get_slice_vtk(grid, slice_name, slice_val):
     elif slice_name == 'I':
         mesh = conn.reshape(-1, 9)[:, [1,4,8,5]]
         x, y = points[:, 1], points[:, 2]
-    else:
+    elif slice_name == 'J':
         mesh = conn.reshape(-1, 9)[:, [1,2,6,5]]
         x, y = points[:, 0], points[:, 2]
-
-    tri = np.vstack([mesh[:,:3], mesh[:, [0,2,3]]])
+    else:
+        raise ValueError('Invalid slice name {}'.format(slice_name))
 
     indices = np.stack([vtk_to_numpy(grid_slice.GetCellData().GetArray('I')),
                         vtk_to_numpy(grid_slice.GetCellData().GetArray('J')),
                         vtk_to_numpy(grid_slice.GetCellData().GetArray('K'))], axis=-1)
 
-    return x, y, tri, indices
+    return x, y, mesh, indices
+
+def get_intersect(slice_name, intersect_name, intersect_val, indices, mesh):
+    """Get intersection of two slices."""
+    if intersect_name == slice_name:
+        raise ValueError('Can not intersect {} with itself.'.format(slice_name))
+    if intersect_name == 'K':
+        mask = indices[:, 2] == intersect_val
+        line = mesh[mask][:, [0,1]]
+    elif intersect_name == 'I':
+        mask = indices[:, 0] == intersect_val
+        line = mesh[mask][:, [0,3]]
+    elif intersect_name == 'J':
+        mask = indices[:, 1] == intersect_val
+        if slice_name == 'I':
+            line = mesh[mask][:, [0,3]]
+        else:
+            line = mesh[mask][:, [0,1]]
+    else:
+        raise ValueError('Invalid line name {}'.format(intersect_val))
+    return line
 
 def get_slice_trisurf(component, att, i=None, j=None, k=None, t=None):
     """Get slice surface triangulaution for further plotting
@@ -125,7 +145,9 @@ def get_slice_trisurf(component, att, i=None, j=None, k=None, t=None):
     if dims == 4:
         data = data[t]
 
-    x, y, triangles, indices = get_slice_vtk(grid, slice_name, slice_val)        
+    x, y, mesh, indices = get_slice_vtk(grid, slice_name, slice_val)
+
+    triangles = np.vstack([mesh[:,:3], mesh[:, [0,2,3]]])
 
     if slice_name == 'I':
         data = data[i, :, :][actnum[i, :, :]]
@@ -136,7 +158,7 @@ def get_slice_trisurf(component, att, i=None, j=None, k=None, t=None):
 
     data = np.hstack([data, data])
 
-    return x, y, triangles, data, indices
+    return x, y, triangles, data, indices, mesh
 
 def show_slice_static(component, att, i=None, j=None, k=None, t=None,
                       i_line=None, j_line=None, k_line=None,
@@ -174,53 +196,55 @@ def show_slice_static(component, att, i=None, j=None, k=None, t=None,
     -------
     Plot of a cube slice.
     """
-    grid = component.field.grid
-    actnum = grid.actnum
-    nx, ny, nz = grid.dimens
+    x, y, triangles, colors, indices, mesh = get_slice_trisurf(component, att, i, j, k, t)
 
-
-    # lines = []
+    lines = []
     if ax is None:
         _, ax = plt.subplots(figsize=figsize)
     if i is not None:
         xlabel = 'y'
         ylabel = 'z'
         invert_y = True
-        # if j_line is not None:
-        #     lines.append(xyz[i, j_line, :,][..., (0, 4), 1:][actnum[i, j_line, :]].reshape(-1, 2))
-    #     if k_line is not None:
-    #         lines.append(xyz[i,:, k_line][..., (0, 2), 1:][actnum[i, :, k_line]].reshape(-1, 2))
-    #     if i_line is not None:
-    #         raise ValueError('`i_line` should be None for i-slice')
+        if j_line is not None:
+            line = get_intersect('I', 'J', j_line, indices, mesh).ravel()
+            lines.append(np.stack([x[line], y[line]], axis=-1))
+        if k_line is not None:
+            line = get_intersect('I', 'K', k_line, indices, mesh).ravel()
+            lines.append(np.stack([x[line], y[line]], axis=-1))
+        if i_line is not None:
+            raise ValueError('`i_line` should be None for i-slice')
     elif j is not None:
         xlabel = 'x'
         ylabel = 'z'
         invert_y = True
-    #     if i_line is not None:
-    #         lines.append(xyz[i_line, j, :,][..., (0, 4), ::2][actnum[i_line, j, :]].reshape(-1, 2))
-    #     if k_line is not None:
-    #         lines.append(xyz[:, j, k_line][..., (0, 1), ::2][actnum[:, j, k_line]].reshape(-1, 2))
-    #     if j_line is not None:
-    #         raise ValueError('`j_line` should be None for j-slice')
+        if i_line is not None:
+            line = get_intersect('J', 'I', i_line, indices, mesh).ravel()
+            lines.append(np.stack([x[line], y[line]], axis=-1))
+        if k_line is not None:
+            line = get_intersect('J', 'K', k_line, indices, mesh).ravel()
+            lines.append(np.stack([x[line], y[line]], axis=-1))
+        if j_line is not None:
+            raise ValueError('`j_line` should be None for j-slice')
     elif k is not None:
         xlabel = 'x'
         ylabel = 'y'
         invert_y = False
-    #     if i_line is not None:
-    #         lines.append(xyz[i_line, :, k, :4:2, :2][actnum[i_line, :, k]].reshape(-1, 2))
-    #     if j_line is not None:
-    #         lines.append(xyz[:, j_line, k, :2, :2][actnum[:, j_line, k]].reshape(-1, 2))
-    #     if k_line is not None:
-    #         raise ValueError('`k_line` should be None for i-slice')
+        if i_line is not None:
+            line = get_intersect('K', 'I', i_line, indices, mesh).ravel()
+            lines.append(np.stack([x[line], y[line]], axis=-1))
+        if j_line is not None:
+            line = get_intersect('K', 'J', j_line, indices, mesh).ravel()
+            lines.append(np.stack([x[line], y[line]], axis=-1))
+        if k_line is not None:
+            raise ValueError('`k_line` should be None for i-slice')
     else:
         raise ValueError('One of i, j, or k slices should be defined.')
 
-    x, y, triangles, colors, _ = get_slice_trisurf(component, att, i, j, k, t)
     if triangles is not None:
         ax.tripcolor(x, y, colors, triangles=triangles, **kwargs)
-        # for line in lines:
-        #     x, y = line[:, 0], line[:, 1]
-        #     ax.plot(x, y, color='red')
+        for line in lines:
+            x, y = line[:, 0], line[:, 1]
+            ax.plot(x, y, color='red')
 
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)

@@ -54,12 +54,12 @@ def common_indices(indices, shape):
         mask = np.logical_and(mask, mask_tmp)
     return np.where(mask)
 
-def process_grid(zcorn, coord, actnum, active_points=True):
+def process_grid(zcorn, coord, actnum):
     """Get points and connectivity arrays for vtk grid."""
 
     def _get_slices(sh, size):
         x0 = 1 if sh==1 else 0
-        x1 = size-1 if sh==-1 else size 
+        x1 = size-1 if sh==-1 else size
         return slice(x0, x1)
 
     def _process_indices(indices, shifts):
@@ -140,7 +140,7 @@ def process_grid(zcorn, coord, actnum, active_points=True):
         connectivity[*nodes_to_add, i] = n_nodes + np.arange(n_nodes_to_add)
         n_nodes = n_nodes + n_nodes_to_add
         points = np.concatenate((points, points_to_add), axis=0)
- 
+
         for j in range(i+1, 8):
             shifts = _SHIFTS[(j, i)]
             slices0 = [_get_slices(sh, s) for sh, s in zip(shifts, (nx, ny, nz))]
@@ -163,7 +163,7 @@ def process_grid(zcorn, coord, actnum, active_points=True):
     points[:, 2] = zcorn[indices]
     coord_points = coord[*coord_indices]
     points[:, [0, 1]] = (coord_points[:, [0, 1]] +
-                         (coord_points[:, [3, 4]] - coord_points[:, [0, 1]]) * 
+                         (coord_points[:, [3, 4]] - coord_points[:, [0, 1]]) *
                          ((points[:, 2] - coord_points[:, 2]) /
                          (coord_points[:, 5] - coord_points[:, 2]))[..., np.newaxis])
 
@@ -188,11 +188,11 @@ def process_grid_orthogonal(tops, dx, dy, dz, actnum):
     points[:, :, :, 0] = np.linspace(0, dx[0, 0, 0]*nx, (nx+1))[:, np.newaxis, np.newaxis]
     points[:, :, :, 1] = np.linspace(0, dy[0, 0, 0]*ny, (ny+1))[np.newaxis, :, np.newaxis]
     points[:, :, :, 2] = tops[0, 0, 0] + np.linspace(0, dz[0, 0, 0]*nz, (nz+1))[np.newaxis, np.newaxis, :]
-    points = points.reshape(-1, 3, order='F')
+    points = points.reshape((-1, 3), order='F')
     connectivity[:, :, :, [2, 3]] = connectivity[:, :, :, [3, 2]]
     connectivity[:, :, :, [6, 7]] = connectivity[:, :, :, [7, 6]]
 
-    return points, connectivity[actnum]   
+    return points, connectivity[actnum]
 
 @njit
 def isclose(a, b, rtol=1e-05, atol=1e-08):
