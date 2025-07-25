@@ -1,12 +1,11 @@
 """Rock component."""
-import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 
 from .base_spatial import SpatialComponent
 from .decorators import apply_to_each_input
 from .plot_utils import show_slice_static, show_slice_interactive
-from .utils import rolling_window, get_single_path
+from .utils import get_single_path
 from .parse_utils import read_ecl_bin
 
 
