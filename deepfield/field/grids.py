@@ -406,7 +406,7 @@ class OrthogonalGrid(Grid):
 
         grid = CornerPointGrid(dimens=self.dimens, mapaxes=self.mapaxes, actnum=self.actnum,
                                zcorn=zcorn.astype(float), coord=coord.astype(float))
-
+        grid.create_vtk_grid()
         return grid
 
     @cached_property

@@ -144,38 +144,3 @@ class Rock(SpatialComponent):
         else:
             show_slice_static(self, attr, i=i, j=j, k=k, figsize=figsize, **kwargs)
         return self
-
-    @apply_to_each_input
-    def upscale(self, attr, factors, weights=None):
-        """Upscale properties.
-
-        Parameters
-        ----------
-        attr : str, list of str
-            Attributes to be upscaled.
-        factors : tuple, int
-            Scale factors along each axis. If int, factors are the same for each axis.
-        weights : ndarray, same shape as `attr`, optional
-            Cell weights.
-
-        Returns
-        -------
-        out : ndarray
-            Upscaled properties.
-        """
-        factors = np.atleast_1d(factors)
-        if factors.size == 1:
-            factors = np.repeat(factors, 3)
-        data = getattr(self, attr)
-        volumes = self.field.grid.cell_volumes
-        binned_weights = rolling_window(volumes, factors)
-        if weights is not None:
-            binned_weights *= rolling_window(weights, factors)
-        out = rolling_window(data, factors) * binned_weights
-        binned_weights = np.sum(binned_weights, axis=(-3, -2, -1))
-        zero_mask = np.isclose(binned_weights, 0)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            out = np.sum(out, axis=(-3, -2, -1)) / binned_weights
-        out[zero_mask] = 0
-        return out
