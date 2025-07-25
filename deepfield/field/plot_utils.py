@@ -26,7 +26,7 @@ def get_slice_vtk(grid, slice_name, slice_val):
     Returns
     -------
     (x, y, mesh, indices) : tuple
-        x-coordinates of vertices, y-coordinate of vertices, mesh, indices
+        x-coordinates of vertices, y-coordinate of vertices, slice connectivity, indices
     """
     if grid.vtk_grid.GetCellData().GetArray('I') is None:
         ind_i, ind_j, ind_k = np.unravel_index(grid.actnum_ids, grid.dimens) #pylint:disable=unbalanced-tuple-unpacking)
@@ -107,10 +107,9 @@ def get_slice_trisurf(component, att, i=None, j=None, k=None, t=None):
         Slice along t-axis to show.
     Returns
     -------
-    np.ndarray or None, np.ndarray or None, np.ndarray or None, np.ndarray or None,
-    np.ndarray or None
+    (x, y, triangles, data, indices, mesh) : tuple
         x-coordinates of vertices, y-coordinate of vertices, triangles, data,
-        cell indices corresponding to triangles
+        cell indices corresponding to triangles, slice connectivity
     """
     if i is not None:
         slice_name, slice_val = 'I', i
@@ -147,7 +146,10 @@ def get_slice_trisurf(component, att, i=None, j=None, k=None, t=None):
 
     x, y, mesh, indices = get_slice_vtk(grid, slice_name, slice_val)
 
-    triangles = np.vstack([mesh[:,:3], mesh[:, [0,2,3]]])
+    if mesh is not None:
+        triangles = np.vstack([mesh[:,:3], mesh[:, [0,2,3]]])
+    else:
+        triangles = None
 
     if slice_name == 'I':
         data = data[i, :, :][actnum[i, :, :]]
