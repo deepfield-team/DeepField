@@ -27,7 +27,7 @@ class SpatialComponent(BaseComponent):
     """Base component for spatial-type attributes."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.init_state(spatial=None)
+        self.set_state(spatial=None)
 
     def sample_crops(self, attr, shape, size=1):
         """Sample random crops of fixed shape.

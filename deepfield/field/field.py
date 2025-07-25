@@ -7,13 +7,13 @@ import weakref
 from copy import deepcopy
 from functools import partial
 from string import Template
+from anytree import PreOrderIter
 
 import h5py
 import numpy as np
 import pandas as pd
 import pyvista as pv
-from anytree import PreOrderIter
-from vtk import vtkXMLUnstructuredGridWriter # pylint: disable=no-name-in-module
+import vtk
 from vtk.util.numpy_support import numpy_to_vtk # pylint: disable=no-name-in-module, import-error
 
 from .arithmetics import load_add, load_copy, load_equals, load_multiply
@@ -24,14 +24,12 @@ from .dump_ecl_utils import egrid, init, restart, summary
 from .grids import CornerPointGrid, Grid, OrthogonalGrid, specify_grid
 from .parse_utils import (dates_to_str, preprocess_path,
                           read_dates_from_buffer, tnav_ascii_parser)
-from .rates import calc_rates, calc_rates_multiprocess
 from .rock import Rock
 from .states import States
 from .tables import Tables
 from .template_models import (CORNERPOINT_GRID, DEFAULT_ECL_MODEL,
                               DEFAULT_TN_MODEL, ORTHOGONAL_GRID)
-from .utils import (get_single_path, get_spatial_cf_and_perf,
-                    get_spatial_well_control, get_well_mask)
+from .utils import get_single_path
 from .wells import Wells
 
 ACTOR = None
@@ -125,7 +123,6 @@ class Field:
             self._init_components(config)
 
         self._pyvista_grid = None
-        self._pyvista_grid_params = {'use_only_active': True, 'cell_size': None, 'scaling': True}
 
     def _init_components(self, config):
         """Initialize components."""
@@ -294,59 +291,10 @@ class Field:
         self._components['tables'] = x
         return self
 
-    def spatial_cf_and_perf(self, date_range=None, mode=None):
-        """Get model's connection factors and perforation ratios in a spatial form.
-
-        Parameters
-        ----------
-        date_range: tuple
-            Minimal and maximal dates for events.
-        mode: str, None
-            If not None, pick the blocks only with specified mode.
-
-        Returns
-        -------
-        connection_factors: np.array
-        perf_ratio: np.array
-        """
-        return get_spatial_cf_and_perf(self, date_range=date_range, mode=mode)
-
     @property
     def result_dates(self):
         """Result dates, actual if present, target otherwise."""
         return self.wells.result_dates
-
-    @property
-    def well_mask(self):
-        """Get the model's well mask in a spatial form.
-
-        Returns
-        -------
-        well_mask: np.array
-            Array with well-names in cells which are registered as well-blocks and empty strings everywhere else.
-        """
-        return get_well_mask(self)
-
-    def spatial_well_control(self, attrs, date_range=None, fill_shut=0., fill_outside=0.):
-        """Get the model's control in a spatial form.
-
-        Parameters
-        ----------
-        attrs: tuple or list
-            Conrol attributes to get data from.
-        date_range: tuple
-            Minimal and maximal dates for control events.
-        fill_shut: float
-            Value to fill shutted perforations.
-        fill_outside:
-            Value to fill non-perforated cells.
-
-        Returns
-        -------
-        control: np.array
-        """
-        return get_spatial_well_control(self, attrs, date_range=date_range,
-                                        fill_shut=fill_shut, fill_outside=fill_outside)
 
     def set_state(self, **kwargs):
         """State setter."""
@@ -389,6 +337,7 @@ class Field:
             raise NotImplementedError('Format {} is not supported.'.format(fmt))
 
         self._collect_loaded_attrs()
+
         return self
 
     def _load_hdf5(self, raise_errors):
@@ -405,6 +354,7 @@ class Field:
                                      raise_errors=raise_errors,
                                      logger=self._logger,
                                      **config['kwargs'])
+        self.grid.create_vtk_grid()
         return self
 
     def _load_binary(self, components, raise_errors):
@@ -506,6 +456,7 @@ class Field:
                           raise_errors=raise_errors)
 
         self.grid = specify_grid(self.grid)
+        self.grid.create_vtk_grid()
 
         if 'MINPV' in self.grid.attributes:
             if 'ACTNUM' in self.grid.state.binary_attributes:
@@ -646,7 +597,7 @@ class Field:
             return self._dump_hdf5(path, mode=mode, **kwargs)
         if fmt.upper() == 'VTU':
             dataset = self.get_vtk_dataset()
-            writer = vtkXMLUnstructuredGridWriter()
+            writer = vtk.vtkXMLUnstructuredGridWriter()
             writer.SetFileName(path)
             writer.SetInputData(dataset)
             writer.Write()
@@ -936,36 +887,6 @@ class Field:
                              grid_dim, mode, self._logger)
         return self
 
-    def calculate_rates(self, wellnames=None, cf_aggregation='sum', multiprocessing=True, verbose=True):
-        """Calculate oil/water/gas rates for each well segment.
-        NOTE: Rate calculation is supported only for three phase fluid with dissolved gas (
-            OIL, WATER, GAS, DISGAS). Eclipse style control is not supported.
-
-        Parameters
-        ----------
-        wellnames : list of str
-            Wellnames for rates calculation. If None, all wells are included. Default None.
-        cf_aggregation: str, 'sum' or 'eucl'
-            The way of aggregating cf projection ('sum' - sum, 'eucl' - Euclid norm).
-        multiprocessing : bool
-            Use multiprocessing for rates calculation. Default True.
-        verbose : bool
-            Print a number of currently processed wells (if multiprocessing=False). Default True.
-
-        Returns
-        -------
-        model : Field
-            Reservoir model with computed rates.
-        """
-        timesteps = self.result_dates
-        if wellnames is None:
-            wellnames = self.wells.names
-        if multiprocessing:
-            calc_rates_multiprocess(self, timesteps, wellnames, cf_aggregation)
-        else:
-            calc_rates(self, timesteps, wellnames, cf_aggregation, verbose)
-        return self
-
     def history_to_results(self):
         """Convert history to results."""
         for node in self.wells:
@@ -995,83 +916,64 @@ class Field:
             vtk dataset with states and rock data.
 
         """
-        grid = self.grid.to_corner_point()
-        vtk_grid_old = grid._vtk_grid
-        grid.create_vtk_grid()
-        dataset = grid._vtk_grid
+        dataset = vtk.vtkUnstructuredGrid()
+        dataset.DeepCopy(self.grid.vtk_grid)
+        actnum = self.grid.actnum.ravel(order='F')
 
         for comp_name in ('rock', 'states'):
             comp = getattr(self, comp_name)
             for attr in comp.attributes:
                 val = getattr(comp, attr)
                 if val.ndim == 3:
-                    array = numpy_to_vtk(val[grid.actnum])
+                    array = numpy_to_vtk(val.ravel(order='F')[actnum].astype('float32'))
                 elif val.ndim == 4:
-                    array = numpy_to_vtk(val[:, grid.actnum].T)
+                    array = numpy_to_vtk(np.array([x.ravel(order='F')[actnum].astype('float32') for x in val]).T)
                 else:
                     raise ValueError('Attribute {attr} in component {comp_name}' +
                                      'should be 3 or 4 dimensional array to be dumped.')
                 array.SetName('_'.join((comp_name.upper(), attr)))
                 dataset.GetCellData().AddArray(array)
-        grid._vtk_grid = vtk_grid_old
         return dataset
-
-    # pylint: disable=protected-access
-    def _create_pyvista_grid(self):
-        """Creates pyvista grid object with attributes."""
-        self._pyvista_grid = pv.UnstructuredGrid(self.grid._vtk_grid)
-
-        attributes = {}
-        active_cells = self.grid.actnum if 'ACTNUM' in self.grid else np.full(self.grid.dimens, True)
-
-        def make_data(data):
-            if self.grid._vtk_grid_params['use_only_active']:
-                return data[active_cells].astype(float)
-            new_data = data.copy()
-            new_data[~active_cells] = np.nan
-            return new_data.ravel().astype(float)
-
-        attributes.update({'ACTNUM': make_data(active_cells)})
-
-        if 'rock' in self.components:
-            attributes.update({attr: make_data(data) for attr, data in self.rock.items()})
-
-        if 'states' in self.components:
-            for attr, sequence in self.states.items():
-                attributes.update({'%s_%d' % (attr, i): make_data(snapshot)
-                                   for i, snapshot in enumerate(sequence)})
-
-        self._pyvista_grid.cell_data.update(attributes)
 
     def _add_welltracks(self, plotter):
         """Adds all welltracks to the plot."""
-        well_tracks = {node.name: self.wells[node.name].welltrack[:, :3].copy()
-                       for node in self.wells if 'WELLTRACK' in node.attributes}
 
-        labeled_points = {}
         dz = self._pyvista_grid.bounds[5] - self._pyvista_grid.bounds[4]
         z_min = self._pyvista_grid.bounds[4] - 0.05 * dz
 
         vertices = []
         faces = []
-        size = 0
-        for well_name, value in well_tracks.items():
-            wtrack_idx, first_intersection = self.wells[well_name]._first_entering_point # pylint: disable=protected-access
-            if first_intersection is not None:
-                value = np.concatenate([np.array([[first_intersection[0], first_intersection[1], z_min]]),
-                                        np.asarray(first_intersection).reshape(1, -1),
-                                        value[wtrack_idx + 1:]])
-            else:
-                value = np.concatenate([np.array([[value[0, 0], value[0, 1], z_min]]), value])
 
-            vertices.append(value)
-            ids = np.arange(size, size+len(value))
+        vertices_connectors = []
+        labeled_points = {}
+
+        size = 0
+        for well in self.wells:
+            if 'WELLTRACK' not in well:
+                continue
+
+            first_point = well.welltrack[0, :3].copy()
+            first_point[-1] = z_min
+
+            vertices.append(well.welltrack[:, :3])
+            ids = np.arange(size, size+len(well.welltrack))
             faces.append(np.stack([0*ids[:-1]+2, ids[:-1], ids[1:]]).T)
-            size += len(value)
-            labeled_points[well_name] = value[0]
+            size += len(well.welltrack)
+
+            vertices_connectors.extend([first_point, well.welltrack[0, :3]])
+            labeled_points[well.name] = first_point
+
+        vertices_connectors = np.array(vertices_connectors)
+        count = len(vertices_connectors)
+        faces_connectors = np.stack([np.full(count//2, 2),
+                                     np.arange(0, count, 2),
+                                     np.arange(1, count, 2)]).T
 
         mesh = pv.PolyData(np.vstack(vertices), lines=np.vstack(faces))
-        plotter.add_mesh(mesh, name='wells', color='k', line_width=2)
+        plotter.add_mesh(mesh, name='wells', color='b', line_width=3)
+
+        mesh = pv.PolyData(vertices_connectors, lines=faces_connectors)
+        plotter.add_mesh(mesh, name='well_connectors', color='k', line_width=2)
 
         return labeled_points
 
@@ -1081,9 +983,9 @@ class Field:
         vertices = []
         labeled_points = {}
         size = 0
-        for segment in self.faults:
-            blocks = segment.blocks
-            xyz = segment.faces_verts
+        for fault in self.faults:
+            blocks = fault.blocks
+            xyz = fault.faces_verts
             if use_only_active:
                 active = self.grid.actnum[blocks[:, 0], blocks[:, 1], blocks[:, 2]]
                 xyz = xyz[active]
@@ -1095,7 +997,7 @@ class Field:
             faces2 = np.stack([0*ids[::4]+3, ids[::4], ids[2::4], ids[3::4]]).T
             size += 4*len(xyz)
             faces.extend([faces1, faces2])
-            labeled_points[segment.name] = xyz[0, 0]
+            labeled_points[fault.name] = xyz[0, 0]
 
         if faces:
             mesh = pv.PolyData(np.vstack(vertices), np.vstack(faces))
@@ -1104,7 +1006,7 @@ class Field:
         return labeled_points
 
     def show(self, attr=None, thresholding=False, slicing=False, timestamp=None,
-             use_only_active=True, scaling=True, cmap=None, notebook=False,
+             scaling=True, cmap=None, notebook=False,
              theme='default', show_edges=True, faults_color='red', show_labels=True):
         """Field visualization.
 
@@ -1120,8 +1022,6 @@ class Field:
         timestamp: int or None
             The timestamp to show. Meaningful only for sequential attributes (States).
             Has no effect given non-sequential attributes.
-        use_only_active: bool
-            Corner point grid creation using only active cells. Default to True.
         scaling: bool, list or tuple
             The ratio of the axes in case of iterable, if True then it's (1, 1, 1),
             if False then no scaling is applied. Default True.
@@ -1140,28 +1040,14 @@ class Field:
         show_labels: bool
             Show x, y, z axis labels. Default True.
         """
-        attribute = 'ACTNUM' if attr is None else attr.upper()
-        grid_params = {'use_only_active': use_only_active, 'scaling': scaling}
+        if self._pyvista_grid is None:
+            self._pyvista_grid = pv.UnstructuredGrid(self.grid.vtk_grid)
 
-        plot_params = {'show_edges': show_edges, 'cmap': cmap}
-
-        if 'wells' in self.components:
-            self.wells._get_first_entering_point()
-
-        if 'faults' in self.components:
-            self.faults.get_blocks()
-
-        old_vtk_grid_params = self.grid._vtk_grid_params
-
-        if self.grid._vtk_grid is None or old_vtk_grid_params != grid_params:
-            self.grid.create_vtk_grid(**grid_params)
-
-        if self._pyvista_grid is None or old_vtk_grid_params != grid_params:
-            self._create_pyvista_grid()
-
-        grid = self._pyvista_grid
-
-        sequential = ('states' in self.components) and (attribute in self.states)
+        if attr is not None:
+            attr = attr.upper()
+            sequential = ('states' in self.components) and (attr in self.states)
+        else:
+            sequential = False
 
         pv.set_plot_theme(theme)
         plotter = pv.Plotter(notebook=notebook, title='Field')
@@ -1172,40 +1058,27 @@ class Field:
         timestamp_widget = sequential and timestamp is None
         slice_xyz_widget = slicing
 
-        if not thresholding:
-            if sequential:
-                threshold = np.min([np.nanmin(grid.cell_data[f"{attribute}_{i}"]) for i in
-                                    range(self.states.n_timesteps)])
-            else:
-                threshold = np.nanmin(grid.cell_data[attribute])
-        else:
-            threshold = 0
-
         scaling = np.asarray(scaling).ravel()
+        bbox = self.grid.bounding_box
         if len(scaling) == 1:
             if scaling[0]:
-                scales = np.diff(self.grid.bounding_box, axis=0).ravel()
+                scales = bbox[3:] - bbox[:3]
                 scaling = scales.max() / scales #scale to unit cube
             else:
                 scaling = np.array([1, 1, 1]) #no scaling
 
         widget_values = {
             'plotter': plotter,
-            'grid': grid,
-            'attribute': attribute,
+            'attribute': attr,
             'opacity': 0.5,
-            'threshold': threshold,
-            'slice_xyz': np.array(grid.bounds).reshape(3, 2).mean(axis=1) if slicing else None,
+            'threshold': None,
+            'slice_xyz': (bbox[3:] + bbox[:3])//2 if slicing else None,
             'timestamp': None if not sequential else 0 if timestamp is None else timestamp,
-            'plot_params': plot_params,
+            'plot_params': {'show_edges': show_edges, 'cmap': cmap},
             'scaling': scaling
         }
 
-        def _create_mesh_wrapper(**kwargs):
-            widget_values.update(kwargs)
-            return create_mesh(**kwargs)
-
-        plotter = _create_mesh_wrapper(**widget_values)
+        plotter = self._create_mesh(**widget_values)
 
         slider_positions = [
             {'pointa': (0.03, 0.90), 'pointb': (0.30, 0.90)},
@@ -1220,34 +1093,29 @@ class Field:
         ]
 
         def ch_opacity(x):
-            return _create_mesh_wrapper(
-                opacity=x, **{k: v for k, v in widget_values.items() if k != 'opacity'}
-            )
+            widget_values['opacity'] = x
+            return self._create_mesh(**widget_values)
+
         slider_pos = slider_positions.pop(0)
         slider_range = [0., 1.]
         plotter.add_slider_widget(ch_opacity, rng=slider_range, title='Opacity', **slider_pos)
 
         if threshold_widget:
             def ch_threshold(x):
-                return _create_mesh_wrapper(
-                    threshold=x, **{k: v for k, v in widget_values.items() if k != 'threshold'}
-                )
+                widget_values['threshold'] = x
+                return self._create_mesh(**widget_values)
             slider_pos = slider_positions.pop(0)
-            if sequential:
-                trange = np.arange(self.states.n_timesteps) if timestamp is None else [timestamp]
-                min_slider = min((np.nanmin(grid.cell_data[f"{attribute}_{i}"]) for i in trange))
-                max_slider = max((np.nanmax(grid.cell_data[f"{attribute}_{i}"]) for i in trange))
-                slider_range = [min_slider, max_slider]
+            comp = self.states if sequential else self.rock
+            if attr is not None:
+                slider_range = [np.nanmin(comp[attr]), np.nanmax(comp[attr])]
             else:
-                slider_range = [np.nanmin(grid.cell_data[attribute]),
-                                np.nanmax(grid.cell_data[attribute])]
+                slider_range = [0, 0]
             plotter.add_slider_widget(ch_threshold, rng=slider_range, title='Threshold', **slider_pos)
 
         if timestamp_widget:
             def ch_timestamp(x):
-                return _create_mesh_wrapper(
-                    timestamp=int(np.rint(x)), **{k: v for k, v in widget_values.items() if k != 'timestamp'}
-                )
+                widget_values['timestamp'] = int(np.rint(x))
+                return self._create_mesh(**widget_values)
             slider_pos = slider_positions.pop(0)
             slider_range = [0, self.states.n_timesteps - 1]
             plotter.add_slider_widget(ch_timestamp, rng=slider_range, value=0,
@@ -1255,30 +1123,19 @@ class Field:
 
         if slice_xyz_widget:
             def ch_slice_x(x):
-                new_slice_xyz = list(widget_values['slice_xyz'])
-                new_slice_xyz[0] = x
-                return _create_mesh_wrapper(
-                    slice_xyz=tuple(new_slice_xyz), **{k: v for k, v in
-                                                       widget_values.items() if k != 'slice_xyz'}
-                )
+                widget_values['slice_xyz'][0] = x #pylint: disable=unsupported-assignment-operation
+                return self._create_mesh(**widget_values)
 
             def ch_slice_y(y):
-                new_slice_xyz = list(widget_values['slice_xyz'])
-                new_slice_xyz[1] = y
-                return _create_mesh_wrapper(
-                    slice_xyz=tuple(new_slice_xyz), **{k: v for k, v in
-                                                       widget_values.items() if k != 'slice_xyz'}
-                )
+                widget_values['slice_xyz'][1] = y #pylint: disable=unsupported-assignment-operation
+                return self._create_mesh(**widget_values)
 
             def ch_slice_z(z):
-                new_slice_xyz = list(widget_values['slice_xyz'])
-                new_slice_xyz[2] = z
-                return _create_mesh_wrapper(
-                    slice_xyz=tuple(new_slice_xyz), **{k: v for k, v in
-                                                       widget_values.items() if k != 'slice_xyz'}
-                )
+                widget_values['slice_xyz'][2] = z #pylint: disable=unsupported-assignment-operation
+                return self._create_mesh(**widget_values)
+
             x_pos, y_pos, z_pos = slicing_slider_positions
-            x_min, x_max, y_min, y_max, z_min, z_max = grid.bounds
+            x_min, y_min, z_min, x_max, y_max, z_max = bbox
             plotter.add_slider_widget(ch_slice_x, rng=[x_min, x_max], title='X', **x_pos)
             plotter.add_slider_widget(ch_slice_y, rng=[y_min, y_max], title='Y', **y_pos)
             plotter.add_slider_widget(ch_slice_z, rng=[z_min, z_max], title='Z', **z_pos)
@@ -1296,16 +1153,20 @@ class Field:
             else:
                 plotter.remove_actor('well_names')
                 plotter.remove_actor('wells')
+                plotter.remove_actor('well_connectors')
         show_wells()
 
         if not notebook:
             plotter.add_checkbox_button_widget(show_wells, value=True)
             plotter.add_text("      Wells", position=(10.0, 10.0), font_size=16)
 
+        if 'faults' in self.components:
+            self.faults.get_blocks()
+
         def show_faults(value=True):
             if value and ('faults' in self.components):
                 labeled_points = self._add_faults(plotter,
-                                                  use_only_active=use_only_active,
+                                                  use_only_active=True,
                                                   color=faults_color)
                 if labeled_points:
                     (labels, points) = zip(*labeled_points.items())
@@ -1326,34 +1187,39 @@ class Field:
         plotter.show_grid(show_xlabels=show_labels, show_ylabels=show_labels, show_zlabels=show_labels)
         plotter.show()
 
+    def _create_mesh(self, plotter, attribute, opacity, threshold, slice_xyz,
+                     timestamp, plot_params, scaling):
+        """Create mesh for pyvista visualisation."""
+        grid = self._pyvista_grid
 
-def create_mesh(plotter, grid, attribute, opacity, threshold, slice_xyz, timestamp, plot_params, scaling):
-    """Create mesh for pyvista visualisation."""
-    plotter.remove_actor('cells')
-    try:
-        plotter.remove_scalar_bar()
-    except (IndexError, StopIteration):
-        pass
+        plotter.remove_actor('cells')
+        try:
+            plotter.remove_scalar_bar()
+        except IndexError:
+            pass
 
-    if timestamp is None:
-        grid.set_active_scalars(attribute)
-    else:
-        grid.set_active_scalars('%s_%d' % (attribute, timestamp))
+        name = attribute if timestamp is None else '%s_%d' % (attribute, timestamp)
+        if attribute is not None and name not in grid.cell_data:
+            actnum = self.grid.actnum.ravel()
+            data = self.rock[attribute] if timestamp is None else self.states[attribute][timestamp]
+            data = data.ravel()[actnum]
+            grid.cell_data[name] = data
+        grid.set_active_scalars(name)
 
-    if threshold is not None:
-        grid = grid.threshold(threshold, continuous=True)
+        if threshold is not None:
+            grid = grid.threshold(threshold, continuous=True)
 
-    if slice_xyz is not None:
-        grid = grid.slice_orthogonal(x=slice_xyz[0], y=slice_xyz[1], z=slice_xyz[2])
+        if slice_xyz is not None:
+            grid = grid.slice_orthogonal(x=slice_xyz[0], y=slice_xyz[1], z=slice_xyz[2])
 
-    plot_params['scalar_bar_args'] = dict(title='', label_font_size=12, width=0.5, position_y=0.03, position_x=0.45)
-    plotter.add_mesh(grid, name='cells', opacity=opacity, **plot_params)
+        plot_params['scalar_bar_args'] = dict(title='', label_font_size=12, width=0.5, position_y=0.03, position_x=0.45)
+        plotter.add_mesh(grid, name='cells', opacity=opacity, **plot_params)
 
-    if timestamp is None:
-        plotter.add_text(attribute, position='upper_edge', name='title', font_size=14)
-    else:
-        plotter.add_text('%s, t=%s' % (attribute, timestamp), position='upper_edge',
-                         name='title', font_size=14)
+        if timestamp is None:
+            plotter.add_text(attribute, position='upper_edge', name='title', font_size=14)
+        else:
+            plotter.add_text('%s, t=%s' % (attribute, timestamp), position='upper_edge',
+                             name='title', font_size=14)
 
-    plotter.set_scale(*scaling)
-    return plotter
+        plotter.set_scale(*scaling)
+        return plotter
