@@ -215,8 +215,13 @@ class Grid(SpatialComponent):
         _ = kwargs
         data = getattr(self, attr)
         if isinstance(data, np.ndarray) and data.ndim == 1:
-            if attr in ['ACTNUM', 'DX', 'DY', 'DZ', 'TOPS']:
+            if attr in ['ACTNUM', 'DX', 'DY', 'DZ']:
                 data = data.reshape(self.dimens, order='F')
+            elif attr == 'TOPS':
+                if data.size == np.prod(self.dimens):
+                    data = data.reshape(self.dimens, order='F')
+                else:
+                    data = data.reshape(self.dimens[:2], order='F')
             elif attr == 'COORD':
                 nx, ny, nz = self.dimens
                 data = data.reshape(-1, 6)
@@ -270,6 +275,11 @@ class OrthogonalGrid(Grid):
         if 'TOPS' not in self and 'DZ' in self:
             tops = np.zeros(self.dimens)
             tops[..., 1:] = np.cumsum(self.dz, axis=-1)[..., :-1]
+            setattr(self, 'TOPS', tops)
+        elif self.tops.ndim == 2 and 'DZ' in self:
+            tops = np.zeros(self.dimens)
+            tops[..., 1:] = np.cumsum(self.dz, axis=-1)[..., :-1]
+            tops += self.tops[:, :, None]
             setattr(self, 'TOPS', tops)
 
     def get_xyz(self, ijk=None):

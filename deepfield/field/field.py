@@ -969,11 +969,12 @@ class Field:
                                      np.arange(0, count, 2),
                                      np.arange(1, count, 2)]).T
 
-        mesh = pv.PolyData(np.vstack(vertices), lines=np.vstack(faces))
-        plotter.add_mesh(mesh, name='wells', color='b', line_width=3)
+        if vertices:
+            mesh = pv.PolyData(np.vstack(vertices), lines=np.vstack(faces))
+            plotter.add_mesh(mesh, name='wells', color='b', line_width=3)
 
-        mesh = pv.PolyData(vertices_connectors, lines=faces_connectors)
-        plotter.add_mesh(mesh, name='well_connectors', color='k', line_width=2)
+            mesh = pv.PolyData(vertices_connectors, lines=faces_connectors)
+            plotter.add_mesh(mesh, name='well_connectors', color='k', line_width=2)
 
         return labeled_points
 
