@@ -1195,7 +1195,7 @@ class Field:
         plotter.remove_actor('cells')
         try:
             plotter.remove_scalar_bar()
-        except IndexError:
+        except (IndexError, StopIteration):
             pass
 
         name = attribute if timestamp is None else '%s_%d' % (attribute, timestamp)
