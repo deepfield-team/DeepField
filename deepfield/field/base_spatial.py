@@ -109,9 +109,9 @@ class SpatialComponent(BaseComponent):
         _ = fmt, kwargs
         return self.ravel(attr=attr, order='F')
 
-    def load(self, path_or_buffer, **kwargs):
-        super().load(path_or_buffer, **kwargs)
-        self.to_spatial()
+    # def load(self, path_or_buffer, **kwargs):
+        # super().load(path_or_buffer, **kwargs)
+        # self.to_spatial()
 
     def copy_attribute(self, attr1, attr2, box=None):
         """Copy attribute values to another atribute.

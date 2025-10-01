@@ -3,16 +3,28 @@ import numpy as np
 import vtk
 from vtkmodules.util.numpy_support import vtk_to_numpy
 
+from .base_component import Attribute
 from .decorators import cached_property, apply_to_each_input
 from .base_spatial import SpatialComponent
 from .grid_utils import (get_xyz, get_xyz_ijk, get_xyz_ijk_orth,
                          process_grid, process_grid_orthogonal)
 from .utils import rolling_window, get_single_path
 from .parse_utils import read_ecl_bin
+from ._load_utils import binary_utils
 
 
 class Grid(SpatialComponent):
     """Basic grid class."""
+
+    _attributes_to_load = [
+        Attribute(
+            kw='DIMENS',
+            section='RUNSPEC',
+            binary_file='.EGRID',
+            binary_section='GRIDHEAD',
+            binary_process=binary_utils.gridhead_to_dimens
+        )
+    ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -168,6 +180,7 @@ class Grid(SpatialComponent):
                 else:
                     setattr(self, k, sections[k])
                 self.state.binary_attributes.append(k)
+
 
     def _read_buffer(self, buffer, attr, logger=None, **kwargs):
         if attr == 'DIMENS':

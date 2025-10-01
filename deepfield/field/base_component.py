@@ -1,12 +1,82 @@
 """BaseCompoment."""
+from abc import abstractmethod
 import os
 from copy import deepcopy
 from weakref import ref
 import numpy as np
 import h5py
 
+from deepfield.field.parse_utils.ecl_binary import read_ecl_bin
+
+from .utils import get_single_path
+
 from .decorators import apply_to_each_input
 from .parse_utils import read_array
+
+class Attribute():
+    def __init__(self, name=None, section=None, kw=None, custom_loader=None, postprocess=None, not_present=None, 
+                 binary_file=None, binary_section=None, binary_process=None):
+
+        if name is not None:
+            self.name = name
+        else:
+            if kw is None:
+                raise ValueError('Either name or section should be provided.')
+            self.name = kw
+
+        if custom_loader is not None:
+            self._kw = None
+            self._section = None
+        else:
+            if (section is None) or (kw is None):
+                raise ValueError('Either both `section` and `kw` or `custom_loader` should be provided.')
+            self._kw = kw
+            self._section = section
+
+        self._custom_loader = custom_loader
+        self._postprocess = postprocess
+        self._not_present = not_present
+        self._value = None
+        if (binary_file is None) != (binary_section is None):
+            raise ValueError('Either both `binary_file` and `binary_section` are provided either none.')
+        self._binary_file = binary_file
+        self._binary_section = binary_section
+        self._binary_process = binary_process
+
+    def _load_value(self, data, path_to_results, basename, logger):
+        __import__('ipdb').set_trace()
+        if self._binary_file is not None:
+            val = self._load_ecl_binary_value(path_to_results, basename, logger)
+        else:
+            val = None
+        if val is not None:
+            self._value = val
+            return self
+        if self._custom_loader is not None:
+            self._value = self._custom_loader(data)
+            return self
+        for entry in data[self._section]:
+            if entry[0] == self._kw:
+                self._value = entry[1]
+                return self
+        self._value = self._not_present
+        return self
+
+    def _load_ecl_binary_value(self, path_to_results, basename, logger):
+        path = get_single_path(path_to_results, basename + self._binary_file, logger)
+        if path is None:
+            return None
+        attrs = [self._binary_section]
+        sections = read_ecl_bin(path, attrs, logger=logger)
+        if self._binary_section in sections:
+            val = sections[self._binary_section]
+            if self._binary_process is not None:
+                return self._binary_process(val)
+        else:
+            return None
+
+    def load(self, data, path_to_results, basename, logger):
+        self._load_value(data, path_to_results, basename, logger)
 
 MAX_STRLEN = 40
 
@@ -28,6 +98,8 @@ class State:
 
 class BaseComponent:
     """Base class for components of geological model."""
+
+    _attributes_to_load = []
     def __init__(self, *args, **kwargs):
         _ = args
         self._state = State()
@@ -254,6 +326,7 @@ class BaseComponent:
         comp : BaseComponent
             BaseComponent with loaded attributes.
         """
+        __import__('ipdb').set_trace()
         if isinstance(path_or_buffer, str):
             if os.path.isdir(path_or_buffer):
                 return self._load_ecl_binary(path_or_buffer, **kwargs)
@@ -261,6 +334,13 @@ class BaseComponent:
             fmt = os.path.splitext(name)[1].strip('.')
             return self._get_fmt_loader(fmt)(path_or_buffer, **kwargs)
         return self._read_buffer(path_or_buffer, **kwargs)
+
+    def load(self, data, path_to_results, basename, logger):
+        """Load data."""
+        self._attributes = deepcopy(self._attributes_to_load)
+        for attr in self._attributes:
+            attr.load(data, path_to_results, basename, logger)
+
 
     def _load_ecl_binary(self, path_to_results, **kwargs):
         """Load data from RESULTS derictory."""
@@ -492,47 +572,47 @@ class BaseComponent:
                                       fmt=fmt, compressed=compressed)
         return self
 
-    @staticmethod
-    def dump_array_ascii(buffer, array, header=None, fmt='%f', compressed=True):
-        """Writes array-like data into an ASCII buffer.
+        @staticmethod
+        def dump_array_ascii(buffer, array, header=None, fmt='%f', compressed=True):
+            """Writes array-like data into an ASCII buffer.
 
-        Parameters
-        ----------
-        buffer : buffer-like
-        array : 1d, array-like
-            Array to be saved
-        header : str, optional
-            String to be written line before the array
-        fmt : str or sequence of strs, optional
-            Format to be passed into ``numpy.savetxt`` function. Default to '%f'.
-        compressed : bool
-            If True, uses compressed typing style
-        """
-        if header is not None:
-            buffer.write(header + '\n')
+            Parameters
+            ----------
+            buffer : buffer-like
+            array : 1d, array-like
+                Array to be saved
+            header : str, optional
+                String to be written line before the array
+            fmt : str or sequence of strs, optional
+                Format to be passed into ``numpy.savetxt`` function. Default to '%f'.
+            compressed : bool
+                If True, uses compressed typing style
+            """
+            if header is not None:
+                buffer.write(header + '\n')
 
-        if compressed:
-            i = 0
-            items_written = 0
-            while i < len(array):
-                count = 1
-                while (i + count < len(array)) and (array[i + count] == array[i]):
-                    count += 1
-                if count <= 4:
-                    buffer.write(' '.join([fmt % array[i]] * count))
-                    items_written += count
-                else:
-                    buffer.write(str(count) + '*' + fmt % array[i])
-                    items_written += 1
-                i += count
-                if items_written > MAX_STRLEN:
+            if compressed:
+                i = 0
+                items_written = 0
+                while i < len(array):
+                    count = 1
+                    while (i + count < len(array)) and (array[i + count] == array[i]):
+                        count += 1
+                    if count <= 4:
+                        buffer.write(' '.join([fmt % array[i]] * count))
+                        items_written += count
+                    else:
+                        buffer.write(str(count) + '*' + fmt % array[i])
+                        items_written += 1
+                    i += count
+                    if items_written > MAX_STRLEN:
+                        buffer.write('\n')
+                        items_written = 0
+                    else:
+                        buffer.write(' ')
+                buffer.write('/\n')
+            else:
+                for i in range(0, len(array), MAX_STRLEN):
+                    buffer.write(' '.join([fmt % d for d in array[i:i + MAX_STRLEN]]))
                     buffer.write('\n')
-                    items_written = 0
-                else:
-                    buffer.write(' ')
-            buffer.write('/\n')
-        else:
-            for i in range(0, len(array), MAX_STRLEN):
-                buffer.write(' '.join([fmt % d for d in array[i:i + MAX_STRLEN]]))
-                buffer.write('\n')
-            buffer.write('/\n')
+                buffer.write('/\n')

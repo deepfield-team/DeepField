@@ -2,6 +2,7 @@
 """Field class."""
 import logging
 import os
+import pathlib
 import sys
 import weakref
 from copy import deepcopy
@@ -31,6 +32,7 @@ from .template_models import (CORNERPOINT_GRID, DEFAULT_ECL_MODEL,
                               DEFAULT_TN_MODEL, ORTHOGONAL_GRID)
 from .utils import get_single_path
 from .wells import Wells
+import resdp
 
 ACTOR = None
 
@@ -445,51 +447,61 @@ class Field:
 
     def _load_data(self, raise_errors=False, include_binary=True):
         """Load model in DATA format."""
-        if include_binary:
-            self._load_binary(components=('grid',),
-                              raise_errors=raise_errors)
-            if 'ACTNUM' in self.grid.state.binary_attributes:
-                self._load_binary(components=('rock',), raise_errors=raise_errors)
+        # if include_binary:
+        #     self._load_binary(components=('grid',),
+        #                       raise_errors=raise_errors)
+        #     if 'ACTNUM' in self.grid.state.binary_attributes:
+        #         self._load_binary(components=('rock',), raise_errors=raise_errors)
 
-        loaders = self._get_loaders(self._config)
-        tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
-                          raise_errors=raise_errors)
+        if self._path is None:
+            raise ValueError()
 
-        self.grid = specify_grid(self.grid)
-        self.grid.create_vtk_grid()
+        data = resdp.load(pathlib.Path(self.path))
+        self._data = data
 
-        if 'MINPV' in self.grid.attributes:
-            if 'ACTNUM' in self.grid.state.binary_attributes:
-                self._logger.info('ACTNUM is loaded from binary file: MINPV was not applied.')
-            else:
-                self.grid.apply_minpv()
-                self._logger.info('MINPV {} is applied.'.format(self.grid.minpv[0]))
+        path_to_results = os.path.join(os.path.dirname(self.path), 'RESULTS')
+        for comp in self._components:
+            getattr(self, comp).load(self._data, path_to_results, self.basename, self._logger)
 
-        if include_binary:
-            self._load_binary(components=('states', 'wells'), raise_errors=raise_errors)
-
-        self._load_results(raise_errors, include_binary)
-        self._check_vapoil()
-
-        if 'wells' in self.components:
-            self.wells.add_welltrack()
-            for well in self.wells:
-                if 'COMPDAT' in well or 'COMPDATL' in well:
-                    self.meta['MODEL_TYPE'] = 'ECL'
-                    break
-            else:
-                self.meta['MODEL_TYPE'] = 'TN'
-            self._logger.info('Model type is determined as {}.'.format(self.meta['MODEL_TYPE']))
-
-
-        if self._config['grid']['kwargs'].get('apply_mapaxes', False):
-            self.grid.map_grid()
-            self._logger.info('Grid pillars `COORD` are mapped to new axis with respect to `MAPAXES`.')
-
-        if 'states' in self.components:
-            if not self.states.state.binary_attributes and self.states.attributes:
-                self.states.dates = pd.to_datetime([self.meta['START']])
-                self._logger.info('States dates are set to start date {}.'.format(self.meta['START']))
+        # loaders = self._get_loaders(self._config)
+        # tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
+        #                   raise_errors=raise_errors)
+        #
+        # self.grid = specify_grid(self.grid)
+        # self.grid.create_vtk_grid()
+        #
+        # if 'MINPV' in self.grid.attributes:
+        #     if 'ACTNUM' in self.grid.state.binary_attributes:
+        #         self._logger.info('ACTNUM is loaded from binary file: MINPV was not applied.')
+        #     else:
+        #         self.grid.apply_minpv()
+        #         self._logger.info('MINPV {} is applied.'.format(self.grid.minpv[0]))
+        #
+        # if include_binary:
+        #     self._load_binary(components=('states', 'wells'), raise_errors=raise_errors)
+        #
+        # self._load_results(raise_errors, include_binary)
+        # self._check_vapoil()
+        #
+        # if 'wells' in self.components:
+        #     self.wells.add_welltrack()
+        #     for well in self.wells:
+        #         if 'COMPDAT' in well or 'COMPDATL' in well:
+        #             self.meta['MODEL_TYPE'] = 'ECL'
+        #             break
+        #     else:
+        #         self.meta['MODEL_TYPE'] = 'TN'
+        #     self._logger.info('Model type is determined as {}.'.format(self.meta['MODEL_TYPE']))
+        #
+        #
+        # if self._config['grid']['kwargs'].get('apply_mapaxes', False):
+        #     self.grid.map_grid()
+        #     self._logger.info('Grid pillars `COORD` are mapped to new axis with respect to `MAPAXES`.')
+        #
+        # if 'states' in self.components:
+        #     if not self.states.state.binary_attributes and self.states.attributes:
+        #         self.states.dates = pd.to_datetime([self.meta['START']])
+        #         self._logger.info('States dates are set to start date {}.'.format(self.meta['START']))
 
         return self
 
