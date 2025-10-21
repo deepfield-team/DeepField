@@ -36,6 +36,7 @@ class BaseTree(BaseComponent):
     """
 
     def __init__(self, node=None, nodeclass=None, **kwargs):
+        __import__('pdb').set_trace()
         super().__init__(**kwargs)
         nodeclass = BaseTreeNode if nodeclass is None else nodeclass
         self._root = nodeclass(name='FIELD', ntype="group",
@@ -53,22 +54,6 @@ class BaseTree(BaseComponent):
             node_copy = node.copy()
             node_copy.parent = copy[node.parent.name]
         return copy
-
-    @property
-    def field(self):
-        return self._field()
-
-    @field.setter
-    def field(self, field):
-        """Set field to which component belongs."""
-        if isinstance(field, ref) or field is None:
-            self._field = field
-            return self
-        self._field = ref(field)
-        if hasattr(self, 'root'):
-            for node in self:
-                node.field = field
-        return self
 
     @property
     def root(self):

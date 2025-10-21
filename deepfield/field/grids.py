@@ -20,22 +20,58 @@ class Grid(SpatialComponent):
         Attribute(
             kw='DIMENS',
             section='RUNSPEC',
-            binary_file='.EGRID',
+            binary_file='EGRID',
             binary_section='GRIDHEAD',
             binary_process=binary_utils.gridhead_to_dimens
+        ),
+        Attribute(
+            kw='ACTNUM',
+            section='GRID',
+            binary_file='EGRID',
+            binary_section='ACTNUM',
+            binary_process=lambda val: val.astype(bool)
+        ),
+        Attribute(
+            kw='ZCORN',
+            section='GRID',
+            binary_file='EGRID',
+            binary_section='ZCORN',
+        ),
+        Attribute(
+            kw='COORD',
+            section='GRID',
+            binary_file='EGRID',
+            binary_section='COORD'
+        ),
+        Attribute(
+            kw='DX',
+            section='GRID',
+        ),
+        Attribute(
+            kw='DY',
+            section='GRID',
+        ),
+        Attribute(
+            kw='DZ',
+            section='GRID',
+        ),
+        Attribute(
+            kw='TOPS',
+            section='GRID',
         )
     ]
 
     def __init__(self, *args, **kwargs):
+        __import__('pdb').set_trace()
         super().__init__(*args, **kwargs)
         self._vtk_grid = vtk.vtkUnstructuredGrid()
         self._vtk_locator = None
         self._actnum_ids = None
         self.to_spatial()
-        if 'MAPAXES' not in self:
-            setattr(self, 'MAPAXES', np.array([0, 1, 0, 0, 1, 0]))
-        if 'ACTNUM' not in self and 'DIMENS' in self:
-            self.actnum = np.ones(self.dimens, dtype=bool)
+        # if 'MAPAXES' not in self:
+        #     setattr(self, 'MAPAXES', np.array([0, 1, 0, 0, 1, 0]))
+        # if 'ACTNUM' not in self and 'DIMENS' in self:
+        #     self.actnum = np.ones(self.dimens, dtype=bool)
 
     @property
     def vtk_grid(self):
@@ -115,7 +151,10 @@ class Grid(SpatialComponent):
     @property
     def origin(self):
         """Grid axes origin relative to the map coordinates."""
-        return np.array([self.mapaxes[2], self.mapaxes[3], self.tops.ravel()[0]])
+        if 'MAPAXES' in self.attributes:
+            return np.array([self.mapaxes[2], self.mapaxes[3], self.tops.ravel()[0]])
+        else:
+            return np.array([0, 0, 0])
 
     @property
     def cell_centroids(self):
@@ -227,25 +266,27 @@ class Grid(SpatialComponent):
         """Spatial order 'F' transformations."""
         _ = kwargs
         data = getattr(self, attr)
+        dimens_vals = self.dimens.values.reshape(-1)
         if isinstance(data, np.ndarray) and data.ndim == 1:
             if attr in ['ACTNUM', 'DX', 'DY', 'DZ']:
-                data = data.reshape(self.dimens, order='F')
+                data = data.reshape(dimens_vals, order='F')
             elif attr == 'TOPS':
-                if data.size == np.prod(self.dimens):
-                    data = data.reshape(self.dimens, order='F')
+                if data.size == np.prod(dimens_vals):
+                    data = data.reshape(dimens_vals, order='F')
                 else:
-                    data = data.reshape(self.dimens[:2], order='F')
+                    data = data.reshape(dimens_vals[:2], order='F')
             elif attr == 'COORD':
-                nx, ny, nz = self.dimens
+                nx, ny, nz = dimens_vals
                 data = data.reshape(-1, 6)
                 data = data.reshape((nx + 1, ny + 1, 6), order='F')
             elif attr == 'ZCORN':
-                nx, ny, nz = self.dimens
+                nx, ny, nz = dimens_vals
                 data = data.reshape((2, nx, 2, ny, 2, nz), order='F')
                 data = np.moveaxis(data, range(6), (3, 0, 4, 1, 5, 2))
                 data = data.reshape((nx, ny, nz, 8), order='F')
             else:
                 return self
+            __import__('pdb').set_trace()
             setattr(self, attr, data)
         return self
 
@@ -549,7 +590,7 @@ def specify_grid(grid):
     """
     if not isinstance(grid, (CornerPointGrid, OrthogonalGrid)):
         if ('DX' in grid) and ('DY' in grid) and ('DZ' in grid):
-            grid = OrthogonalGrid(**dict(grid.items()), field=grid.field)
+            grid = OrthogonalGrid(dump=grid.dump_dict())
         else:
-            grid = CornerPointGrid(**dict(grid.items()), field=grid.field)
+            grid = CornerPointGrid(dump=grid.dump_dict())
     return grid

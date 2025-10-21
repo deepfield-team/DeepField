@@ -33,6 +33,7 @@ from .template_models import (CORNERPOINT_GRID, DEFAULT_ECL_MODEL,
 from .utils import get_single_path
 from .wells import Wells
 import resdp
+import resdp.binary
 
 ACTOR = None
 
@@ -458,17 +459,20 @@ class Field:
 
         data = resdp.load(pathlib.Path(self.path))
         self._data = data
+        if include_binary:
+            self._binary_data = resdp.binary.load(pathlib.Path(self.path))
+        else:
+            self._binary_data = None
 
-        path_to_results = os.path.join(os.path.dirname(self.path), 'RESULTS')
         for comp in self._components:
-            getattr(self, comp).load(self._data, path_to_results, self.basename, self._logger)
+            getattr(self, comp).load(self._data, self._binary_data, self._logger)
 
         # loaders = self._get_loaders(self._config)
         # tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
         #                   raise_errors=raise_errors)
         #
-        # self.grid = specify_grid(self.grid)
-        # self.grid.create_vtk_grid()
+        self.grid = specify_grid(self.grid)
+        self.grid.create_vtk_grid()
         #
         # if 'MINPV' in self.grid.attributes:
         #     if 'ACTNUM' in self.grid.state.binary_attributes:

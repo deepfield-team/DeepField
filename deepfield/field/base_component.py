@@ -43,15 +43,15 @@ class Attribute():
         self._binary_section = binary_section
         self._binary_process = binary_process
 
-    def _load_value(self, data, path_to_results, basename, logger):
-        __import__('ipdb').set_trace()
+    def _load_value(self, data, binary_data, logger):
         if self._binary_file is not None:
-            val = self._load_ecl_binary_value(path_to_results, basename, logger)
+            val = self._load_ecl_binary_value(binary_data, logger)
         else:
             val = None
         if val is not None:
             self._value = val
             return self
+        __import__('pdb').set_trace()
         if self._custom_loader is not None:
             self._value = self._custom_loader(data)
             return self
@@ -62,21 +62,30 @@ class Attribute():
         self._value = self._not_present
         return self
 
-    def _load_ecl_binary_value(self, path_to_results, basename, logger):
-        path = get_single_path(path_to_results, basename + self._binary_file, logger)
-        if path is None:
+    def _load_ecl_binary_value(self, binary_data, logger):
+        if binary_data is None:
             return None
-        attrs = [self._binary_section]
-        sections = read_ecl_bin(path, attrs, logger=logger)
-        if self._binary_section in sections:
-            val = sections[self._binary_section]
-            if self._binary_process is not None:
-                return self._binary_process(val)
-        else:
+        if self._binary_file not in binary_data:
             return None
+        file_data = binary_data[self._binary_file]
+        val = file_data.find_unique(self._binary_section)
+        if val is None:
+            return None
+        if self._binary_process is not None:
+            return self._binary_process(file_data[val].value)
+        return file_data[val].value
 
-    def load(self, data, path_to_results, basename, logger):
-        self._load_value(data, path_to_results, basename, logger)
+    def load(self, data, binary_data, logger):
+        self._load_value(data, binary_data, logger)
+
+    @property
+    def value(self):
+        """The value property."""
+        return self._value
+
+    @value.setter
+    def value(self, value):
+        self._value = value
 
 MAX_STRLEN = 40
 
@@ -100,18 +109,20 @@ class BaseComponent:
     """Base class for components of geological model."""
 
     _attributes_to_load = []
-    def __init__(self, *args, **kwargs):
-        _ = args
+    def __init__(self, dump=None, field=None):
+        self._field = None
+        if dump is not None:
+            self._attributes = dump['attributes']
+            self.field = dump['field']
+            self._state = dump['state']
+            return None
+        self._attributes = []
         self._state = State()
-        self._class_name = kwargs.pop('class_name', self.__class__.__name__)
-        self._data = {}
-        if 'field' in kwargs:
-            self.field = kwargs['field']
-        else:
-            self.field = None
-        for k, v in kwargs.items():
-            if k != 'field':
-                setattr(self, k, v)
+        # self._class_name = kwargs.pop('class_name', self.__class__.__name__)
+        self.field = field
+        # for k, v in kwargs.items():
+        #     if k != 'field':
+        #         setattr(self, k, v)
 
     @property
     def field(self):
@@ -130,7 +141,7 @@ class BaseComponent:
     @property
     def attributes(self):
         """Array of attributes."""
-        return tuple(self._data.keys())
+        return tuple((attr.name for attr in self._attributes))
 
     @property
     def empty(self):
@@ -147,7 +158,7 @@ class BaseComponent:
 
     def items(self):
         """Returns pairs of attribute's names and data."""
-        return self._data.items()
+        return ((attr.name, attr.value) for attr in self._attributes)
 
     @property
     def state(self):
@@ -157,11 +168,11 @@ class BaseComponent:
     @property
     def class_name(self):
         """Name of the component."""
-        return self._class_name
+        return self.__class__.__name__
 
-    @class_name.setter
-    def class_name(self, v):
-        self._class_name = v
+    # @class_name.setter
+    # def class_name(self, v):
+    #     self._class_name = v
 
     def empty_like(self):
         """Get an empty component with the same state and the structure of embedded BaseComponents (if any)."""
@@ -187,9 +198,16 @@ class BaseComponent:
         return self
 
     def __getattr__(self, key):
-        if key.upper() in self._data:
-            return self._data[key.upper()]
+        for attr in self._attributes:
+            if key.upper() == attr.name:
+                return attr.value
         raise AttributeError("{} has no attribute {}".format(self.class_name, key))
+    def dump_dict(self):
+        return {
+            'attributes': deepcopy(self._attributes),
+            'field': self.field,
+            'state': self.state
+        }
 
     def __getitem__(self, key):
         return getattr(self, key)
@@ -197,8 +215,11 @@ class BaseComponent:
     def __setattr__(self, key, value):
         if (key[0] == '_') or (key in dir(self)):
             return super().__setattr__(key, value)
-        self._data[key.upper()] = value
-        return self
+        for att in self._attributes:
+            if key == att.name:
+                att.value = value
+            return None
+        raise AttributeError(f'{self.class_name} has no attribute {key}.')
 
     def __setitem__(self, key, value):
         return setattr(self, key, value)
@@ -335,11 +356,11 @@ class BaseComponent:
             return self._get_fmt_loader(fmt)(path_or_buffer, **kwargs)
         return self._read_buffer(path_or_buffer, **kwargs)
 
-    def load(self, data, path_to_results, basename, logger):
+    def load(self, data, binary_data, logger):
         """Load data."""
         self._attributes = deepcopy(self._attributes_to_load)
         for attr in self._attributes:
-            attr.load(data, path_to_results, basename, logger)
+            attr.load(data, binary_data, logger)
 
 
     def _load_ecl_binary(self, path_to_results, **kwargs):
