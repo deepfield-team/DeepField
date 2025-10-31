@@ -100,8 +100,8 @@ class Field:
         Log level to be printed while loading. Default to 'INFO'.
     """
     _default_config = default_config
-    def __init__(self, path=None, config=None, logfile=None, encoding='auto', loglevel='INFO'):
-        self._path = preprocess_path(path) if path is not None else None
+    def __init__(self, path: pathlib.Path | None=None, config=None, logfile=None, encoding='auto', loglevel='INFO'):
+        self._path: pathlib.Path | None = preprocess_path(path) if path is not None else None
         self._encoding = encoding
         self._components = {}
         self._config = None
@@ -113,6 +113,7 @@ class Field:
                       'MODEL_TYPE': '',
                       'HUNITS': DEFAULT_HUNITS['METRIC']}
         self._state = FieldState(self)
+        self._data = resdp.DataType
 
         logging.shutdown()
         handlers = [logging.StreamHandler(sys.stdout)]
@@ -329,6 +330,8 @@ class Field:
         out : Field
             Field with loaded components.
         """
+        if self._path is None:
+            raise ValueError('Path to model is not defined.')
         name = os.path.basename(self._path)
         fmt = os.path.splitext(name)[1].strip('.')
 

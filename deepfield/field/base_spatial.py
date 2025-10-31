@@ -100,9 +100,9 @@ class SpatialComponent(BaseComponent):
         return self
 
     @apply_to_each_input
-    def _to_spatial(self, attr, **kwargs):
+    def _to_spatial(self, attr: str):
         """Spatial transformations."""
-        _ = self, attr, kwargs
+        _ = self, attr
         raise NotImplementedError()
 
     def _make_data_dump(self, attr, fmt=None, **kwargs):

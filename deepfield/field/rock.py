@@ -1,6 +1,9 @@
 """Rock component."""
+from typing import override
 import numpy as np
 import matplotlib.pyplot as plt
+
+from .base_component import Attribute
 
 from .base_spatial import SpatialComponent
 from .decorators import apply_to_each_input
@@ -9,24 +12,39 @@ from .utils import get_single_path
 from .parse_utils import read_ecl_bin
 
 
+_ROCK_ATTRIBUTES = ['PORO', 'PERMX', 'PERMY', 'PERMZ', 'KRW']
+
+
 class Rock(SpatialComponent):
     """Rock component of geological model."""
+    _attributes_to_load: list[Attribute] = [
+        Attribute(
+            att,
+            'GRID',
+            att,
+            binary_file='INIT',
+            binary_section=att
+        ) for att in _ROCK_ATTRIBUTES
+    ]
+    # def _load_ecl_binary(self, path_to_results, attrs, basename, logger=None):
+    #     path = get_single_path(path_to_results, basename + '.INIT', logger)
+    #     if path is None:
+    #         return
+    #     sections = read_ecl_bin(path, attrs, logger=logger)
+    #
+    #     for k in ['PORO', 'PERMX', 'PERMY', 'PERMZ', "KRW"]:
+    #         if (k in attrs) and (k in sections):
+    #             setattr(self, k, sections[k])
+    #         self.state.binary_attributes.append(k)
 
-    def _load_ecl_binary(self, path_to_results, attrs, basename, logger=None):
-        path = get_single_path(path_to_results, basename + '.INIT', logger)
-        if path is None:
-            return
-        sections = read_ecl_bin(path, attrs, logger=logger)
-
-        for k in ['PORO', 'PERMX', 'PERMY', 'PERMZ', "KRW"]:
-            if (k in attrs) and (k in sections):
-                setattr(self, k, sections[k])
-            self.state.binary_attributes.append(k)
-
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.to_spatial()
+    @override
     @apply_to_each_input
-    def _to_spatial(self, attr):
+    def _to_spatial(self, attr: str):
         """Spatial order 'F' transformations."""
-        dimens = self.field.grid.dimens
+        dimens = self.field.grid.dimens.values.reshape(-1)
         self.pad_na(attr=attr)
         return self.reshape(attr=attr, newshape=dimens, order='F', inplace=True)
 
@@ -57,7 +75,7 @@ class Rock(SpatialComponent):
         output : component if inplace else padded attribute.
         """
         data = getattr(self, attr)
-        if np.prod(data.shape) == np.prod(self.field.grid.dimens):
+        if np.prod(data.shape) == np.prod(self.field.grid.dimens.values):
             return self if inplace else data
         actnum = self.field.grid.actnum
         if data.ndim > 1:

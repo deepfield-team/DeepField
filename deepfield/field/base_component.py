@@ -1,24 +1,30 @@
 """BaseCompoment."""
-from abc import abstractmethod
+from __future__ import annotations
 import os
 from copy import deepcopy
 from weakref import ref
 import numpy as np
 import h5py
 
-from deepfield.field.parse_utils.ecl_binary import read_ecl_bin
-
-from .utils import get_single_path
-
 from .decorators import apply_to_each_input
 from .parse_utils import read_array
 
+from typing import TYPE_CHECKING, Callable, Sequence, TypedDict, override
+
+if TYPE_CHECKING:
+    from .field import Field
+
+class DumpDict(TypedDict):
+    attributes: Sequence[Attribute]
+    state: State
+    field: Field | None
+
 class Attribute():
-    def __init__(self, name=None, section=None, kw=None, custom_loader=None, postprocess=None, not_present=None, 
+    def __init__(self, name: str | None=None, section=None, kw=None, custom_loader=None, postprocess=None, not_present=None,
                  binary_file=None, binary_section=None, binary_process=None):
 
         if name is not None:
-            self.name = name
+            self.name: str = name
         else:
             if kw is None:
                 raise ValueError('Either name or section should be provided.')
@@ -42,16 +48,19 @@ class Attribute():
         self._binary_file = binary_file
         self._binary_section = binary_section
         self._binary_process = binary_process
+        self._component: Callable[[], BaseComponent | None] | None = None
 
     def _load_value(self, data, binary_data, logger):
+        if self.component is None:
+            raise ValueError('Attribute should be associated with `BaseComponent` object.')
         if self._binary_file is not None:
             val = self._load_ecl_binary_value(binary_data, logger)
         else:
             val = None
         if val is not None:
             self._value = val
+            self.component.state.binary_attributes.append(self.name)
             return self
-        __import__('pdb').set_trace()
         if self._custom_loader is not None:
             self._value = self._custom_loader(data)
             return self
@@ -86,6 +95,18 @@ class Attribute():
     @value.setter
     def value(self, value):
         self._value = value
+    @property
+    def component(self) -> BaseComponent | None:
+        if self._component is None:
+            return None
+        else:
+            return self._component()
+    @component.setter
+    def component(self, value: BaseComponent | None):
+        if value is None:
+            self._component = value
+            return None
+        self._component = ref(value)
 
 MAX_STRLEN = 40
 
@@ -108,24 +129,22 @@ class State:
 class BaseComponent:
     """Base class for components of geological model."""
 
-    _attributes_to_load = []
+    _attributes_to_load: list[Attribute] = []
     def __init__(self, dump=None, field=None):
         self._field = None
         if dump is not None:
             self._attributes = dump['attributes']
             self.field = dump['field']
             self._state = dump['state']
+            for att in self._attributes:
+                att.component = self
             return None
-        self._attributes = []
+        self._attributes: list[Attribute] = []
         self._state = State()
-        # self._class_name = kwargs.pop('class_name', self.__class__.__name__)
         self.field = field
-        # for k, v in kwargs.items():
-        #     if k != 'field':
-        #         setattr(self, k, v)
 
     @property
-    def field(self):
+    def field(self) -> Field:
         """Field associated with the component."""
         return self._field()
 
@@ -139,22 +158,22 @@ class BaseComponent:
         return self
 
     @property
-    def attributes(self):
+    def attributes(self) -> Sequence[str]:
         """Array of attributes."""
         return tuple((attr.name for attr in self._attributes))
 
     @property
     def empty(self):
         """True if component is empty else False."""
-        return not self._data
+        return not self._attributes
 
     def keys(self):
         """Array of attributes."""
-        return self._data.keys()
+        return (attr.name for attr in self._attributes)
 
     def values(self):
         """Returns a generator of attribute's data."""
-        return self._data.values()
+        return (attr.value for attr in self._attributes)
 
     def items(self):
         """Returns pairs of attribute's names and data."""
@@ -202,7 +221,7 @@ class BaseComponent:
             if key.upper() == attr.name:
                 return attr.value
         raise AttributeError("{} has no attribute {}".format(self.class_name, key))
-    def dump_dict(self):
+    def dump_dict(self) -> DumpDict:
         return {
             'attributes': deepcopy(self._attributes),
             'field': self.field,
@@ -218,22 +237,23 @@ class BaseComponent:
         for att in self._attributes:
             if key == att.name:
                 att.value = value
-            return None
+                return None
         raise AttributeError(f'{self.class_name} has no attribute {key}.')
 
     def __setitem__(self, key, value):
         return setattr(self, key, value)
 
-    def __delattr__(self, key):
-        if key.upper() in self._data:
-            del self._data[key.upper()]
+    @override
+    def __delattr__(self, key: str):
+        if key.upper() in self.attributes:
+            self._attributes = [att for att in self._attributes if att.name != key.upper()]
         else:
-            raise AttributeError("{} has no attribute {}".format(self.class_name, key))
+            raise AttributeError(f"{self.class_name} has no attribute {key}")
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: str):
         return delattr(self, key)
 
-    def __contains__(self, x):
+    def __contains__(self, x: str):
         return x.upper() in self.attributes
 
     def copy(self):
@@ -332,40 +352,41 @@ class BaseComponent:
             return self._load_hdf5
         raise NotImplementedError('File format .%s is not supported.' % fmt.upper())
 
-    def load(self, path_or_buffer, **kwargs):
-        """Load data from a file or buffer.
-
-        Parameters
-        ----------
-        path_or_buffer : str of string buffer
-            Source to read data from.
-        **kwargs : dict, optional
-            Any kwargs to be passed to load method.
-
-        Returns
-        -------
-        comp : BaseComponent
-            BaseComponent with loaded attributes.
-        """
-        __import__('ipdb').set_trace()
-        if isinstance(path_or_buffer, str):
-            if os.path.isdir(path_or_buffer):
-                return self._load_ecl_binary(path_or_buffer, **kwargs)
-            name = os.path.basename(path_or_buffer)
-            fmt = os.path.splitext(name)[1].strip('.')
-            return self._get_fmt_loader(fmt)(path_or_buffer, **kwargs)
-        return self._read_buffer(path_or_buffer, **kwargs)
+    # def load(self, path_or_buffer, **kwargs):
+    #     """Load data from a file or buffer.
+    #
+    #     Parameters
+    #     ----------
+    #     path_or_buffer : str of string buffer
+    #         Source to read data from.
+    #     **kwargs : dict, optional
+    #         Any kwargs to be passed to load method.
+    #
+    #     Returns
+    #     -------
+    #     comp : BaseComponent
+    #         BaseComponent with loaded attributes.
+    #     """
+    #     __import__('ipdb').set_trace()
+    #     if isinstance(path_or_buffer, str):
+    #         if os.path.isdir(path_or_buffer):
+    #             return self._load_ecl_binary(path_or_buffer, **kwargs)
+    #         name = os.path.basename(path_or_buffer)
+    #         fmt = os.path.splitext(name)[1].strip('.')
+    #         return self._get_fmt_loader(fmt)(path_or_buffer, **kwargs)
+    #     return self._read_buffer(path_or_buffer, **kwargs)
 
     def load(self, data, binary_data, logger):
         """Load data."""
         self._attributes = deepcopy(self._attributes_to_load)
         for attr in self._attributes:
+            attr.component = self
             attr.load(data, binary_data, logger)
 
 
-    def _load_ecl_binary(self, path_to_results, **kwargs):
-        """Load data from RESULTS derictory."""
-        raise NotImplementedError('Load from binary files is not implemented.')
+    # def _load_ecl_binary(self, path_to_results, **kwargs):
+    #     """Load data from RESULTS derictory."""
+    #     raise NotImplementedError('Load from binary files is not implemented.')
 
     def _load_hdf5(self, path, attrs=None, raise_errors=False, logger=None, subset=None, **kwargs):
         """Load data from a HDF5 file.
@@ -592,48 +613,3 @@ class BaseComponent:
                 self.dump_array_ascii(f, data, header=attr.upper(),
                                       fmt=fmt, compressed=compressed)
         return self
-
-        @staticmethod
-        def dump_array_ascii(buffer, array, header=None, fmt='%f', compressed=True):
-            """Writes array-like data into an ASCII buffer.
-
-            Parameters
-            ----------
-            buffer : buffer-like
-            array : 1d, array-like
-                Array to be saved
-            header : str, optional
-                String to be written line before the array
-            fmt : str or sequence of strs, optional
-                Format to be passed into ``numpy.savetxt`` function. Default to '%f'.
-            compressed : bool
-                If True, uses compressed typing style
-            """
-            if header is not None:
-                buffer.write(header + '\n')
-
-            if compressed:
-                i = 0
-                items_written = 0
-                while i < len(array):
-                    count = 1
-                    while (i + count < len(array)) and (array[i + count] == array[i]):
-                        count += 1
-                    if count <= 4:
-                        buffer.write(' '.join([fmt % array[i]] * count))
-                        items_written += count
-                    else:
-                        buffer.write(str(count) + '*' + fmt % array[i])
-                        items_written += 1
-                    i += count
-                    if items_written > MAX_STRLEN:
-                        buffer.write('\n')
-                        items_written = 0
-                    else:
-                        buffer.write(' ')
-                buffer.write('/\n')
-            else:
-                for i in range(0, len(array), MAX_STRLEN):
-                    buffer.write(' '.join([fmt % d for d in array[i:i + MAX_STRLEN]]))
-                    buffer.write('\n')
-                buffer.write('/\n')
