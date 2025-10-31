@@ -44,6 +44,8 @@ class Rock(SpatialComponent):
     @apply_to_each_input
     def _to_spatial(self, attr: str):
         """Spatial order 'F' transformations."""
+        if getattr(self, attr) is None:
+            return None
         dimens = self.field.grid.dimens.values.reshape(-1)
         self.pad_na(attr=attr)
         return self.reshape(attr=attr, newshape=dimens, order='F', inplace=True)
