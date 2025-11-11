@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from .decorators import apply_to_each_input
+from .base_component import Attribute
 from .base_spatial import SpatialComponent
 from .plot_utils import show_slice_static, show_slice_interactive
 from .parse_utils import read_ecl_bin
@@ -15,6 +16,14 @@ FULL_STATE_KEYS = ('PRESSURE', 'RS', 'SGAS', 'SOIL', 'SWAT')
 
 class States(SpatialComponent):
     """States component of geological model."""
+    _attributes_to_load: list[Attribute] = [
+        Attribute(
+            'PRESSURE',
+            binary_file='UNRST',
+            binary_section='PRESSURE',
+            sequential=True
+        )
+    ]
 
     def __init__(self, *args, **kwargs):
         self._dates = kwargs['dates'] if 'dates' in kwargs else pd.to_datetime([])

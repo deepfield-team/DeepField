@@ -1,5 +1,6 @@
 """BaseTree components."""
 from copy import deepcopy
+from typing import Self
 import warnings
 from weakref import ref
 import numpy as np
@@ -22,6 +23,9 @@ class IterableTree:
         if x.ntype == 'group':
             return next(self)
         return x
+    
+    def __iter__(self) -> Self:
+        return self
 
 
 class BaseTree(BaseComponent):

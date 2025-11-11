@@ -2,6 +2,7 @@
 from __future__ import annotations
 import os
 from copy import deepcopy
+import pdb
 from weakref import ref
 import numpy as np
 import h5py
@@ -13,6 +14,7 @@ from typing import TYPE_CHECKING, Callable, Sequence, TypedDict, override
 
 if TYPE_CHECKING:
     from .field import Field
+    import resdp.binary
 
 class DumpDict(TypedDict):
     attributes: Sequence[Attribute]
@@ -20,8 +22,17 @@ class DumpDict(TypedDict):
     field: Field | None
 
 class Attribute():
-    def __init__(self, name: str | None=None, section=None, kw=None, custom_loader=None, postprocess=None, not_present=None,
-                 binary_file=None, binary_section=None, binary_process=None):
+    def __init__(self,
+                 name: str | None=None,
+                 section: str | None=None,
+                 kw: str | None=None,
+                 custom_loader=None,
+                 postprocess=None,
+                 not_present=None,
+                 binary_file: resdp.binary.FileType | None=None,
+                 binary_section=None,
+                 binary_process=None,
+                 sequential: bool=False):
 
         if name is not None:
             self.name: str = name
@@ -34,8 +45,6 @@ class Attribute():
             self._kw = None
             self._section = None
         else:
-            if (section is None) or (kw is None):
-                raise ValueError('Either both `section` and `kw` or `custom_loader` should be provided.')
             self._kw = kw
             self._section = section
 
@@ -45,12 +54,13 @@ class Attribute():
         self._value = None
         if (binary_file is None) != (binary_section is None):
             raise ValueError('Either both `binary_file` and `binary_section` are provided either none.')
-        self._binary_file = binary_file
-        self._binary_section = binary_section
+        self._binary_file: resdp.binary.FileType | None = binary_file
+        self._binary_section: str | None = binary_section
         self._binary_process = binary_process
         self._component: Callable[[], BaseComponent | None] | None = None
+        self._sequential = sequential
 
-    def _load_value(self, data, binary_data, logger):
+    def _load_value(self, data, binary_data: resdp.binary.BinaryData, logger):
         if self.component is None:
             raise ValueError('Attribute should be associated with `BaseComponent` object.')
         if self._binary_file is not None:
@@ -71,18 +81,35 @@ class Attribute():
         self._value = self._not_present
         return self
 
-    def _load_ecl_binary_value(self, binary_data, logger):
+    def _load_ecl_binary_value(self, binary_data: resdp.binary.BinaryData | None, logger):
         if binary_data is None:
+            return None
+        if self._binary_file is None:
             return None
         if self._binary_file not in binary_data:
             return None
+
         file_data = binary_data[self._binary_file]
-        val = file_data.find_unique(self._binary_section)
-        if val is None:
-            return None
+        if self._binary_section is None:
+            raise ValueError('`binary_file is specified but not `binary_section`.')
+        if self._sequential:
+            val = []
+            while True:
+                i = file_data.find(self._binary_section)
+                if i is None:
+                    break
+                file_data.seek(i+1)
+                val.append(file_data[i].value)
+            if len(val) == 0:
+                return None
+        else:
+            i = file_data.find_unique(self._binary_section)
+            if i is None:
+                return None
+            val = file_data[i].value
         if self._binary_process is not None:
-            return self._binary_process(file_data[val].value)
-        return file_data[val].value
+            return self._binary_process(val)
+        return val
 
     def load(self, data, binary_data, logger):
         self._load_value(data, binary_data, logger)
@@ -351,6 +378,10 @@ class BaseComponent:
         if fmt.upper() == 'HDF5':
             return self._load_hdf5
         raise NotImplementedError('File format .%s is not supported.' % fmt.upper())
+
+    def add_attribute(self, att: Attribute):
+        att.component = self
+        self._attributes.append(att)
 
     # def load(self, path_or_buffer, **kwargs):
     #     """Load data from a file or buffer.

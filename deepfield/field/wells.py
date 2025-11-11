@@ -1,8 +1,16 @@
 """Wells components."""
+from __future__ import annotations
+import logging
+from typing import cast, override
+from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from anytree import PreOrderIter, PostOrderIter
+import resdp
+import resdp.binary
+
+from .base_component import Attribute
 
 from .parse_utils.ascii import INT_NAN
 from .well_segment import WellSegment
@@ -18,6 +26,69 @@ from .wells_load_utils import (load_rsm, load_ecl_binary, load_group, load_group
                                DEFAULTS, VALUE_CONTROL)
 from .decorators import apply_to_each_segment
 
+class WellScheduleAttribute(Attribute):
+    def __init__(self,
+                 name: str | None = None,
+                 kw: str | None = None,
+                 custom_loader=None,
+                 postprocess=None,
+                 not_present=None,
+                 binary_file: resdp.binary.FileType | None = None,
+                 binary_section=None,
+                 binary_process=None,
+                 sequential: bool=False,
+                 dated: bool=True
+                 ):
+        super().__init__(name,
+                         'SCHEDULE',
+                         kw,
+                         custom_loader,
+                         postprocess,
+                         not_present,
+                         binary_file,
+                         binary_section,
+                         binary_process,
+                         sequential)
+        self._dated: bool=dated
+    @override
+    def _load_value(self,
+                    data: resdp.DataType,
+                    binary_data: resdp.binary.BinaryData,
+                    logger: logging.Logger | None):
+        cur_date = None
+        section = cast(str, self._section)
+        assert isinstance(self.component, Wells)
+        for key, val in data[section]:
+            if key == 'DATES':
+                assert isinstance(val, Sequence)
+                assert isinstance(val[-1], pd.Timestamp)
+                val = cast(Sequence[pd.Timestamp], val)
+                cur_date = val[-1]
+            elif key == self._kw:
+                assert isinstance(val, pd.DataFrame)
+                if self._dated:
+                    val = val.assign(DATE=cur_date)
+                if not val.empty:
+                    welldata = {}
+                    for k, v in val.groupby('WELL'):  # pyright: ignore[reportUnknownMemberType]
+                        assert isinstance(k, str)
+                        tmp = k.split('*')
+                        if len(tmp) == 1:
+                            welldata[k] = {
+                                self.name: v.reset_index(drop=True)
+                            }
+                        elif len(tmp) == 2 and not tmp[1]:
+                            well_names = [name for name in
+                                          self.component.main_branches if name.startswith(tmp[0])]
+                            for name in well_names:
+                                welldata[name] = {
+                                    self.name: v.reset_index(drop=True).assign(WELL=name)
+                                }
+                        else:
+                            raise ValueError(f'Cound not parse well name "{k}"')
+                    self.component.update(welldata, mode='a', ignore_index=True)
+                    self.component.fill_na(attr=self.name)
+        return super()._load_value(data, binary_data, logger)
 
 class Wells(BaseTree):
     """Wells component.
@@ -30,6 +101,47 @@ class Wells(BaseTree):
     node : WellSegment, optional
         Root node for well's tree.
     """
+    _attributes_to_load: list[Attribute] = [
+        WellScheduleAttribute(
+            name='WELSPECS',
+            kw='WELSPECS',
+            dated=False
+        ),
+        WellScheduleAttribute(
+            name='WELSPECSL',
+            kw='WELSPECSL',
+            dated=False
+        ),
+        WellScheduleAttribute(
+            name='WCONPROD',
+            kw='WCONPROD',
+            dated=True
+        ),
+        WellScheduleAttribute(
+            name='WCONINJE',
+            kw='WCONINJE',
+            dated=True
+        ),
+        WellScheduleAttribute(
+            name='COMPDAT',
+            kw='COMPDAT',
+            dated=True
+        ),
+        WellScheduleAttribute(
+            name='COMPDATL',
+            kw='COMPDATL',
+            dated=True
+        ),
+        WellScheduleAttribute(
+            name='COMPDATMD',
+            kw='COMPDATMD',
+            dated=True
+        ),
+        WellScheduleAttribute(
+            name='WEFAC',
+            kw='WEFAC'
+        )
+    ]
 
     def __init__(self, node=None, **kwargs):
         super().__init__(node=node, nodeclass=WellSegment, **kwargs)
@@ -121,7 +233,13 @@ class Wells(BaseTree):
                 node.parent = parent
 
             for k, v in wdata.items():
-                if mode == 'w':
+                if mode not in ('w', 'a'):
+                    raise ValueError("Unknown mode {}. Expected 'w' (write) or 'a' (append)".format(mode))
+                if k not in node.attributes:
+                    node.add_attribute(
+                        Attribute(k)
+                    )
+                if mode == 'w' or getattr(node, k) is None:
                     setattr(node, k, v)
                 elif mode == 'a':
                     if k in node.attributes:
@@ -129,8 +247,6 @@ class Wells(BaseTree):
                         setattr(node, k, pd.concat([att, v], **kwargs))
                     else:
                         setattr(node, k, v)
-                else:
-                    raise ValueError("Unknown mode {}. Expected 'w' (write) or 'a' (append)".format(mode))
                 att = getattr(node, k)
                 if isinstance(att, pd.DataFrame) and 'DATE' in att.columns:
                     att = att.sort_values(by='DATE').reset_index(drop=True)

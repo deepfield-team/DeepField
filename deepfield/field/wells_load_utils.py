@@ -1,8 +1,13 @@
 """Wells utils."""
+from __future__ import annotations
 import re
 import shlex
+from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    from  .wells import Wells
 
 from .well_segment import WellSegment
 from .utils import get_multout_paths, get_single_path
