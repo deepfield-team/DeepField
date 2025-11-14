@@ -380,7 +380,7 @@ class Wells(BaseTree):
                 logger.warning('Well {}: can not get blocks from COMPDATL data.'.format(segment.name))
                 return self
 
-            segment.blocks = get_wellblocks_compdat(compdat)
+            segment.blocks = get_wellblocks_compdat(segment)
             if isinstance(self.field.grid, OrthogonalGrid):
                 h_well = np.stack([(0, 0, self.field.grid.dz[i[0], i[1], i[2]])
                                    for i in segment.blocks])
@@ -399,12 +399,12 @@ class Wells(BaseTree):
             segment.blocks_info['Enter_point'] = list(points[:, 0])
             segment.blocks_info['Leave_point'] = list(points[:, 1])
 
-        segment.blocks_info = segment.blocks_info.assign(
-            PERF_RATIO=None if len(segment.blocks_info) == 0 else 0,
-            RAD=None if len(segment.blocks_info) == 0 else DEFAULTS['RAD'],
-            SKIN=None if len(segment.blocks_info) == 0 else DEFAULTS['SKIN'],
-            MULT=None if len(segment.blocks_info) == 0 else DEFAULTS['MULT'],
-        )
+        # segment.blocks_info = segment.blocks_info.assign(
+        #     PERF_RATIO=None if len(segment.blocks_info) == 0 else 0,
+        #     RAD=None if len(segment.blocks_info) == 0 else DEFAULTS['RAD'],
+        #     SKIN=None if len(segment.blocks_info) == 0 else DEFAULTS['SKIN'],
+        #     MULT=None if len(segment.blocks_info) == 0 else DEFAULTS['MULT'],
+        # )
         return self
 
     def show_wells(self, figsize=None, c='r', **kwargs):

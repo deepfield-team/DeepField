@@ -1,5 +1,7 @@
 #pylint: disable=too-many-lines
 """Wells and WellSegment components."""
+from numpy.typing import NDArray
+import numpy as np
 import pandas as pd
 
 from .base_tree_node import BaseTreeNode
@@ -29,6 +31,7 @@ class WellSegment(BaseTreeNode):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._blocks: NDArray[np.integer] | None = None
 
     @property
     def is_main_branch(self):
@@ -51,3 +54,11 @@ class WellSegment(BaseTreeNode):
     def cum_rates(self):
         """Cumulative rates for the current node and all its branches."""
         return self.total_rates.set_index('DATE').cumsum().reset_index()
+
+    @property
+    def blocks(self):
+        return self._blocks
+    
+    @blocks.setter
+    def blocks(self, val: NDArray[np.integer]):
+        self._blocks = val
