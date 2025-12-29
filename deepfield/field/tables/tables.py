@@ -1,17 +1,176 @@
 """Tables component."""
+from __future__ import annotations
+from typing import override
+from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 import h5py
 
-from ..base_component import BaseComponent
+from ..base_component import Attribute, BaseComponent
 from ..decorators import apply_to_each_input
 from ..parse_utils import read_table, TABLE_INFO
 from .table_interpolation import TABLE_INTERPOLATOR
 from ..plot_utils import plot_table_1d, plot_table_2d
 
+class _Table(pd.DataFrame):  # pylint: disable=abstract-method
+    """Table component."""
+    _metadata = ['domain', 'name', '_interpolator']
+
+    def __init__(self, data=None, **kwargs):
+        self.name = kwargs.pop('name') if 'name' in kwargs else ''
+        super().__init__(data=data, **kwargs)
+        self.domain = list(self.index.names) if list(self.index.names)[0] is not None else None
+        self._interpolator = None
+
+    def __call__(self, x):
+        """
+        Apply table-defined function to x
+        Parameters
+        ----------
+        x: array-like of shape (n_points, len(table.domain))
+            Points for function to be computed at
+
+        Returns
+        -------
+        values: array-like of shape (n_points, len(table.columns))
+        """
+        if self._interpolator is None:
+            if self.name in TABLE_INTERPOLATOR:
+                self._interpolator = TABLE_INTERPOLATOR[self.name](self)
+            else:
+                self._interpolator = TABLE_INTERPOLATOR[None](self)
+        return self._interpolator(x)
+
+    @property
+    def _constructor(self):
+        return self.__class__
+
+    def plot(self, figsize=None):
+        """Plot table."""
+        if self.domain:
+            if len(self.domain) == 1:
+                plot_table_1d(self, figsize=figsize)
+            elif len(self.domain) == 2:
+                plot_table_2d(self, figsize=figsize)
+            else:
+                raise AttributeError('Can plot functions of 1 and 2 variables. Function of %d variables is given'
+                                     % len(self.domain))
+        else:
+            raise AttributeError('The table has no domain. Hence, can not be plotted!')
+
+    def dump_ascii(self, path_or_buffer):
+        """Dumps table to ASCII format."""
+        if self.domain is not None:
+            header = self.name + '\n-- ' + '\t'.join(self.domain) + '\t' + '\t'.join(list(self.columns))
+        else:
+            header = self.name + '\n-- ' + '\t'.join(list(self.columns))
+        footer = '/\n'
+        round_decimals = 6
+
+        if self.domain is not None:
+            if len(self.domain) > 1:
+                outer_idx = None
+                idx_values = []
+                row_ends = []
+                for idx in self.index.values:
+                    idx = [str(round(i, round_decimals)) for i in idx]
+                    if idx[0] == outer_idx:
+                        idx[0] = '\t'
+                        row_ends.append(0)
+                    else:
+                        outer_idx = idx[0]
+                        row_ends.append(1)
+                    idx_values.append(idx)
+                idx_values = np.array(idx_values)
+                row_ends = np.array(row_ends + [1])[1:].astype(bool)
+            else:
+                idx_values = self.index.values.reshape(-1, 1)
+                row_ends = np.zeros(self.shape[0]).astype(bool)
+                row_ends[-1] = 1
+
+            x = np.hstack([idx_values, np.round(self.values, round_decimals)]).astype(str)
+        else:
+            row_ends = np.zeros(self.shape[0]).astype(bool)
+            row_ends[-1] = 1
+            x = np.round(self.values, round_decimals).astype(str)
+
+        for i in range(x.shape[0]):
+            if row_ends[i]:
+                x[i, -1] += '\t/'
+        np.savetxt(path_or_buffer, x, header=header, footer=footer, delimiter='\t', comments='', fmt='%.18s')
+        return self
+
+    def to_numpy(self, include_index=False):
+        """
+        Get numpy representation of a table.
+        """
+        if include_index:
+            if isinstance(self.index, pd.MultiIndex):
+                index = np.array(self.index.values.tolist())
+            else:
+                index = self.index.values.reshape(-1, 1)
+            return np.hstack((index, self.values))
+        return self.values
 
 class Tables(BaseComponent):
     """Tables component of geological model."""
+    _attributes_to_load: list[Attribute] = [
+        Attribute(
+            'SWOF',
+            'PROPS',
+            'SWOF'
+        ),
+        Attribute(
+            'PVTO',
+            'PROPS',
+            'PVTO',
+        ),
+        Attribute(
+            'PVTG',
+            'PROPS',
+            'PVTG'
+        ),
+        Attribute(
+            'PVDG',
+            'PROPS',
+            'PVTG'
+        ),
+        Attribute(
+            'PVDO',
+            'PROPS',
+            'PVDO'
+        ),
+        Attribute(
+            'PVTW',
+            'PROPS',
+            'PVTW',
+        ),
+        Attribute(
+            'PVCDO',
+            'PROPS',
+            'PVCDO'
+        ),
+        Attribute(
+            'SGOF',
+            'PROPS',
+            'SGOF'
+        ),
+        Attribute(
+            'RSVD',
+            'SOLUTION',
+            'RSVD'
+        ),
+        Attribute(
+            'ROCK',
+            'PROPS',
+            'ROCK'
+        ),
+        Attribute(
+            'DENSITY',
+            'PROPS',
+            'DENSITY'
+        )
+    ]
 
     @apply_to_each_input
     def apply(self, func, attr, *args, inplace=False, **kwargs):
@@ -36,6 +195,15 @@ class Tables(BaseComponent):
         table = read_table(buffer, TABLE_INFO[attr], dtype, units=self.field.meta['UNITS'])
         setattr(self, attr, _Table(data=table, name=attr))
         return self
+
+    @override
+    def __getattr__(self, key) -> list[_Table] | None:
+        val = super().__getattr__(key)
+        if isinstance(val, Sequence) and all(isinstance(v, pd.DataFrame) for v in val):
+            return [_Table(v) for v in val]
+        if val is None:
+            return val
+        raise ValueError('Value should be a sequence of pandas DataFrames.')
 
     def _load_hdf5(self, path, attrs=None, raise_errors=False, logger=None, **kwargs):
         """Load tables from HDF5 file.
@@ -179,102 +347,3 @@ class Tables(BaseComponent):
             return self.pvdo(pressure)
         return self.pvto(np.vstack((rs, pressure)).T)
 
-class _Table(pd.DataFrame):  # pylint: disable=abstract-method
-    """Table component."""
-    _metadata = ['domain', 'name', '_interpolator']
-
-    def __init__(self, data=None, **kwargs):
-        self.name = kwargs.pop('name') if 'name' in kwargs else ''
-        super().__init__(data=data, **kwargs)
-        self.domain = list(self.index.names) if list(self.index.names)[0] is not None else None
-        self._interpolator = None
-
-    def __call__(self, x):
-        """
-        Apply table-defined function to x
-        Parameters
-        ----------
-        x: array-like of shape (n_points, len(table.domain))
-            Points for function to be computed at
-
-        Returns
-        -------
-        values: array-like of shape (n_points, len(table.columns))
-        """
-        if self._interpolator is None:
-            if self.name in TABLE_INTERPOLATOR:
-                self._interpolator = TABLE_INTERPOLATOR[self.name](self)
-            else:
-                self._interpolator = TABLE_INTERPOLATOR[None](self)
-        return self._interpolator(x)
-
-    @property
-    def _constructor(self):
-        return self.__class__
-
-    def plot(self, figsize=None):
-        """Plot table."""
-        if self.domain:
-            if len(self.domain) == 1:
-                plot_table_1d(self, figsize=figsize)
-            elif len(self.domain) == 2:
-                plot_table_2d(self, figsize=figsize)
-            else:
-                raise AttributeError('Can plot functions of 1 and 2 variables. Function of %d variables is given'
-                                     % len(self.domain))
-        else:
-            raise AttributeError('The table has no domain. Hence, can not be plotted!')
-
-    def dump_ascii(self, path_or_buffer):
-        """Dumps table to ASCII format."""
-        if self.domain is not None:
-            header = self.name + '\n-- ' + '\t'.join(self.domain) + '\t' + '\t'.join(list(self.columns))
-        else:
-            header = self.name + '\n-- ' + '\t'.join(list(self.columns))
-        footer = '/\n'
-        round_decimals = 6
-
-        if self.domain is not None:
-            if len(self.domain) > 1:
-                outer_idx = None
-                idx_values = []
-                row_ends = []
-                for idx in self.index.values:
-                    idx = [str(round(i, round_decimals)) for i in idx]
-                    if idx[0] == outer_idx:
-                        idx[0] = '\t'
-                        row_ends.append(0)
-                    else:
-                        outer_idx = idx[0]
-                        row_ends.append(1)
-                    idx_values.append(idx)
-                idx_values = np.array(idx_values)
-                row_ends = np.array(row_ends + [1])[1:].astype(bool)
-            else:
-                idx_values = self.index.values.reshape(-1, 1)
-                row_ends = np.zeros(self.shape[0]).astype(bool)
-                row_ends[-1] = 1
-
-            x = np.hstack([idx_values, np.round(self.values, round_decimals)]).astype(str)
-        else:
-            row_ends = np.zeros(self.shape[0]).astype(bool)
-            row_ends[-1] = 1
-            x = np.round(self.values, round_decimals).astype(str)
-
-        for i in range(x.shape[0]):
-            if row_ends[i]:
-                x[i, -1] += '\t/'
-        np.savetxt(path_or_buffer, x, header=header, footer=footer, delimiter='\t', comments='', fmt='%.18s')
-        return self
-
-    def to_numpy(self, include_index=False):
-        """
-        Get numpy representation of a table.
-        """
-        if include_index:
-            if isinstance(self.index, pd.MultiIndex):
-                index = np.array(self.index.values.tolist())
-            else:
-                index = self.index.values.reshape(-1, 1)
-            return np.hstack((index, self.values))
-        return self.values
