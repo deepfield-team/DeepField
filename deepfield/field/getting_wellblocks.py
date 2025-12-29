@@ -1,5 +1,4 @@
 """Getting wellblocks."""
-from _typeshed import ConvertibleToInt
 from typing import cast
 import numpy as np
 from resdp import INT_NAN

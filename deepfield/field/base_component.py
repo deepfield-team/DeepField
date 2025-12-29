@@ -74,10 +74,11 @@ class Attribute():
         if self._custom_loader is not None:
             self._value = self._custom_loader(data)
             return self
-        for entry in data[self._section]:
-            if entry[0] == self._kw:
-                self._value = entry[1]
-                return self
+        if self._section in data:
+            for entry in data[self._section]:
+                if entry[0] == self._kw:
+                    self._value = entry[1]
+                    return self
         self._value = self._not_present
         return self
 
@@ -262,7 +263,7 @@ class BaseComponent:
         if (key[0] == '_') or (key in dir(self)):
             return super().__setattr__(key, value)
         for att in self._attributes:
-            if key == att.name:
+            if key.upper() == att.name:
                 att.value = value
                 return None
         raise AttributeError(f'{self.class_name} has no attribute {key}.')

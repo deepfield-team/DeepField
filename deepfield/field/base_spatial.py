@@ -1,5 +1,6 @@
 """SpatialComponent class."""
 from copy import deepcopy
+from typing import override
 import numpy as np
 import skimage
 from skimage.transform import rescale, resize
@@ -98,6 +99,12 @@ class SpatialComponent(BaseComponent):
         """
         self._to_spatial(attr=attr, **kwargs)
         return self
+
+    @override
+    def __setattr__(self, key, value):
+        super().__setattr__(key, value)
+        if key[0] != '_':
+            self._to_spatial()
 
     @apply_to_each_input
     def _to_spatial(self, attr: str):

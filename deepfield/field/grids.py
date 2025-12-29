@@ -1,5 +1,6 @@
 """Classes and routines for handling model grids."""
 import numpy as np
+import pandas as pd
 import vtk
 from vtkmodules.util.numpy_support import vtk_to_numpy
 
@@ -56,8 +57,24 @@ class Grid(SpatialComponent):
             section='GRID',
         ),
         Attribute(
+            kw='DXV',
+            section='GRID',
+        ),
+        Attribute(
+            kw='DYV',
+            section='GRID',
+        ),
+        Attribute(
+            kw='DZV',
+            section='GRID',
+        ),
+        Attribute(
             kw='TOPS',
             section='GRID',
+        ),
+        Attribute(
+            kw='MAPAXES',
+            section='GRID'
         )
     ]
 
@@ -67,6 +84,51 @@ class Grid(SpatialComponent):
         self._vtk_locator = None
         self._actnum_ids = None
         self.to_spatial()
+
+    @property
+    def dx_(self):
+        if 'DX' in self.attributes:
+            if self.dx is not None:
+                return self.dx
+        if 'DXV' in self.attributes:
+            if self.dxv is not None:
+                dx = self.dxv[:, np.newaxis, np.newaxis]
+                assert self.dimens is not None
+                assert isinstance(self.dimens, pd.DataFrame)
+                dimens = self.dimens.values.ravel()
+                dx = np.tile(dx, (1, dimens[1], dimens[2]))
+                return dx
+        return None
+
+    @property
+    def dy_(self):
+        if 'DY' in self.attributes:
+            if self.dy is not None:
+                return self.dy
+        if 'DYV' in self.attributes:
+            if self.dyv is not None:
+                dy = self.dyv[np.newaxis, :, np.newaxis]
+                assert self.dimens is not None
+                assert isinstance(self.dimens, pd.DataFrame)
+                dimens = self.dimens.values.ravel()
+                dy = np.tile(dy, (dimens[0], 1, dimens[2]))
+                return dy
+        return None
+        
+    @property
+    def dz_(self):
+        if 'DZ' in self.attributes:
+            if self.dz is not None:
+                return self.dz
+        if 'DZV' in self.attributes:
+            if self.dzv is not None:
+                dz = self.dzv[np.newaxis, np.newaxis, :]
+                assert self.dimens is not None
+                assert isinstance(self.dimens, pd.DataFrame)
+                dimens = self.dimens.values.ravel()
+                dz = np.tile(dz, (dimens[0], dimens[1], 1))
+                return dz
+        return None
 
     @property
     def vtk_grid(self):
@@ -146,8 +208,8 @@ class Grid(SpatialComponent):
     @property
     def origin(self):
         """Grid axes origin relative to the map coordinates."""
-        if 'MAPAXES' in self.attributes:
-            return np.array([self.mapaxes[2], self.mapaxes[3], self.tops.ravel()[0]])
+        if self.mapaxes is not None:
+            return np.array([self.mapaxes['X0'].values[0], self.mapaxes['Y0'].values, self.tops.ravel()[0]])
         else:
             return np.array([0, 0, 0])
 
@@ -284,7 +346,6 @@ class Grid(SpatialComponent):
                 data = data.reshape((nx, ny, nz, 8), order='F')
             else:
                 return self
-            __import__('pdb').set_trace()
             setattr(self, attr, data)
         return self
 
@@ -325,12 +386,12 @@ class OrthogonalGrid(Grid):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if 'TOPS' not in self and 'DZ' in self:
-            tops = np.zeros(self.dimens)
-            tops[..., 1:] = np.cumsum(self.dz, axis=-1)[..., :-1]
+            tops = np.zeros(self.dimens.values.rave())
+            tops[..., 1:] = np.cumsum(self.dz_, axis=-1)[..., :-1]
             setattr(self, 'TOPS', tops)
         elif self.tops.ndim == 2 and 'DZ' in self:
-            tops = np.zeros(self.dimens)
-            tops[..., 1:] = np.cumsum(self.dz, axis=-1)[..., :-1]
+            tops = np.zeros(self.dimens.values.ravel())
+            tops[..., 1:] = np.cumsum(self.dz_, axis=-1)[..., :-1]
             tops += self.tops[:, :, None]
             setattr(self, 'TOPS', tops)
 
@@ -355,7 +416,7 @@ class OrthogonalGrid(Grid):
     def get_points_and_coonectivity(self):
         """Get points and connectivity arrays."""
         try:
-            return process_grid_orthogonal(self.tops, self.dx, self.dy, self.dz, self.actnum)
+            return process_grid_orthogonal(self.tops, self.dx_, self.dy_, self.dz_, self.actnum)
         except ValueError:
             grid = self.to_corner_point()
             return grid.get_points_and_coonectivity()
@@ -439,16 +500,16 @@ class OrthogonalGrid(Grid):
         -------
         grid : CornerPointGrid
         """
-        nx, ny, nz = self.dimens
+        nx, ny, nz = self.dimens.values.ravel()
         x0, y0, z0 = self.origin
 
-        dx = self.dx[:, :1, :1]
-        if (abs(self.dx - dx) > 0).any():
+        dx = self.dx_[:, :1, :1]
+        if (abs(self.dx_ - dx) > 0).any():
             raise ValueError('Can not convert irregular DX to corner point.')
         px = np.cumsum(np.hstack(([0], dx.ravel())))
 
-        dy = self.dy[:1, :, :1]
-        if (abs(self.dy - dy) > 0).any():
+        dy = self.dy_[:1, :, :1]
+        if (abs(self.dy_ - dy) > 0).any():
             raise ValueError('Can not convert irregular DY to corner point.')
         py = np.cumsum(np.hstack(([0], dy.ravel())))
 
@@ -463,11 +524,13 @@ class OrthogonalGrid(Grid):
 
         zcorn = np.hstack([np.repeat(self.tops.ravel(order='F'), 4).reshape(nz, -1),
                            np.repeat(self.tops.ravel(order='F') +
-                                     self.dz.ravel(order='F'), 4).reshape(nz, -1)]).reshape(2*nz, -1)
+                                     self.dz_.ravel(order='F'), 4).reshape(nz, -1)]).reshape(2*nz, -1)
         zcorn = zcorn.ravel()
 
-        grid = CornerPointGrid(dimens=self.dimens, mapaxes=self.mapaxes, actnum=self.actnum,
-                               zcorn=zcorn.astype(float), coord=coord.astype(float))
+        grid = CornerPointGrid(dump=self.dump_dict())
+        grid.zcorn = zcorn
+        grid.coord = coord
+        
         grid.create_vtk_grid()
         return grid
 
@@ -573,7 +636,7 @@ class CornerPointGrid(Grid):
         setattr(self, 'MAPAXES', np.array([0, 1, 0, 0, 1, 0]))
         return self
 
-def specify_grid(grid):
+def specify_grid(grid: Grid):
     """Specify grid class: `CornerPointGrid` or `OrthogonalGrid`.
 
     Parameters
@@ -587,7 +650,7 @@ def specify_grid(grid):
         specified grid.
     """
     if not isinstance(grid, (CornerPointGrid, OrthogonalGrid)):
-        if ('DX' in grid) and ('DY' in grid) and ('DZ' in grid):
+        if (grid.dx_ is not None) and (grid.dy_ is not None) and (grid.dz_ is not None):
             grid = OrthogonalGrid(dump=grid.dump_dict())
         else:
             grid = CornerPointGrid(dump=grid.dump_dict())

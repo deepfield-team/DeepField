@@ -40,7 +40,6 @@ class BaseTree(BaseComponent):
     """
 
     def __init__(self, node=None, nodeclass=None, **kwargs):
-        __import__('pdb').set_trace()
         super().__init__(**kwargs)
         nodeclass = BaseTreeNode if nodeclass is None else nodeclass
         self._root = nodeclass(name='FIELD', ntype="group",
