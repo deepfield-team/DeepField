@@ -103,6 +103,7 @@ class Attribute():
                 val.append(file_data[i].value)
             if len(val) == 0:
                 return None
+            val = np.stack(val)
         else:
             i = file_data.find_unique(self._binary_section)
             if i is None:
@@ -188,7 +189,7 @@ class BaseComponent:
     @property
     def attributes(self) -> Sequence[str]:
         """Array of attributes."""
-        return tuple((attr.name for attr in self._attributes))
+        return tuple((attr.name for attr in self._attributes if attr.value is not None))
 
     @property
     def empty(self):
@@ -347,6 +348,8 @@ class BaseComponent:
         output : BaseComponent if inplace else reshaped attribute itself.
         """
         data = getattr(self, attr)
+        if data is None:
+            return None
         if isinstance(data, np.ndarray) and data.ndim:
             data = np.reshape(data, newshape, order=order)
         elif hasattr(data, 'reshape'):

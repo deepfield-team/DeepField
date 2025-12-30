@@ -26,16 +26,6 @@ class Rock(SpatialComponent):
             binary_section=att
         ) for att in _ROCK_ATTRIBUTES
     ]
-    # def _load_ecl_binary(self, path_to_results, attrs, basename, logger=None):
-    #     path = get_single_path(path_to_results, basename + '.INIT', logger)
-    #     if path is None:
-    #         return
-    #     sections = read_ecl_bin(path, attrs, logger=logger)
-    #
-    #     for k in ['PORO', 'PERMX', 'PERMY', 'PERMZ', "KRW"]:
-    #         if (k in attrs) and (k in sections):
-    #             setattr(self, k, sections[k])
-    #         self.state.binary_attributes.append(k)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

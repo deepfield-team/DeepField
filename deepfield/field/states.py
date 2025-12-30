@@ -22,6 +22,30 @@ class States(SpatialComponent):
             binary_file='UNRST',
             binary_section='PRESSURE',
             sequential=True
+        ),
+        Attribute(
+            'SOIL',
+            binary_file='UNRST',
+            binary_section='SOIL',
+            sequential=True
+        ),
+        Attribute(
+            'SWAT',
+            binary_file='UNRST',
+            binary_section='SWAT',
+            sequential=True
+        ),
+        Attribute(
+            'SGAS',
+            binary_file='UNRST',
+            binary_section='SOIL',
+            sequential=True
+        ),
+        Attribute(
+            'RS',
+            binary_file='UNRST',
+            binary_section='SOIL',
+            sequential=True
         )
     ]
 
@@ -93,7 +117,7 @@ class States(SpatialComponent):
     @apply_to_each_input
     def _to_spatial(self, attr):
         """Spatial order 'F' transformations."""
-        dimens = self.field.grid.dimens
+        dimens = self.field.grid.dimens.values.ravel()
         self.pad_na(attr=attr)
         return self.reshape(attr=attr, newshape=(-1,) + tuple(dimens),
                             order='F', inplace=True)
@@ -123,7 +147,9 @@ class States(SpatialComponent):
         output : component if inplace else padded attribute.
         """
         data = getattr(self, attr)
-        if np.prod(data.shape[1:]) == np.prod(self.field.grid.dimens):
+        if data is None:
+            return None
+        if np.prod(data.shape[1:]) == np.prod(self.field.grid.dimens.values):
             return self if inplace else data
         actnum = self.field.grid.actnum
 

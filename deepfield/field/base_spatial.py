@@ -101,10 +101,10 @@ class SpatialComponent(BaseComponent):
         return self
 
     @override
-    def __setattr__(self, key, value):
-        super().__setattr__(key, value)
-        if key[0] != '_':
-            self._to_spatial()
+    def load(self, data, binary_data, logger):
+        _ = super().load(data, binary_data, logger)
+        _ = self.to_spatial()
+        return self
 
     @apply_to_each_input
     def _to_spatial(self, attr: str):
