@@ -37,16 +37,15 @@ import resdp.binary
 
 ACTOR = None
 
-COMPONENTS_DICT = {'cornerpointgrid': ['grid', CornerPointGrid],
-                   'orthogonalgrid': ['grid', OrthogonalGrid],
-                   'grid': ['grid', Grid],
-                   'rock': ['rock', Rock],
-                   'states': ['states', States],
-                   'wells': ['wells', Wells],
-                   'tables': ['tables', Tables],
-                   'aquifers': ['aquifers', Aquifers],
-                   'faults': ['faults', Faults]
-                   }
+COMPONENTS_DICT = {
+    'grid': ['grid', Grid],
+    'rock': ['rock', Rock],
+    'states': ['states', States],
+    'wells': ['wells', Wells],
+    'tables': ['tables', Tables],
+    'aquifers': ['aquifers', Aquifers],
+    'faults': ['faults', Faults]
+}
 
 DEFAULT_HUNITS = {'METRIC': ['sm3/day', 'ksm3/day', 'ksm3', 'Msm3', 'bara'],
                   'FIELD': ['stb/day', 'Mscf/day', 'Mstb', 'MMscf', 'psia']}
@@ -100,11 +99,10 @@ class Field:
         Log level to be printed while loading. Default to 'INFO'.
     """
     _default_config = default_config
-    def __init__(self, path: pathlib.Path | None=None, config=None, logfile=None, encoding='auto', loglevel='INFO'):
+    def __init__(self, path: pathlib.Path | None=None, logfile=None, encoding='auto', loglevel='INFO'):
         self._path: pathlib.Path | None = preprocess_path(path) if path is not None else None
         self._encoding = encoding
         self._components = {}
-        self._config = None
         self._meta = {'UNITS': 'METRIC',
                       'START': pd.to_datetime(''),
                       'DATES': pd.to_datetime([]),
@@ -124,55 +122,15 @@ class Field:
         self._logger.setLevel(getattr(logging, loglevel))
 
         if self._path is not None:
-            self._init_components(config)
+            self._init_components()
 
         self._pyvista_grid = None
 
-    def _init_components(self, config):
+    def _init_components(self):
         """Initialize components."""
         fmt = self._path.suffix.strip('.').upper()
-        if config is not None:
-            config = {k.lower(): self._config_parser(v) for k, v in config.items()}
-        if fmt == 'HDF5':
-            with h5py.File(self._path, 'r') as f:
-                keys = [k.lower() for k in f]
-                if config is None:
-                    config = {k: {'attrs': None, 'kwargs': {}} for k in keys}
-                elif 'grid' in config:
-                    if 'cornerpointgrid' in keys:
-                        config['cornerpointgrid'] = config.pop('grid')
-                    elif 'orthogonalgrid' in keys:
-                        config['orthogonalgrid'] = config.pop('grid')
-        elif config is None:
-            self._logger.info('Using default config.')
-            config = {k.lower(): self._config_parser(v) for k, v in default_config.items()}
-
-        for k in config:
-            setattr(self, COMPONENTS_DICT[k][0], COMPONENTS_DICT[k][1](field=self))
-        self._config = {COMPONENTS_DICT[k][0]: v for k, v in config.items()}
-
-    @staticmethod
-    def _config_parser(value):
-        """Separate config into attrs and kwargs."""
-        if isinstance(value, str):
-            attrs = [value.upper()]
-            kwargs = {}
-        elif isinstance(value, (list, tuple)):
-            attrs = [x.upper() for x in value]
-            kwargs = {}
-        elif isinstance(value, dict):
-            attrs = value['attrs']
-            if attrs is None:
-                pass
-            elif isinstance(attrs, str):
-                attrs = [attrs.upper()]
-            else:
-                attrs = [x.upper() for x in attrs]
-            kwargs = {k: v for k, v in value.items() if k != 'attrs'}
-        else:
-            raise TypeError("Component's config should be of type str, list, tuple or dict. Found {}."
-                            .format(type(value)))
-        return {'attrs': attrs, 'kwargs': kwargs}
+        for k, (comp_name, comp_class) in COMPONENTS_DICT.items():
+            setattr(self, comp_name, comp_class(field=self))
 
     @property
     def meta(self):
@@ -336,6 +294,7 @@ class Field:
         fmt = os.path.splitext(name)[1].strip('.')
 
         if fmt.upper() == 'HDF5':
+            raise NotImplementedError('HDF5 format is not currently supported.')
             self._load_hdf5(raise_errors=raise_errors)
         elif fmt.upper() in ['DATA', 'DAT']:
             self._load_data(raise_errors=raise_errors, include_binary=include_binary)
@@ -362,67 +321,6 @@ class Field:
                                      **config['kwargs'])
         self.grid.create_vtk_grid()
         return self
-
-    def _load_binary(self, components, raise_errors):
-        """Load data from binary files in RESULTS folder."""
-        path_to_results = os.path.join(os.path.dirname(self.path), 'RESULTS')
-        if not os.path.exists(path_to_results):
-            if raise_errors:
-                raise ValueError("RESULTS folder was not found in model directory.")
-            self._logger.warning("RESULTS folder was not found in model directory.")
-            return
-        for comp in components:
-            if comp in self._config:
-                getattr(self, comp).load(path_to_results,
-                                         attrs=self._config[comp]['attrs'],
-                                         basename=self.basename,
-                                         logger=self._logger,
-                                         **self._config[comp]['kwargs'])
-
-    def _get_loaders(self, config):
-        loaders = {}
-        for k in META_KW:
-            loaders[k] = partial(self._read_buffer, attr=k, logger=self._logger)
-
-        loaders['COPY'] = partial(load_copy, self, logger=self._logger)
-        loaders['MULTIPLY'] = partial(load_multiply, self, logger=self._logger)
-        loaders['EQUALS'] = partial(load_equals, self, logger=self._logger)
-        loaders['ADD'] = partial(load_add, self, logger=self._logger)
-        for comp, conf in config.items():
-            if conf['attrs'] is not None:
-                attrs = list(set(conf['attrs']) - set(getattr(self, comp).state.binary_attributes))
-            else:
-                attrs = None
-            kwargs = conf['kwargs']
-            if comp in ['grid', 'rock', 'states', 'tables', 'faults']:
-                assert attrs is not None
-                for k in attrs:
-                    loaders[k] = partial(getattr(self, comp).load, attr=k,
-                                         logger=self._logger, **kwargs)
-            if comp == 'wells':
-                extented_list = []
-                assert attrs is not None
-                for k in attrs:
-                    if k in ['PERF', 'EVENTS']:
-                        extented_list.extend(['EFIL', 'EFILE', 'ETAB'])
-                    elif k == 'HISTORY':
-                        extented_list.extend(['HFIL', 'HFILE'])
-                    elif k == 'WELLTRACK':
-                        extented_list.extend(['TFIL', 'WELLTRACK'])
-                    elif k == 'RESULTS':
-                        continue
-                    else:
-                        extented_list.append(k)
-                if kwargs.get('groups', True):
-                    extented_list.extend(['GROU', 'GROUP', 'GRUPTREE'])
-
-                for k in set(extented_list):
-                    loaders[k] = partial(self.wells.load, attr=k, logger=self._logger,
-                                         meta=self.meta, grid=self.grid, **kwargs)
-            if comp == 'aquifers':
-                for k in ['AQCT', 'AQCO', 'AQUANCON', 'AQUCT']:
-                    loaders[k] = partial(self.aquifers.load, attr=k, logger=self._logger)
-        return loaders
 
     def _load_results(self, raise_errors, include_binary):
         config = self._config
@@ -451,11 +349,6 @@ class Field:
 
     def _load_data(self, raise_errors=False, include_binary=True):
         """Load model in DATA format."""
-        # if include_binary:
-        #     self._load_binary(components=('grid',),
-        #                       raise_errors=raise_errors)
-        #     if 'ACTNUM' in self.grid.state.binary_attributes:
-        #         self._load_binary(components=('rock',), raise_errors=raise_errors)
 
         if self._path is None:
             raise ValueError()
@@ -470,68 +363,9 @@ class Field:
         for comp in self._components:
             getattr(self, comp).load(self._data, self._binary_data, self._logger)
 
-        # loaders = self._get_loaders(self._config)
-        # tnav_ascii_parser(self._path, loaders, self._logger, encoding=self._encoding,
-        #                   raise_errors=raise_errors)
-        #
         self.grid = specify_grid(self.grid)
         self.grid.create_vtk_grid()
-        #
-        # if 'MINPV' in self.grid.attributes:
-        #     if 'ACTNUM' in self.grid.state.binary_attributes:
-        #         self._logger.info('ACTNUM is loaded from binary file: MINPV was not applied.')
-        #     else:
-        #         self.grid.apply_minpv()
-        #         self._logger.info('MINPV {} is applied.'.format(self.grid.minpv[0]))
-        #
-        # if include_binary:
-        #     self._load_binary(components=('states', 'wells'), raise_errors=raise_errors)
-        #
-        # self._load_results(raise_errors, include_binary)
-        # self._check_vapoil()
-        #
-        # if 'wells' in self.components:
-        #     self.wells.add_welltrack()
-        #     for well in self.wells:
-        #         if 'COMPDAT' in well or 'COMPDATL' in well:
-        #             self.meta['MODEL_TYPE'] = 'ECL'
-        #             break
-        #     else:
-        #         self.meta['MODEL_TYPE'] = 'TN'
-        #     self._logger.info('Model type is determined as {}.'.format(self.meta['MODEL_TYPE']))
-        #
-        #
-        # if self._config['grid']['kwargs'].get('apply_mapaxes', False):
-        #     self.grid.map_grid()
-        #     self._logger.info('Grid pillars `COORD` are mapped to new axis with respect to `MAPAXES`.')
-        #
-        # if 'states' in self.components:
-        #     if not self.states.state.binary_attributes and self.states.attributes:
-        #         self.states.dates = pd.to_datetime([self.meta['START']])
-        #         self._logger.info('States dates are set to start date {}.'.format(self.meta['START']))
 
-        return self
-
-    def _read_buffer(self, buffer, attr, logger):
-        """Load model meta attributes."""
-        if attr in ['TITLE', 'START']:
-            self.meta[attr] = next(buffer).split('/')[0].strip(' \t\n\'\""')
-        elif attr == 'DATES':
-            date = pd.to_datetime(next(buffer).split('/')[:1])
-            self.meta['DATES'] = self.meta['DATES'].append(date)
-        elif attr in ['ARRA', 'ARRAY']:
-            dates = read_dates_from_buffer(buffer, attr, logger)
-            self.meta['DATES'] = self.meta['DATES'].append(dates)
-        elif attr in ['METRIC', 'FIELD']:
-            self.meta['UNITS'] = attr
-        elif attr in ['HUNI', 'HUNITS']:
-            self._read_hunits(next(buffer))
-        elif attr in ['OIL', 'GAS', 'WATER', 'DISGAS', 'VAPOIL']:
-            self.meta['FLUIDS'].append(attr)
-        elif attr in SUMMARY_KW:
-            self.meta['SUMMARY'].append(attr)
-        else:
-            raise NotImplementedError("Keyword {} is not supported.".format(attr))
         return self
 
     def _read_hunits(self, line):
@@ -578,59 +412,7 @@ class Field:
         return out
 
     def dump(self, path=None, mode='a', data=True, results=True, title=None, **kwargs):
-        """Dump model components.
-
-        Parameters
-        ----------
-        path : str
-            Common path for output files. If None path will be inherited from model path.
-        mode : str
-            Mode to open file. Affects only HDF5 dump.
-            'w': write, a new file is created (an existing file with
-            the same name would be deleted).
-            'a': append, an existing file is opened for reading and writing,
-            and if the file does not exist it is created.
-            Default to 'a'.
-        data : bool
-            Dump initial model data. No effect for HDF5 or VTU output. Default True.
-        results : bool
-            Dump calculated results. No effect for HDF5 or VTU output. Default True.
-        title : str
-            Model name. No effect for HDF5 or VTU output.
-        kwargs : misc
-            Any additional named arguments to ``dump``.
-
-        Returns
-        -------
-        out : Field
-            Field unchanged.
-        """
-        if title is None:
-            title = self.meta.get('TITLE', 'Untitled')
-        if path is None:
-            dir_path = str(self._path.parent)
-            return self._dump_binary_results(dir_path, mode, title=title)
-        name = os.path.basename(path)
-        fmt = os.path.splitext(name)[1].strip('.')
-        if fmt.upper() == 'HDF5':
-            return self._dump_hdf5(path, mode=mode, **kwargs)
-        if fmt.upper() == 'VTU':
-            dataset = self.get_vtk_dataset()
-            writer = vtk.vtkXMLUnstructuredGridWriter()
-            writer.SetFileName(path)
-            writer.SetInputData(dataset)
-            writer.Write()
-            return self
-        if fmt == '':
-            dir_path = os.path.join(path, title)
-            if not os.path.exists(dir_path):
-                os.mkdir(dir_path)
-            if data:
-                self._dump_ascii(dir_path, title=title, **kwargs)
-            if results and not self.wells.result_dates.empty:
-                self._dump_binary_results(dir_path, mode, title=title)
-        else:
-            raise NotImplementedError('Format {} is not supported.'.format(fmt))
+        raise NotImplementedError('Dump is not implemented.')
         return self
 
     def _dump_hdf5(self, path, mode='w', only_active=False, reduce_floats=True, **kwargs):
@@ -659,6 +441,7 @@ class Field:
         out : Field
             Field unchanged.
         """
+        raise NotImplementedError('Dump to HDF5 is not implemented.')
         float_precision = {
             'grid': np.float32 if reduce_floats else None,
             'rock': np.float32 if reduce_floats else None,
@@ -695,139 +478,7 @@ class Field:
         out : Field
             Field unchanged.
         """
-        dir_inc = os.path.join(dir_path, 'INCLUDE')
-        if not os.path.exists(dir_inc):
-            os.mkdir(dir_inc)
-        datafile = os.path.join(dir_path, title + '.data')
-
-        model_type = self.meta.get('MODEL_TYPE', 'TN')
-        if model_type == 'TN':
-            template = Template(DEFAULT_TN_MODEL)
-        elif model_type == 'ECL':
-            template = Template(DEFAULT_ECL_MODEL)
-        else:
-            raise ValueError('Unknown model type {}'.format(model_type))
-
-        fill_values = {'title': title, 'units': self.meta['UNITS']}
-        fill_values['phases'] = '\n'.join(self.meta['FLUIDS'])
-
-        if 'START' in self.meta:
-            fill_values['start'] = self.meta['START']
-
-        fill_values['dates'] = dates_to_str(self.result_dates)
-
-        fill_values['dimens'] = ' '.join(self.grid.dimens.astype(str))
-        fill_values['size'] = np.prod(self.grid.dimens)
-
-        def compressed_str(arr):
-            "Compressed array string."
-            out = ''
-            d = np.hstack([[0], np.where(np.diff(arr) != 0)[0]+1, [len(arr)]])
-            for i in range(len(d)-1):
-                val = arr[d[i]]
-                count = d[i+1] - d[i]
-                if count > 1:
-                    out += '{}*{} '.format(count, val)
-                else:
-                    out += '{} '.format(val)
-            return out + '/'
-
-        if isinstance(self.grid, OrthogonalGrid):
-            template = Template(template.safe_substitute(grid_specs=ORTHOGONAL_GRID))
-            fill_values.update(dict(
-                mapaxes=' '.join(self.grid.mapaxes.astype(str)),
-                dx=compressed_str(self.grid.ravel('dx')),
-                dy=compressed_str(self.grid.ravel('dy')),
-                dz=compressed_str(self.grid.ravel('dz')),
-                tops=compressed_str(self.grid.ravel('tops'))
-            ))
-        elif isinstance(self.grid, CornerPointGrid):
-            template = Template(template.safe_substitute(grid_specs=CORNERPOINT_GRID))
-            coord = os.path.join('INCLUDE', 'coord.inc')
-            self.grid.dump(os.path.join(dir_path, coord), attrs='COORD', compressed=False)
-            zcorn = os.path.join('INCLUDE', 'zcorn.inc')
-            self.grid.dump(os.path.join(dir_path, zcorn), attrs='ZCORN')
-            fill_values.update({'coord': coord, 'zcorn': zcorn})
-        else:
-            raise NotImplementedError("Dump for grid of type {} is not implemented."
-                                      .format(self.grid.__class__.__name__))
-
-        inc = os.path.join('INCLUDE', 'actnum.inc')
-        self.grid.dump(os.path.join(dir_path, inc), attrs='ACTNUM', fmt='%i')
-        fill_values['actnum'] = inc
-
-        tmp = ''
-        for attr_name, comp_name in SECTIONS_DICT['GRID']:
-            if attr_name in getattr(self, comp_name).attributes:
-                tmp += "INCLUDE\n'${}'\n\n".format(attr_name.lower())
-                inc = os.path.join('INCLUDE', attr_name.lower() + '.inc')
-                getattr(self, comp_name).dump(os.path.join(dir_path, inc), attrs=attr_name, fmt='%.3f')
-                fill_values[attr_name.lower()] = inc
-        template = Template(template.safe_substitute(rock_grid=tmp))
-
-        if 'faults' in self.components:
-            attrs = ['faults', 'multflt']
-            for attr in attrs:
-                inc = os.path.join('INCLUDE', attr + '.inc')
-                self.faults.dump(os.path.join(dir_path, inc), attr=attr)
-                fill_values[attr] = inc
-
-        tmp = ''
-        if 'aquifers' in self.components:
-            tmp += "INCLUDE\n'${} '/\n/\n\n".format('aquifers_file')
-            inc = os.path.join('INCLUDE', 'aquifers.inc')
-            self.aquifers.dump(os.path.join(dir_path, inc))
-            fill_values['aquifers_file'] = inc
-        template = Template(template.safe_substitute(aquifers=tmp))
-
-        if model_type == 'TN':
-            attrs = ['welltrack', 'perf', 'group', 'events']
-        elif model_type == 'ECL':
-            attrs = ['gruptree', 'schedule', 'welspecs']
-        else:
-            raise ValueError(f'Model type {model_type} is not supported.')
-
-        for attr in attrs:
-            inc = os.path.join('INCLUDE', attr + '.inc')
-            self.wells.dump(os.path.join(dir_path, inc), attr=attr, grid=self.grid,
-                            dates=self.result_dates, start_date=self.start)
-            fill_values[attr] = inc
-
-        tmp = ''
-        if 'states' in self.components:
-            for attr in self.states.attributes:
-                tmp += "INCLUDE\n'${}'\n\n".format(attr.lower())
-                inc = os.path.join('INCLUDE', attr.lower() + '.inc')
-                self.states.dump(os.path.join(dir_path, inc), attrs=attr, fmt='%.3f')
-                fill_values[attr.lower()] = inc
-        template = Template(template.safe_substitute(states=tmp))
-
-        tmp = ''
-        if 'tables' in self.components:
-            for attr in self.tables.attributes:
-                tmp += "INCLUDE\n'${}'\n\n".format(attr.lower())
-                inc = os.path.join('INCLUDE', attr.lower() + '.inc')
-                self.tables.dump(os.path.join(dir_path, inc), attrs=attr)
-                fill_values[attr.lower()] = inc
-        template = Template(template.safe_substitute(tables=tmp))
-        tmp = ''
-        for attr_name, comp_name in SECTIONS_DICT['PROPS']:
-            if attr_name in getattr(self, comp_name).attributes:
-                tmp += "INCLUDE\n'${}'\n\n".format(attr_name.lower())
-                inc = os.path.join('INCLUDE', attr_name.lower() + '.inc')
-                getattr(self, comp_name).dump(os.path.join(dir_path, inc), attrs=attr_name, fmt='%.3f')
-                fill_values[attr_name.lower()] = inc
-        template = Template(template.safe_substitute(rock_props=tmp))
-        template = Template(template.safe_substitute(fill_values))
-        template = Template(template.safe_substitute(kwargs))
-
-        out = template.safe_substitute()
-        missing = Template.pattern.findall(out)
-        if missing:
-            self._logger.warning('Dump missed values for %s.', ', '.join([i[1] for i in missing]))
-
-        with open(datafile, 'w') as f:
-            f.writelines(out)
+        raise ValueError()
         return self
 
     def _dump_binary_results(self, dir_path, mode, title):
