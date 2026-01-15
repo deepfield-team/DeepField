@@ -218,10 +218,6 @@ class BaseComponent:
         """Name of the component."""
         return self.__class__.__name__
 
-    # @class_name.setter
-    # def class_name(self, v):
-    #     self._class_name = v
-
     def empty_like(self):
         """Get an empty component with the same state and the structure of embedded BaseComponents (if any)."""
         empty = BaseComponent(class_name=self.class_name)
@@ -254,7 +250,7 @@ class BaseComponent:
         return {
             'attributes': deepcopy(self._attributes),
             'field': self.field,
-            'state': self.state
+            'state': deepcopy(self.state)
         }
 
     def __getitem__(self, key):
@@ -288,15 +284,13 @@ class BaseComponent:
     def copy(self):
         """Returns a deepcopy of attributes. Cached properties are not copied."""
         copy = self.__class__(
-            **{k: deepcopy(v) if not issubclass(v.__class__, BaseComponent) else v.copy() for k, v in self.items()},
-            field = self.field,
+           dump=self.dump_dict()
         )
-        copy.set_state(**self.state.as_dict())
-        copy.class_name = self.class_name
         return copy
 
     def drop(self, attr):
         """Drop an attribute."""
+        raise NotImplementedError()
         del self._data[attr.upper()]
         return self
 
