@@ -105,27 +105,6 @@ class Faults(BaseTree):
         segment.faces_verts = np.array(xyz_fault)
         return self
 
-    def _read_buffer(self, buffer, attr, **kwargs):
-        """Load fault data from an ASCII file.
-
-        Parameters
-        ----------
-        buffer : StringIteratorIO
-            Buffer to get string from.
-        attr : str
-            Target keyword.
-
-        Returns
-        -------
-        comp : faults
-            faults component with loaded fault data.
-        """
-        if attr == 'FAULTS':
-            return load_faults(self, buffer, **kwargs)
-        if attr == 'MULTFLT':
-            return load_multflt(self, buffer, **kwargs)
-        raise ValueError("Keyword {} is not supported in faults.".format(attr))
-
     def _dump_ascii(self, path, attr, mode='w', **kwargs):
         """Save data into text file.
 

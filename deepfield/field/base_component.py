@@ -381,41 +381,12 @@ class BaseComponent:
         att.component = self
         self._attributes.append(att)
 
-    # def load(self, path_or_buffer, **kwargs):
-    #     """Load data from a file or buffer.
-    #
-    #     Parameters
-    #     ----------
-    #     path_or_buffer : str of string buffer
-    #         Source to read data from.
-    #     **kwargs : dict, optional
-    #         Any kwargs to be passed to load method.
-    #
-    #     Returns
-    #     -------
-    #     comp : BaseComponent
-    #         BaseComponent with loaded attributes.
-    #     """
-    #     __import__('ipdb').set_trace()
-    #     if isinstance(path_or_buffer, str):
-    #         if os.path.isdir(path_or_buffer):
-    #             return self._load_ecl_binary(path_or_buffer, **kwargs)
-    #         name = os.path.basename(path_or_buffer)
-    #         fmt = os.path.splitext(name)[1].strip('.')
-    #         return self._get_fmt_loader(fmt)(path_or_buffer, **kwargs)
-    #     return self._read_buffer(path_or_buffer, **kwargs)
-
     def load(self, data, binary_data, logger):
         """Load data."""
         self._attributes = deepcopy(self._attributes_to_load)
         for attr in self._attributes:
             attr.component = self
             attr.load(data, binary_data, logger)
-
-
-    # def _load_ecl_binary(self, path_to_results, **kwargs):
-    #     """Load data from RESULTS derictory."""
-    #     raise NotImplementedError('Load from binary files is not implemented.')
 
     def _load_hdf5(self, path, attrs=None, raise_errors=False, logger=None, subset=None, **kwargs):
         """Load data from a HDF5 file.
@@ -439,6 +410,7 @@ class BaseComponent:
         comp : BaseComponent
             BaseComponent with loaded attributes.
         """
+        raise NotImplementedError()
         _ = kwargs
         if isinstance(attrs, str):
             attrs = [attrs]
@@ -465,6 +437,7 @@ class BaseComponent:
         subset : slice or list of indices
             Subset of items to load. Be default all items are loaded.
         """
+        raise NotImplementedError()
         grp = grp[self.class_name]
         state = {k : v for k, v in grp.attrs.items() if k!='DATES'}
         for k, v in state.items():
@@ -490,30 +463,6 @@ class BaseComponent:
                 if val.size == 1:
                     val = val[0]
             setattr(self, att, val)
-
-    def _read_buffer(self, buffer, attr, logger=None, **kwargs):
-        """Read array-like data from string buffer.
-
-        Parameters
-        ----------
-        buffer : buffer
-            String buffer to read from.
-        attr : str
-            Target attribute.
-        logger : logger
-            Event logger.
-        kwargs : misc
-            Any additional named arguments to ``read_array``.
-
-        Returns
-        -------
-        comp : BaseComponent
-            BaseComponent with new attribute.
-        """
-        _ = logger
-        arr = read_array(buffer, **kwargs)
-        setattr(self, attr, arr)
-        return self
 
     def dump(self, path, **kwargs):
         """Dump attributes into file.

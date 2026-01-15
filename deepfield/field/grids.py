@@ -259,49 +259,6 @@ class Grid(SpatialComponent):
                        self.mapaxes[1] - self.mapaxes[3]])
         return ey / np.linalg.norm(ey)
 
-    # def _load_ecl_binary(self, path_to_results, attrs, basename, logger=None,
-    #                      **kwargs):
-    #     _ = kwargs
-    #     path = get_single_path(path_to_results, basename + '.EGRID', logger)
-    #     if path is None:
-    #         return
-    #     attrs_tmp = attrs + ['GRIDHEAD'] if 'DIMENS' in attrs else attrs
-    #     sections = read_ecl_bin(path, attrs_tmp, logger=logger)
-    #     if 'DIMENS' in attrs:
-    #         setattr(self, 'DIMENS', sections['GRIDHEAD'][1:4])
-    #     for k in ['ZCORN', 'COORD', 'MAPAXES', 'ACTNUM']:
-    #         if (k in attrs) and (k in sections):
-    #             if k == 'ACTNUM':
-    #                 setattr(self, 'ACTNUM', sections['ACTNUM'].astype(bool))
-    #             else:
-    #                 setattr(self, k, sections[k])
-    #             self.state.binary_attributes.append(k)
-    #
-
-    # def _read_buffer(self, buffer, attr, logger=None, **kwargs):
-    #     if attr == 'DIMENS':
-    #         super()._read_buffer(buffer, attr, dtype=int, logger=logger, compressed=False)
-    #     elif attr in ['DX', 'DY', 'DZ', 'TOPS']:
-    #         super()._read_buffer(buffer, attr, dtype=float, logger=logger, compressed=True)
-    #     elif attr in ['DXV', 'DYV', 'DZV']:
-    #         super()._read_buffer(buffer, attr[:2], dtype=float, logger=logger, compressed=True)
-    #         data = getattr(self, attr[:2])
-    #         data = (data.reshape(-1, 1, 1) if attr == 'DXV' else
-    #                 data.reshape(1, -1, 1) if attr == 'DYV' else
-    #                 data.reshape(1, 1, -1))
-    #         setattr(self, attr[:2], (np.zeros(self.dimens) + data).ravel(order='F'))
-    #         logger.info("Keyword {} was converted to {}.".format(attr, attr[:2]))
-    #     elif attr == 'ZCORN':
-    #         super()._read_buffer(buffer, attr, dtype=float, compressed=True)
-    #     elif attr == 'COORD':
-    #         super()._read_buffer(buffer, attr, dtype=float, compressed=True)
-    #     elif attr == 'MINPV'a'
-    #         super()._read_buffer(buffer, attr, dtype=float, compressed=False)
-    #     elif attr in 'ACTNUM':
-    #         super()._read_buffer(buffer, attr, dtype=lambda x: bool(int(x)), logger=logger, compressed=True)
-    #     else:
-    #         super()._read_buffer(buffer, attr, logger=logger, **kwargs)
-
     def apply_minpv(self):
         """Apply MINPV threshold to ACTNUM."""
         if 'MINPV' in self.attributes:

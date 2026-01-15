@@ -232,10 +232,6 @@ class States(SpatialComponent):
             show_slice_static(self, attr, t=t, i=i, j=j, k=k, figsize=figsize, **kwargs)
         return self
 
-    def _read_buffer(self, path_or_buffer, attr, **kwargs):
-        super()._read_buffer(path_or_buffer, attr, **kwargs)
-        return self.reshape(attr=attr, newshape=(1, -1))
-
     def _load_ecl_binary(self, path_to_results, attrs, basename, logger=None, **kwargs):
         """Load states from binary ECLIPSE results files.
 

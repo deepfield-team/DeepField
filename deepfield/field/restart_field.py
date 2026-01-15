@@ -98,15 +98,6 @@ class RestartField(Field):
         self._check_vapoil()
         return self
 
-    def _read_buffer(self, buffer, attr, logger):
-        if attr not in ('RESTARTDATE', 'RESTART'):
-            return super()._read_buffer(buffer, attr, logger)
-        if attr == 'RESTARTDATE':
-            self.meta['RESTARTDATE'] = read_restartdate_from_buffer(buffer, attr, logger)
-        else:
-            self.meta['RESTART'] = read_restart_from_buffer(buffer, attr, logger)
-        return self
-
     def full_model(self):
         """Concatenate History Model and Restart Model.
 

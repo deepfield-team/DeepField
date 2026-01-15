@@ -176,26 +176,6 @@ class Tables(BaseComponent):
     def apply(self, func, attr, *args, inplace=False, **kwargs):
         raise NotImplementedError()
 
-    def _read_buffer(self, buffer, attr, **kwargs):
-        """Read table data from string buffer.
-
-        Parameters
-        ----------
-        buffer : buffer
-            String buffer to read from.
-        attr : str
-            Target attribute.
-
-        Returns
-        -------
-        comp : Tables
-            Tables with new attribute.
-        """
-        dtype = kwargs.get('dtype', None)
-        table = read_table(buffer, TABLE_INFO[attr], dtype, units=self.field.meta['UNITS'])
-        setattr(self, attr, _Table(data=table, name=attr))
-        return self
-
     @override
     def __getattr__(self, key) -> list[_Table] | None:
         val = super().__getattr__(key)

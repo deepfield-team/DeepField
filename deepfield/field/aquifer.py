@@ -61,31 +61,6 @@ class Aquifers(BaseComponent):
     def __setitem__(self, key, value):
         self._aquifers[key] = value
 
-    def _read_buffer(self, buffer, attr, **kwargs):
-        """Load aquifers data from an ASCII file.
-
-        Parameters
-        ----------
-        buffer : StringIteratorIO
-            Buffer to get string from.
-        attr : str
-            Data format.
-
-        Returns
-        -------
-        comp : Aquifers
-            Aquifers component with loaded aquifers data.
-        """
-        if attr == 'AQCT':
-            return self._load_aqct(buffer, **kwargs)
-        if attr == 'AQCO':
-            return self._load_aqco(buffer, **kwargs)
-        if attr == 'AQUANCON':
-            return self._load_aquancon(buffer, **kwargs)
-        if attr == 'AQUCT':
-            return self._load_aquct(buffer, **kwargs)
-        return self
-
     def _load_aquancon(self, buffer, logger=None, **kwargs):
         """load AQUANCON keyword"""
         _ = kwargs

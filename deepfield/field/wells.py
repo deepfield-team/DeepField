@@ -488,53 +488,6 @@ class Wells(BaseTree):
                 data['J'] = data['J'].replace(INT_NAN, welspecs['J'].values[0])
         return self
 
-    def _read_buffer(self, buffer, attr, **kwargs):
-        """Load well data from an ASCII file.
-
-        Parameters
-        ----------
-        buffer : StringIteratorIO
-            Buffer to get string from.
-        attr : str
-            Target keyword.
-
-        Returns
-        -------
-        comp : Wells
-            Wells component with loaded well data.
-        """
-        if attr == 'WELSPECS':
-            return load_welspecs(self, buffer, **kwargs)
-        if attr == 'WELSPECL':
-            return load_welspecl(self, buffer, **kwargs)
-        if attr == 'COMPDAT':
-            return load_compdat(self, buffer, **kwargs)
-        if attr == 'COMPDATL':
-            return load_compdatl(self, buffer, **kwargs)
-        if attr == 'COMPDATMD':
-            return load_comdatmd(self, buffer, **kwargs)
-        if attr == 'WCONPROD':
-            return load_wconprod(self, buffer, **kwargs)
-        if attr == 'WCONINJE':
-            return load_wconinje(self, buffer, **kwargs)
-        if attr == 'WEFAC':
-            return load_wefac(self, buffer, **kwargs)
-        if attr == 'WFRAC':
-            return load_wfrac(self, buffer, **kwargs)
-        if attr == 'WFRACP':
-            return load_wfracp(self, buffer, **kwargs)
-        if attr in ["TFIL", "WELLTRACK"]:
-            return load_welltracks(self, buffer, **kwargs)
-        if attr in ["EFIL", "EFILE", "ETAB"]:
-            return load_events(self, buffer, **kwargs)
-        if attr in ["HFIL", "HFILE", "HTAB"]:
-            return load_history(self, buffer, **kwargs)
-        if attr in ["GROU", "GROUP"]:
-            return load_group(self, buffer, **kwargs)
-        if attr == "GRUPTREE":
-            return load_grouptree(self, buffer, **kwargs)
-        raise ValueError("Keyword {} is not supported in Wells.".format(attr))
-
     def _load_rsm(self, *args, **kwargs):
         """Load RSM well data from file."""
         return load_rsm(self, *args, **kwargs)
