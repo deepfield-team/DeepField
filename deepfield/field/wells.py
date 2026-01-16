@@ -18,8 +18,8 @@ from .base_tree import BaseTree
 from .rates import show_rates, show_blocks_dynamics
 from .grids import OrthogonalGrid
 from .getting_wellblocks import get_wellblocks_vtk, get_wellblocks_compdat
-from .wells_dump_utils import write_perf, write_events, write_schedule, write_welspecs
-from .wells_load_utils import (load_rsm, load_ecl_binary,
+from .wells_dump_utils import write_perf, write_events
+from .wells_load_utils import (load_rsm,
                                DEFAULTS, VALUE_CONTROL)
 from .decorators import apply_to_each_segment
 
@@ -488,10 +488,6 @@ class Wells(BaseTree):
     def _load_rsm(self, *args, **kwargs):
         """Load RSM well data from file."""
         return load_rsm(self, *args, **kwargs)
-
-    def _load_ecl_binary(self, *args, **kwargs):
-        """Load results from UNSMRY file."""
-        return load_ecl_binary(self, *args, **kwargs)
 
     def _dump_ascii(self, path, attr, mode='w', **kwargs):
         """Save data into text file.
