@@ -1,14 +1,11 @@
 """BaseCompoment."""
 from __future__ import annotations
-import os
 from copy import deepcopy
-import pdb
 from weakref import ref
 import numpy as np
 import h5py
 
 from .decorators import apply_to_each_input
-from .parse_utils import read_array
 
 from typing import TYPE_CHECKING, Callable, Sequence, TypedDict, override
 

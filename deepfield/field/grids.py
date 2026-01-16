@@ -17,7 +17,7 @@ from ._load_utils import binary_utils
 class Grid(SpatialComponent):
     """Basic grid class."""
 
-    _attributes_to_load = [
+    _attributes_to_load: list[Attribute] = [
         Attribute(
             kw='DIMENS',
             section='RUNSPEC',

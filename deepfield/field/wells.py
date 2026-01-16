@@ -19,10 +19,7 @@ from .rates import show_rates, show_blocks_dynamics
 from .grids import OrthogonalGrid
 from .getting_wellblocks import get_wellblocks_vtk, get_wellblocks_compdat
 from .wells_dump_utils import write_perf, write_events, write_schedule, write_welspecs
-from .wells_load_utils import (load_rsm, load_ecl_binary, load_group, load_grouptree,
-                               load_welspecs, load_welspecl, load_compdat, load_compdatl,
-                               load_comdatmd, load_wconprod, load_wconinje, load_welltracks,
-                               load_events, load_history, load_wefac, load_wfrac, load_wfracp,
+from .wells_load_utils import (load_rsm, load_ecl_binary,
                                DEFAULTS, VALUE_CONTROL)
 from .decorators import apply_to_each_segment
 
