@@ -464,32 +464,6 @@ class BaseComponent:
                     val = val[0]
             setattr(self, att, val)
 
-    def dump(self, path, **kwargs):
-        """Dump attributes into file.
-
-        Parameters
-        ----------
-        path : str
-            Path to output file.
-        kwargs : dict, optional
-            Any kwargs for dump method.
-
-        Returns
-        -------
-        comp : BaseComponent
-            BaseComponent unchanged.
-        """
-        fname = os.path.basename(path)
-        fmt = os.path.splitext(fname)[1].strip('.')
-
-        if fmt.upper() == 'HDF5':
-            self._dump_hdf5(path, **kwargs)
-        elif fmt.upper() in ['DAT', 'DATA', 'INC', 'GRDECL']:
-            self._dump_ascii(path, **kwargs)
-        else:
-            raise NotImplementedError('File format {} not supported.'.format(fmt))
-        return self
-
     def _make_data_dump(self, attr, fmt=None, **kwargs):
         """Prepare data for dump."""
         _ = fmt, kwargs
@@ -553,41 +527,3 @@ class BaseComponent:
                     del grp[att]
                 grp.create_dataset(att, data=data, compression=compression)
 
-    def _dump_ascii(self, path, attrs=None, mode='w', fmt='%f', compressed=True, **kwargs):  # pylint: disable=too-many-branches
-        """Save array-like data into ASCII file.
-
-        Parameters
-        ----------
-        path : str
-            Path to output file.
-        attrs : str, array of str or None
-            Array of keywords to dump into file.
-        mode : str
-            Mode to open file.
-            'w': write, a new file is created (an existing file with
-            the same name would be deleted).
-            'a': append, an existing file is opened for reading and writing,
-            and if the file does not exist it is created.
-            Default to 'w'.
-        fmt : str or sequence of strs, optional
-            Format to be passed into ``numpy.savetxt`` function. Default to '%f'.
-        kwargs : misc
-            Kwargs for `_make_data_dump`.
-
-        Returns
-        -------
-        comp : BaseComponent
-            BaseComponent unchanged.
-        """
-        if attrs is None:
-            attrs = self.attributes
-        elif isinstance(attrs, str):
-            attrs = [attrs]
-        with open(path, mode) as f:
-            for attr in attrs:
-                data = self._make_data_dump(attr, fmt='ascii', **kwargs)
-                if data.dtype == bool:
-                    data = data.astype(int)
-                self.dump_array_ascii(f, data, header=attr.upper(),
-                                      fmt=fmt, compressed=compressed)
-        return self
