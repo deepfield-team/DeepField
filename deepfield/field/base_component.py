@@ -1,138 +1,29 @@
 """BaseCompoment."""
 from __future__ import annotations
 from copy import deepcopy
+import warnings
 from weakref import ref
 import numpy as np
 import h5py
-
 from .decorators import apply_to_each_input
+import logging
+import resdp
+import resdp.binary
 
-from typing import TYPE_CHECKING, Callable, Sequence, TypedDict, override
+from typing import TYPE_CHECKING, Callable, Generic, Self, TypeVar, Sequence, TypeAlias, TypedDict, override, Any
 
 if TYPE_CHECKING:
     from .field import Field
-    import resdp.binary
+
+
+AttributeLoaderType: TypeAlias = Callable[
+    [resdp.DataType, resdp.binary.BinaryData, logging.Logger], resdp.ValueType]
 
 class DumpDict(TypedDict):
     attributes: Sequence[Attribute]
     state: State
     field: Field | None
 
-class Attribute():
-    def __init__(self,
-                 name: str | None=None,
-                 section: str | None=None,
-                 kw: str | None=None,
-                 custom_loader=None,
-                 postprocess=None,
-                 not_present=None,
-                 binary_file: resdp.binary.FileType | None=None,
-                 binary_section=None,
-                 binary_process=None,
-                 sequential: bool=False):
-
-        if name is not None:
-            self.name: str = name
-        else:
-            if kw is None:
-                raise ValueError('Either name or section should be provided.')
-            self.name = kw
-
-        if custom_loader is not None:
-            self._kw = None
-            self._section = None
-        else:
-            self._kw = kw
-            self._section = section
-
-        self._custom_loader = custom_loader
-        self._postprocess = postprocess
-        self._not_present = not_present
-        self._value = None
-        if (binary_file is None) != (binary_section is None):
-            raise ValueError('Either both `binary_file` and `binary_section` are provided either none.')
-        self._binary_file: resdp.binary.FileType | None = binary_file
-        self._binary_section: str | None = binary_section
-        self._binary_process = binary_process
-        self._component: Callable[[], BaseComponent | None] | None = None
-        self._sequential = sequential
-
-    def _load_value(self, data, binary_data: resdp.binary.BinaryData, logger):
-        if self.component is None:
-            raise ValueError('Attribute should be associated with `BaseComponent` object.')
-        if self._binary_file is not None:
-            val = self._load_ecl_binary_value(binary_data, logger)
-        else:
-            val = None
-        if val is not None:
-            self._value = val
-            self.component.state.binary_attributes.append(self.name)
-            return self
-        if self._custom_loader is not None:
-            self._value = self._custom_loader(data)
-            return self
-        if self._section in data:
-            for entry in data[self._section]:
-                if entry[0] == self._kw:
-                    self._value = entry[1]
-                    return self
-        self._value = self._not_present
-        return self
-
-    def _load_ecl_binary_value(self, binary_data: resdp.binary.BinaryData | None, logger):
-        if binary_data is None:
-            return None
-        if self._binary_file is None:
-            return None
-        if self._binary_file not in binary_data:
-            return None
-
-        file_data = binary_data[self._binary_file]
-        if self._binary_section is None:
-            raise ValueError('`binary_file is specified but not `binary_section`.')
-        if self._sequential:
-            val = []
-            while True:
-                i = file_data.find(self._binary_section)
-                if i is None:
-                    break
-                file_data.seek(i+1)
-                val.append(file_data[i].value)
-            if len(val) == 0:
-                return None
-            val = np.stack(val)
-        else:
-            i = file_data.find_unique(self._binary_section)
-            if i is None:
-                return None
-            val = file_data[i].value
-        if self._binary_process is not None:
-            return self._binary_process(val)
-        return val
-
-    def load(self, data, binary_data, logger):
-        self._load_value(data, binary_data, logger)
-
-    @property
-    def value(self):
-        """The value property."""
-        return self._value
-
-    @value.setter
-    def value(self, value):
-        self._value = value
-    @property
-    def component(self) -> BaseComponent | None:
-        if self._component is None:
-            return None
-        else:
-            return self._component()
-    @component.setter
-    def component(self, value: BaseComponent | None):
-        if value is None:
-            self._component = value
-            return None
-        self._component = ref(value)
 
 MAX_STRLEN = 40
 
@@ -374,7 +265,7 @@ class BaseComponent:
             return self._load_hdf5
         raise NotImplementedError('File format .%s is not supported.' % fmt.upper())
 
-    def add_attribute(self, att: Attribute):
+    def add_attribute(self, att: Attribute[Self]):
         att.component = self
         self._attributes.append(att)
 
@@ -524,3 +415,149 @@ class BaseComponent:
                     del grp[att]
                 grp.create_dataset(att, data=data, compression=compression)
 
+T = TypeVar('T', bound=BaseComponent)
+
+class Attribute(Generic[T]):
+    def __init__(self,
+                 name: str | None=None,
+                 section: str | None=None,
+                 kw: str | None=None,
+                 custom_loader: AttributeLoaderType | None = None,
+                 custom_ascii_loader=None,
+                 postprocess: Callable[[Attribute[T]], None] | None=None,
+                 not_present=None,
+                 binary_file: resdp.binary.FileType | None=None,
+                 binary_section=None,
+                 binary_process=None,
+                 sequential: bool=False):
+
+        if name is not None:
+            self.name: str = name
+        else:
+            if kw is None:
+                raise ValueError('Either name or section should be provided.')
+            self.name = kw
+
+        self._custom_loader: AttributeLoaderType | None = custom_loader
+
+        if custom_loader is not None:
+            self._custom_ascii_loader = None
+            if binary_file is not None:
+                warnings.warn('`binary_file` argument is ignored when `custom_loader` is provided.')
+            self._binary_file = None
+            if binary_section is not None:
+                warnings.warn('`binary_section` argument is ignored when `custom_loader` is provided.')
+            self._binary_section = None
+            if binary_process is not None:
+                warnings.warn('`binary_process` argument is ignored when `custom_loader` is provided.')
+            self._binary_process = None
+            if postprocess is not None:
+                warnings.warn('`postprocess` argument is ignored when `custom_loader` is provided.')
+            self._postprocess = None
+            if not_present is not None:
+                warnings.warn('`not_present` argument is ignored when `custom_loader` is provided.')
+            self._not_present = None
+        else:
+            self._custom_ascii_loader = custom_ascii_loader
+            if (binary_file is None) != (binary_section is None):
+                raise ValueError('Either both `binary_file` and `binary_section` are provided either none.')
+            self._binary_file: resdp.binary.FileType | None = binary_file
+            self._binary_section: str | None = binary_section
+            self._binary_process = binary_process
+
+            self._postprocess = postprocess
+            self._not_present = not_present
+
+        if custom_ascii_loader is not None or custom_loader is not None:
+            self._kw = None
+            self._section = None
+        else:
+            self._kw = kw
+            self._section = section
+
+        self._value = None
+        self._component: Callable[[], T | None] | None = None
+        self._sequential = sequential
+
+    def _load_value(self, data, binary_data: resdp.binary.BinaryData, logger):
+        if self.component is None:
+            raise ValueError('Attribute should be associated with `BaseComponent` object.')
+        if self._custom_loader is not None:
+            val = self._custom_loader(data, binary_data, logger)
+            return self
+        if self._binary_file is not None:
+            val = self._load_ecl_binary_value(binary_data, logger)
+        else:
+            val = None
+        if val is not None:
+            self._value = val
+            self.component.state.binary_attributes.append(self.name)
+            return self
+        if self._custom_ascii_loader is not None:
+            self._value = self._custom_ascii_loader(data)
+            return self
+        if self._section in data:
+            for entry in data[self._section]:
+                if entry[0] == self._kw:
+                    self._value = entry[1]
+                    return self
+        self._value = self._not_present
+        return self
+
+    def _load_ecl_binary_value(self, binary_data: resdp.binary.BinaryData | None, logger):
+        if binary_data is None:
+            return None
+        if self._binary_file is None:
+            return None
+        if self._binary_file not in binary_data:
+            return None
+
+        file_data = binary_data[self._binary_file]
+        if self._binary_section is None:
+            raise ValueError('`binary_file is specified but not `binary_section`.')
+        if self._sequential:
+            val = []
+            while True:
+                i = file_data.find(self._binary_section)
+                if i is None:
+                    break
+                file_data.seek(i+1)
+                val.append(file_data[i].value)
+            if len(val) == 0:
+                return None
+            val = np.stack(val)
+        else:
+            i = file_data.find_unique(self._binary_section)
+            if i is None:
+                return None
+            val = file_data[i].value
+        if self._binary_process is not None:
+            return self._binary_process(val)
+        return val
+
+    def load(self, data, binary_data, logger):
+        self._load_value(data, binary_data, logger)
+        if self._postprocess is not None:
+            assert self._component is not None
+            self._postprocess(self,)
+
+    @property
+    def value(self):
+        """The value property."""
+        return self._value
+
+    @value.setter
+    def value(self, value):
+        self._value = value
+    @property
+    def component(self) -> T | None:
+        if self._component is None:
+            return None
+        else:
+            return self._component()
+    @component.setter
+    def component(self, value: T | None):
+        if value is None:
+            self._component = value
+            return None
+        self._component = ref(value)

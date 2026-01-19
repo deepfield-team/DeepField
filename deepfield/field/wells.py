@@ -1,7 +1,7 @@
 """Wells components."""
 from __future__ import annotations
 import logging
-from typing import cast, override
+from typing import Self, cast, override
 from collections.abc import Sequence
 import numpy as np
 import pandas as pd
@@ -10,7 +10,9 @@ from anytree import PreOrderIter, PostOrderIter
 import resdp
 import resdp.binary
 
-from .base_component import Attribute
+from ._misc.update_wells import update_wells
+
+from .base_component import Attribute, T
 
 from .parse_utils.ascii import INT_NAN
 from .well_segment import WellSegment
@@ -23,11 +25,12 @@ from .wells_load_utils import (load_rsm,
                                DEFAULTS, VALUE_CONTROL)
 from .decorators import apply_to_each_segment
 
-class WellScheduleAttribute(Attribute):
+class WellScheduleAttribute(Attribute[T]):
     def __init__(self,
                  name: str | None = None,
                  kw: str | None = None,
                  custom_loader=None,
+                 custom_ascii_loader=None,
                  postprocess=None,
                  not_present=None,
                  binary_file: resdp.binary.FileType | None = None,
@@ -40,6 +43,7 @@ class WellScheduleAttribute(Attribute):
                          'SCHEDULE',
                          kw,
                          custom_loader,
+                         custom_ascii_loader,
                          postprocess,
                          not_present,
                          binary_file,
@@ -51,10 +55,11 @@ class WellScheduleAttribute(Attribute):
     def _load_value(self,
                     data: resdp.DataType,
                     binary_data: resdp.binary.BinaryData,
-                    logger: logging.Logger | None):
+                    logger: logging.Logger | None) -> Self:
         cur_date = None
         section = cast(str, self._section)
         assert isinstance(self.component, Wells)
+        res: list[pd.DataFrame] = []
         for key, val in data[section]:
             if key == 'DATES':
                 assert isinstance(val, Sequence)
@@ -65,27 +70,12 @@ class WellScheduleAttribute(Attribute):
                 assert isinstance(val, pd.DataFrame)
                 if self._dated:
                     val = val.assign(DATE=cur_date)
-                if not val.empty:
-                    welldata = {}
-                    for k, v in val.groupby('WELL'):  # pyright: ignore[reportUnknownMemberType]
-                        assert isinstance(k, str)
-                        tmp = k.split('*')
-                        if len(tmp) == 1:
-                            welldata[k] = {
-                                self.name: v.reset_index(drop=True)
-                            }
-                        elif len(tmp) == 2 and not tmp[1]:
-                            well_names = [name for name in
-                                          self.component.main_branches if name.startswith(tmp[0])]
-                            for name in well_names:
-                                welldata[name] = {
-                                    self.name: v.reset_index(drop=True).assign(WELL=name)
-                                }
-                        else:
-                            raise ValueError(f'Cound not parse well name "{k}"')
-                    self.component.update(welldata, mode='a', ignore_index=True)
-                    self.component.fill_na(attr=self.name)
-        return super()._load_value(data, binary_data, logger)
+                res.append(val)
+        if len(res) == 0:
+            self._value = None
+        else:
+            self._value = pd.concat(res)
+        return self
 
 class Wells(BaseTree):
     """Wells component.
@@ -98,16 +88,18 @@ class Wells(BaseTree):
     node : WellSegment, optional
         Root node for well's tree.
     """
-    _attributes_to_load: list[Attribute] = [
+    _attributes_to_load: list[Attribute[Wells]] = [
         WellScheduleAttribute(
             name='WELSPECS',
             kw='WELSPECS',
-            dated=False
+            dated=False,
+            postprocess=update_wells
         ),
         WellScheduleAttribute(
             name='WELSPECSL',
             kw='WELSPECSL',
-            dated=False
+            dated=False,
+            postprocess=update_wells
         ),
         WellScheduleAttribute(
             name='WCONPROD',
