@@ -4,7 +4,7 @@ from numpy.typing import NDArray
 import numpy as np
 import pandas as pd
 
-from .base_tree_node import BaseTreeNode
+from .base_tree_node import BaseTreeNode, NodeAttributeView
 
 
 class WellSegment(BaseTreeNode):
@@ -28,6 +28,15 @@ class WellSegment(BaseTreeNode):
     fullname : str
         Node's full name from root.
     """
+
+    wconprod: NodeAttributeView = NodeAttributeView('WCONPROD', 'WELL')
+    wconinj: NodeAttributeView = NodeAttributeView('WCONINJ', 'WELL')
+    welspecs: NodeAttributeView = NodeAttributeView('WELSPECS', 'WELL')
+    welspecsl: NodeAttributeView = NodeAttributeView('WELSPECSL', 'WELL')
+    compdat: NodeAttributeView = NodeAttributeView('COMPDAT', 'WELL')
+    compdatl: NodeAttributeView = NodeAttributeView('COMPDATL', 'WELL')
+    compdatmd: NodeAttributeView = NodeAttributeView('COMPDATMD', 'WELL')
+    wefac: NodeAttributeView = NodeAttributeView('WEFAC', 'WELL')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

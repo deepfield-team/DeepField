@@ -205,7 +205,7 @@ class Wells(BaseTree):
                 try:
                     return self[groupname]
                 except KeyError:
-                    return WellSegment(parent=self.root, name=groupname, ntype='group', field=self.field)
+                    return WellSegment(parent=self.root, name=groupname, root_component=self, ntype='group', field=self.field)
             return self.root
 
         for name in sorted(data):
@@ -215,7 +215,7 @@ class Wells(BaseTree):
                 node = self[name]
             except KeyError:
                 parent = _get_parent(name, wdata)
-                node = self._nodeclass(parent=parent, name=name, ntype='well', field=self.field)
+                node = self._nodeclass(parent=parent, name=name, root_component=self, ntype='well', field=self.field)
 
             if 'WELSPECS' in wdata:
                 parent = _get_parent(name, wdata)
