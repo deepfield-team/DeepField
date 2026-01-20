@@ -10,6 +10,8 @@ from anytree import PreOrderIter, PostOrderIter
 import resdp
 import resdp.binary
 
+from ._misc.load_results import load_results
+
 from ._misc.update_wells import update_wells
 
 from .base_component import Attribute, T
@@ -88,7 +90,7 @@ class Wells(BaseTree):
     node : WellSegment, optional
         Root node for well's tree.
     """
-    _attributes_to_load: list[Attribute[Wells]] = [
+    _attributes_to_load: list[Attribute[Self]] = [
         WellScheduleAttribute(
             name='WELSPECS',
             kw='WELSPECS',
@@ -129,6 +131,10 @@ class Wells(BaseTree):
         WellScheduleAttribute(
             name='WEFAC',
             kw='WEFAC'
+        ),
+        Attribute(
+            name='RESULTS',
+            custom_loader=load_results
         )
     ]
 

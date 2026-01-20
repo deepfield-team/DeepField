@@ -37,6 +37,7 @@ class WellSegment(BaseTreeNode):
     compdatl: NodeAttributeView = NodeAttributeView('COMPDATL', 'WELL')
     compdatmd: NodeAttributeView = NodeAttributeView('COMPDATMD', 'WELL')
     wefac: NodeAttributeView = NodeAttributeView('WEFAC', 'WELL')
+    results: NodeAttributeView = NodeAttributeView('RESULTS', 'WELL')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

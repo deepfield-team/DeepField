@@ -10,7 +10,7 @@ import logging
 import resdp
 import resdp.binary
 
-from typing import TYPE_CHECKING, Callable, Generic, Self, TypeVar, Sequence, TypeAlias, TypedDict, override, Any
+from typing import TYPE_CHECKING, Callable, Generic, Self, TypeVar, Sequence, TypeAlias, TypedDict, override
 
 if TYPE_CHECKING:
     from .field import Field
@@ -18,11 +18,6 @@ if TYPE_CHECKING:
 
 AttributeLoaderType: TypeAlias = Callable[
     [resdp.DataType, resdp.binary.BinaryData, logging.Logger], resdp.ValueType]
-
-class DumpDict(TypedDict):
-    attributes: Sequence[Attribute]
-    state: State
-    field: Field | None
 
 
 MAX_STRLEN = 40
@@ -46,7 +41,7 @@ class State:
 class BaseComponent:
     """Base class for components of geological model."""
 
-    _attributes_to_load: list[Attribute] = []
+    _attributes_to_load: list[Attribute[Self]] = []
     def __init__(self, dump=None, field=None):
         self._field = None
         if dump is not None:
@@ -134,7 +129,7 @@ class BaseComponent:
             if key.upper() == attr.name:
                 return attr.value
         raise AttributeError("{} has no attribute {}".format(self.class_name, key))
-    def dump_dict(self) -> DumpDict:
+    def dump_dict(self) -> DumpDict[Self]:
         return {
             'attributes': deepcopy(self._attributes),
             'field': self.field,
@@ -484,6 +479,7 @@ class Attribute(Generic[T]):
             raise ValueError('Attribute should be associated with `BaseComponent` object.')
         if self._custom_loader is not None:
             val = self._custom_loader(data, binary_data, logger)
+            self._value = val
             return self
         if self._binary_file is not None:
             val = self._load_ecl_binary_value(binary_data, logger)
@@ -561,3 +557,9 @@ class Attribute(Generic[T]):
             self._component = value
             return None
         self._component = ref(value)
+
+class DumpDict(TypedDict, Generic[T]):
+    attributes: Sequence[Attribute[T]]
+    state: State
+    field: Field | None
+
