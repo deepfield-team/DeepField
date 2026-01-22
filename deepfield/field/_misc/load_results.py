@@ -1,6 +1,7 @@
+from collections.abc import Sequence
 import logging
 from tkinter import W
-from typing import cast
+from typing import Iterable, cast
 import warnings
 from numpy.typing import NDArray
 import numpy as np
@@ -9,10 +10,10 @@ import resdp.binary
 import pandas as pd
 
 
-def load_results(data: resdp.DataType,
+def load_results(_data: resdp.DataType,
                  binary_data: resdp.binary.BinaryData,
                  logger: logging.Logger) -> pd.DataFrame | None:
-    _ = data, logger
+    _ = _data, logger
     if 'SMSPEC' not in binary_data:
         return None
     if 'UNSMRY' not in binary_data:
@@ -29,8 +30,7 @@ def load_results(data: resdp.DataType,
 
     keywords_to_keep: list[str] = []
 
-    for i, kw in enumerate(keywords):
-        kw = cast(str, kw)
+    for i, kw in enumerate(cast(Iterable[str], keywords)):
         kw = kw.strip()
         if  kw.startswith('W') or kw in ('DAY', 'MONTH', 'YEAR'):
             indices_to_keep.append(i)
@@ -54,29 +54,29 @@ def load_results(data: resdp.DataType,
         else:
             break
 
-    data = np.stack(data)
-    name_placeholder: str = wgnames[keywords[indices_to_keep]=='YEAR'][0]
+    data_array = np.stack(data)
+    name_placeholder: str = cast(str, wgnames[keywords[indices_to_keep]=='YEAR'][0])
     well_names = np.unique(wgnames[wgnames!=name_placeholder])
 
     df = pd.DataFrame()
-    dates = pd.to_datetime(
+    dates = pd.to_datetime(  # pyright: ignore[reportUnknownMemberType]
         {
-            'year': np.repeat(data[:, keywords[indices_to_keep]=='YEAR'], well_names.size),
-            'month': np.repeat(data[:, keywords[indices_to_keep]=='MONTH'], well_names.size),
-            'day': np.repeat(data[:, keywords[indices_to_keep]=='DAY'], well_names.size)
+            'year': np.repeat(data_array[:, keywords[indices_to_keep]=='YEAR'], well_names.size),
+            'month': np.repeat(data_array[:, keywords[indices_to_keep]=='MONTH'], well_names.size),
+            'day': np.repeat(data_array[:, keywords[indices_to_keep]=='DAY'], well_names.size)
         }
     )
     df['DATE'] = dates
-    df['WELL'] = np.tile(well_names, data.shape[0])
-    for kw in np.unique(keywords[indices_to_keep]):
+    df['WELL'] = np.tile(well_names, data_array.shape[0])
+    for kw in cast(Iterable[str], np.unique(keywords[indices_to_keep])):
         if kw not in ('MONTH', 'YEAR', 'DAY'):
             df[kw] = np.nan
-        for wn in well_names:
-            ind = ((wgnames == wn) & (keywords[indices_to_keep] == kw))
-            if not ind.any():
-                break
-            if sum(ind) > 1:
-                raise ValueError(f'Several values for keyword `{kw}` and well `{wn}`.')
-            df.loc[df['WELL']==wn, kw] = data[:, ind]
+            for wn in cast(Iterable[str], well_names):
+                ind = cast(NDArray[np.bool_], ((wgnames == wn) & (keywords[indices_to_keep] == kw)))
+                if not ind.any():
+                    continue
+                if sum(ind) > 1:
+                    raise ValueError(f'Several values for keyword `{kw}` and well `{wn}`.')
+                df.loc[df['WELL']==wn, kw] = data_array[:, ind]
     return df
 

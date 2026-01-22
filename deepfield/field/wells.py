@@ -10,6 +10,8 @@ from anytree import PreOrderIter, PostOrderIter
 import resdp
 import resdp.binary
 
+from ._misc.load_welltrack import load_welltrack
+
 from ._misc.load_results import load_results
 
 from ._misc.update_wells import update_wells
@@ -133,6 +135,10 @@ class Wells(BaseTree):
             kw='WEFAC'
         ),
         Attribute(
+            name='WELLTRACK',
+            custom_loader=load_welltrack
+        ),
+        Attribute(
             name='RESULTS',
             custom_loader=load_results
         )
@@ -211,7 +217,7 @@ class Wells(BaseTree):
                 try:
                     return self[groupname]
                 except KeyError:
-                    return WellSegment(parent=self.root, name=groupname, root_component=self, ntype='group', field=self.field)
+                    return WellSegment(parent=self.root, name=groupname, ntype='group', field=self.field)
             return self.root
 
         for name in sorted(data):
@@ -221,7 +227,7 @@ class Wells(BaseTree):
                 node = self[name]
             except KeyError:
                 parent = _get_parent(name, wdata)
-                node = self._nodeclass(parent=parent, name=name, root_component=self, ntype='well', field=self.field)
+                node = self._nodeclass(parent=parent, name=name, ntype='well', field=self.field)
 
             if 'WELSPECS' in wdata:
                 parent = _get_parent(name, wdata)

@@ -45,7 +45,7 @@ class BaseTree(BaseComponent):
         super().__init__(**kwargs)
         nodeclass = BaseTreeNode if nodeclass is None else nodeclass
         self._root = nodeclass(name='FIELD', ntype="group",
-                               field=self._field, root_component=self) if node is None else node
+                               field=self._field) if node is None else node
         self._resolver = Resolver()
         self._nodeclass = nodeclass
 

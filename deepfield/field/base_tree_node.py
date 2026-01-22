@@ -1,27 +1,46 @@
 """TreeSegment components."""
 from __future__ import annotations
-from weakref import ref
+from abc import ABC, abstractmethod
+from typing import Generic, TypeVar, override
 from anytree import NodeMixin
 import pandas as pd
 
 from .base_component import BaseComponent
 
-class NodeAttributeView:
-    def __init__(self, att: str, key: str) -> None:
+T = TypeVar('T', dict[str, pd.DataFrame], pd.DataFrame)
+
+class NodeAttributeViewBase(ABC, Generic[T]):
+    def __init__(self, att: str, key: str | None) -> None:
         self._att: str = att
-        self._key: str = key
+        self._key: str | None = key
     def __get__(self, obj: BaseTreeNode, objtype=None):
         _ = objtype
         name = obj.name
+        assert isinstance(name, str)
         component = obj.root_component
         comp_att = getattr(component, self._att)
         if comp_att is None:
             return comp_att
-        assert isinstance(comp_att, pd.DataFrame)
-        return comp_att[comp_att[self._key] == name]
+        return self._get(comp_att, name)
+
+    @abstractmethod
+    def _get(self, att: T, name: str) -> pd.DataFrame:
+        pass
 
     def __set__(self, obj: BaseTreeNode, value: pd.DataFrame):
         raise NotImplementedError()
+
+class NodeAttributeViewDataFrame(NodeAttributeViewBase[pd.DataFrame]):
+    @override
+    def _get(self, att: pd.DataFrame, name: str):
+        assert self._key is not None
+        return att[att[self._key] == name]
+
+class NodeAttributeViewDict(NodeAttributeViewBase[dict[str, pd.DataFrame]]):
+    @override
+    def _get(self, att: dict[str, pd.DataFrame], name: str):
+        return att[name]
+
 
 class BaseTreeNode(BaseComponent, NodeMixin):
     """Well's node.
@@ -43,27 +62,17 @@ class BaseTreeNode(BaseComponent, NodeMixin):
         Node's full name from root.
     """
 
-    def __init__(self, root_component: BaseComponent, *args, parent=None, children=None, name=None, ntype=None, **kwargs):
+    def __init__(self, *args, parent=None, children=None, name=None, ntype=None, **kwargs):
         super().__init__(*args, **kwargs)
         super().__setattr__('parent', parent)
         self._name = name
         self._ntype = ntype
-        self._root_component: ref[BaseComponent] | None = None
-        self.root_component = root_component
         if children is not None:
             super().__setattr__('children', children)
 
     @property
-    def root_component(self) -> BaseComponent:
-        assert self._root_component is not None
-        res = self._root_component()
-        assert res is not None
-        return res
-
-    @root_component.setter
-    def root_component(self, val: BaseComponent):
-        self._root_component = ref(val)
-        return self
+    def root_component(self) -> BaseComponent | None:
+        return None
 
     def copy(self):
         """Returns a deepcopy. Cached properties are not copied."""

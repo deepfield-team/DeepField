@@ -1,10 +1,11 @@
 #pylint: disable=too-many-lines
 """Wells and WellSegment components."""
+from typing import override
 from numpy.typing import NDArray
 import numpy as np
 import pandas as pd
 
-from .base_tree_node import BaseTreeNode, NodeAttributeView
+from .base_tree_node import BaseTreeNode, NodeAttributeViewDataFrame, NodeAttributeViewDict
 
 
 class WellSegment(BaseTreeNode):
@@ -29,19 +30,25 @@ class WellSegment(BaseTreeNode):
         Node's full name from root.
     """
 
-    wconprod: NodeAttributeView = NodeAttributeView('WCONPROD', 'WELL')
-    wconinj: NodeAttributeView = NodeAttributeView('WCONINJ', 'WELL')
-    welspecs: NodeAttributeView = NodeAttributeView('WELSPECS', 'WELL')
-    welspecsl: NodeAttributeView = NodeAttributeView('WELSPECSL', 'WELL')
-    compdat: NodeAttributeView = NodeAttributeView('COMPDAT', 'WELL')
-    compdatl: NodeAttributeView = NodeAttributeView('COMPDATL', 'WELL')
-    compdatmd: NodeAttributeView = NodeAttributeView('COMPDATMD', 'WELL')
-    wefac: NodeAttributeView = NodeAttributeView('WEFAC', 'WELL')
-    results: NodeAttributeView = NodeAttributeView('RESULTS', 'WELL')
+    wconprod: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('WCONPROD', 'WELL')
+    wconinj: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('WCONINJ', 'WELL')
+    welspecs: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('WELSPECS', 'WELL')
+    welspecsl: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('WELSPECSL', 'WELL')
+    compdat: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('COMPDAT', 'WELL')
+    compdatl: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('COMPDATL', 'WELL')
+    compdatmd: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('COMPDATMD', 'WELL')
+    wefac: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('WEFAC', 'WELL')
+    results: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('RESULTS', 'WELL')
+    welltrack: NodeAttributeViewDict = NodeAttributeViewDict('WELLTRACK', None)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._blocks: NDArray[np.integer] | None = None
+        self._blocks: NDArray[np.int_] | None = None
+
+    @property
+    @override
+    def root_component(self):
+        return self.field.wells
 
     @property
     def is_main_branch(self):
@@ -70,5 +77,5 @@ class WellSegment(BaseTreeNode):
         return self._blocks
     
     @blocks.setter
-    def blocks(self, val: NDArray[np.integer]):
+    def blocks(self, val: NDArray[np.int_]):
         self._blocks = val
