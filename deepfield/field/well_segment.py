@@ -44,6 +44,7 @@ class WellSegment(BaseTreeNode):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._blocks: NDArray[np.int_] | None = None
+        self._blocks_info: pd.DataFrame | None = None
 
     @property
     @override
@@ -79,3 +80,11 @@ class WellSegment(BaseTreeNode):
     @blocks.setter
     def blocks(self, val: NDArray[np.int_]):
         self._blocks = val
+    @property
+    def blocks_info(self)-> pd.DataFrame | None:
+        """The blocks_info property."""
+        return self._blocks_info
+
+    @blocks_info.setter
+    def blocks_info(self, value: pd.DataFrame | None):
+        self._blocks_info = value

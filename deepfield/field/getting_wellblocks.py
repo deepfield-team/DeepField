@@ -2,6 +2,7 @@
 from typing import cast
 import numpy as np
 from resdp import INT_NAN
+import numpy.typing as npt
 import pandas as pd
 from numba import njit
 import vtk
@@ -140,44 +141,32 @@ def get_wellblocks_vtk(welltrack, grid):
 
     return blocks, points, mds
 
-def get_wellblocks_compdat(well: WellSegment):
+def get_wellblocks_compdat(compdat: pd.DataFrame, welspecs: pd.DataFrame | None) -> npt.NDArray[np.int_]:
     """Get wellblocks from `COMPDAT` or 'COMPDATL' table.
 
     Parameters
     ----------
     compdat : pandas.DataFrame
         `COMPDAT` table.
+    welspecs: pandas.DataFrame | None
+        `WELSPECS` table.
 
     Returns
     -------
     numpy.ndarray
         Block indices.
     """
-    if "COMPDAT" in well.attributes:
-        if not isinstance(well.compdat, pd.DataFrame):  # pyright: ignore[reportUnknownMemberType]
-            raise ValueError('`COMPDAT` should be pandas DataFrame.')
-        compdat: pd.DataFrame = well.compdat
-    elif "COMPDATL" in well.attributes:
-        if not isinstance(well.compdatl, pd.DataFrame):  # pyright: ignore[reportUnknownMemberType]
-            raise ValueError('`COMPDATL` should be pandas DataFrame.')
-        compdat = well.compdatl
-    else:
-        raise ValueError('Well should have `COMPDAT` or `COMPDATL` fields.')
-
-    welspecs = well.welspecs if 'WELSPECS' in well.attributes else None  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-    if welspecs is not None and not isinstance(welspecs, pd.DataFrame):
-        raise ValueError('WELSPECS should be pandas DataFrame.')
     i: list[int] = []
     j: list[int] = []
     k: list[int] = []
     for _, row in compdat.iterrows():
-        k_row = list(range(int(cast(np.integer, row['K1'])) - 1, int(cast(np.integer, row['K2']))))
+        k_row = list(range(int(cast(np.int_, row['K1'])) - 1, int(cast(np.int_, row['K2']))))
         k += k_row
         for name, vals in (('I', i), ('J', j)):
             if row[f'{name}W'] != INT_NAN:
-                tmp = int(cast(np.integer, row[f'{name}W'])) - 1
-            elif welspecs is not None and welspecs.loc[0, f'{name}W'] != INT_NAN:
-                tmp = int(cast(np.integer, welspecs.loc[0, f'{name}W'])) - 1
+                tmp = int(cast(np.int_, row[f'{name}W'])) - 1
+            elif welspecs is not None and welspecs.loc[:, f'{name}W'].values[0] != INT_NAN:
+                tmp = int(cast(np.int_, welspecs.loc[:, f'{name}W'].values[0])) - 1
             else:
                 raise ValueError(f'Well `{name}` index should be presented either in WELSPECS ' +
                                  'either in `COMPDAT`(`COMPDATL`).')

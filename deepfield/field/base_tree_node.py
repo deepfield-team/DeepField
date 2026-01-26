@@ -13,7 +13,7 @@ class NodeAttributeViewBase(ABC, Generic[T]):
     def __init__(self, att: str, key: str | None) -> None:
         self._att: str = att
         self._key: str | None = key
-    def __get__(self, obj: BaseTreeNode, objtype=None):
+    def __get__(self, obj: BaseTreeNode, objtype=None) -> pd.DataFrame | None:
         _ = objtype
         name = obj.name
         assert isinstance(name, str)

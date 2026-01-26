@@ -4,6 +4,7 @@ import logging
 from typing import Self, cast, override
 from collections.abc import Sequence
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import matplotlib.pyplot as plt
 from anytree import PreOrderIter, PostOrderIter
@@ -22,7 +23,7 @@ from .parse_utils.ascii import INT_NAN
 from .well_segment import WellSegment
 from .base_tree import BaseTree
 from .rates import show_rates, show_blocks_dynamics
-from .grids import OrthogonalGrid
+from .grids import Grid, OrthogonalGrid
 from .getting_wellblocks import get_wellblocks_vtk, get_wellblocks_compdat
 from .wells_dump_utils import write_perf, write_events
 from .wells_load_utils import (load_rsm,
@@ -357,7 +358,7 @@ class Wells(BaseTree):
         return self
 
     @apply_to_each_segment
-    def get_blocks(self, segment, logger=None):
+    def get_blocks(self, segment: WellSegment, logger: logging.Logger | None=None):
         """Calculate grid blocks for the tree of wells.
 
         Parameters
@@ -370,23 +371,29 @@ class Wells(BaseTree):
         comp : Wells
             Wells component with calculated grid blocks and well in block projections.
         """
-        grid = self.field.grid
+        grid = cast(Grid, self.field.grid)
+        compdatl_attribute = segment.compdatl
+        compdat_attribute = segment.compdat
 
-        if 'COMPDAT' in segment.attributes or 'COMPDATL' in segment.attributes:
-            if 'COMPDAT' in segment.attributes:
-                compdat = segment.compdat
-            elif (segment.compdatl['LGR']=='GLOBAL').all():
-                compdat = segment.compdatl
+        if (compdat_attribute is not None) or (compdatl_attribute is not None):
+            if compdat_attribute is not None:
+                compdat = compdat_attribute
+            elif (cast(pd.DataFrame, compdatl_attribute)['LGR']=='GLOBAL').all():  # pyright: ignore[reportUnknownMemberType]
+                assert compdatl_attribute is not None
+                compdat = compdatl_attribute
             else:
-                logger.warning('Well {}: can not get blocks from COMPDATL data.'.format(segment.name))
+                if logger is not None:
+                    logger.warning('Well {}: can not get blocks from COMPDATL data.'.format(segment.name))
                 return self
 
-            segment.blocks = get_wellblocks_compdat(segment)
-            if isinstance(self.field.grid, OrthogonalGrid):
-                h_well = np.stack([(0, 0, self.field.grid.dz[i[0], i[1], i[2]])
-                                   for i in segment.blocks])
+            segment.blocks = get_wellblocks_compdat(compdat, segment.welspecs)
+            blocks = cast(npt.NDArray[np.int_], segment.blocks)
+            if isinstance(grid, OrthogonalGrid):
+                h_well: npt.NDArray[np.float_] | npt.NDArray[np.int_] = (
+                        np.stack([(0, 0, grid.dz[i[0], i[1], i[2]])  # pyright: ignore[reportCallIssue, reportArgumentType, reportUnknownMemberType, reportOptionalSubscript, reportIndexIssue]
+                                   for i in blocks]))
             else:
-                h_well = np.full(segment.blocks.shape, np.NaN)
+                h_well = np.full(blocks.shape, np.NaN)
             segment.blocks_info = pd.DataFrame(h_well, columns=['Hx', 'Hy', 'Hz'])
 
         else:
