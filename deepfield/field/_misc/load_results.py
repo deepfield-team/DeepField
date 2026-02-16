@@ -43,12 +43,12 @@ def load_results(_data: resdp.DataType,
     wgnames = cast(NDArray[np.str_], smspec_data[i].value)
     wgnames = np.char.strip(wgnames[indices_to_keep])
 
-    data: list[NDArray[np.float_]] = []
+    data: list[NDArray[float]] = []
     while True:
         i = unsmry_data.find('PARAMS')
         if i is None:
             break
-        data.append(cast(NDArray[np.float_], unsmry_data[i].value[indices_to_keep]))
+        data.append(cast(NDArray[float], unsmry_data[i].value[indices_to_keep]))
         if i+1 < len(unsmry_data):
             unsmry_data.seek(i+1)
         else:

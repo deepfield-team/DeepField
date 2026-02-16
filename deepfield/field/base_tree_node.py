@@ -43,7 +43,7 @@ class NodeAttributeViewDict(NodeAttributeViewBase[dict[str, pd.DataFrame]]):
 
 
 class BaseTreeNode(BaseComponent, NodeMixin):
-    """Well's node.
+    """Tree's node.
 
     Parameters
     ----------
@@ -73,13 +73,6 @@ class BaseTreeNode(BaseComponent, NodeMixin):
     @property
     def root_component(self) -> BaseComponent | None:
         return None
-
-    def copy(self):
-        """Returns a deepcopy. Cached properties are not copied."""
-        copy = super().copy()
-        copy._name = self._name #pylint: disable=protected-access
-        copy._ntype = self._ntype #pylint: disable=protected-access
-        return copy
 
     @property
     def is_group(self):

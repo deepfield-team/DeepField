@@ -56,6 +56,7 @@ class WellScheduleAttribute(Attribute[T]):
                          binary_process,
                          sequential)
         self._dated: bool=dated
+
     @override
     def _load_value(self,
                     data: resdp.DataType,
@@ -153,45 +154,6 @@ class Wells(BaseTree):
         """List of main branches names."""
         return [node.name for node in self if node.is_main_branch]
 
-    @property
-    def event_dates(self):
-        """List of dates with any event in main branches."""
-        return self._collect_dates('EVENTS')
-
-    @property
-    def result_dates(self):
-        """List of dates with any result in main branches."""
-        return self._collect_dates('RESULTS')
-
-    @property
-    def history_dates(self):
-        """List of dates with any history in main branches."""
-        return self._collect_dates('HISTORY')
-
-    def _collect_dates(self, attr):
-        """List of common dates given in the attribute of main branches."""
-        agg = [getattr(node, attr).DATE for node in self if node and attr in node]
-        if not agg:
-            return pd.to_datetime([])
-        dates = sorted(pd.concat(agg).unique())
-        return pd.to_datetime(dates)
-
-    @property
-    def total_rates(self):
-        """Total rates over all wells."""
-        return self.root.total_rates
-
-    @property
-    def cum_rates(self):
-        """Cumulative rates over all wells."""
-        return self.root.cum_rates
-
-    def _get_fmt_loader(self, fmt):
-        """Get loader for given file format."""
-        if fmt == 'RSM':
-            return self._load_rsm
-        return super()._get_fmt_loader(fmt)
-
     def update(self, data, mode='w', **kwargs):
         """Update tree nodes with new wellsdata. If node does not exists,
         it will be attached to root.
@@ -253,68 +215,6 @@ class Wells(BaseTree):
                 if isinstance(att, pd.DataFrame) and 'DATE' in att.columns:
                     att = att.sort_values(by='DATE').reset_index(drop=True)
                     setattr(node, k, att)
-        return self
-
-    def drop_incomplete(self, logger=None, required=None):
-        """Drop nodes with missing 'WELLTRACK' and 'PERF'.
-
-        Parameters
-        ----------
-        logger : logger, optional
-            Logger for messages.
-        required: list
-            Required attributes for wells. Default ['WELLTRACK', 'PERF'].
-
-        Returns
-        -------
-        wells : Wells
-            Wells without incomplete nodes.
-        """
-        if required is None:
-            required = ['WELLTRACK', 'PERF']
-        for node in self:
-            if not (('COMPDAT' in node.attributes) or ('COMPDATL' in node.attributes)):
-                if not set(required).issubset(node.attributes):
-                    self.drop(node.name)
-                    if logger is not None:
-                        logger.info('Node %s is incomplete and is removed.' % node.name)
-        return self
-
-    def drop_outside(self, keep_ancestors=False, logger=None):
-        """Drop nodes with missing 'BLOCKS' (outside of the grid).
-
-        Parameters
-        ----------
-        keep_ancestors : bool
-            Keep all ancestors segments for a segment with nonempty 'BLOCKS'. Setting True might result
-            in segments with empty 'BLOCKS', e.g. if a parent has no 'BLOCKS' but a child has nonempty
-            'BLOCKS'. If False, welltracks may be discontinued. Default False.
-        logger : logger, optional
-            Logger for messages.
-
-        Returns
-        -------
-        wells : Wells
-            Wells without outside nodes.
-        """
-        def logger_print(node):
-            if logger is not None:
-                logger.info(f'Segment {node.name} is outside the grid and is removed.')
-
-        for node in PostOrderIter(self.root):
-            if node.is_root and node.name == 'FIELD':
-                continue
-            if (node.ntype == 'well') and (len(node.blocks) == 0):
-                if node.is_leaf:
-                    node.parent = None
-                    logger_print(node)
-                else:
-                    if keep_ancestors:
-                        continue
-                    p = node.parent
-                    p.children = list(p.children) + list(node.children)
-                    node.parent = None
-                    logger_print(node)
         return self
 
     @apply_to_each_segment
@@ -407,12 +307,6 @@ class Wells(BaseTree):
             segment.blocks_info['Enter_point'] = list(points[:, 0])
             segment.blocks_info['Leave_point'] = list(points[:, 1])
 
-        # segment.blocks_info = segment.blocks_info.assign(
-        #     PERF_RATIO=None if len(segment.blocks_info) == 0 else 0,
-        #     RAD=None if len(segment.blocks_info) == 0 else DEFAULTS['RAD'],
-        #     SKIN=None if len(segment.blocks_info) == 0 else DEFAULTS['SKIN'],
-        #     MULT=None if len(segment.blocks_info) == 0 else DEFAULTS['MULT'],
-        # )
         return self
 
     def show_wells(self, figsize=None, c='r', **kwargs):
@@ -495,64 +389,3 @@ class Wells(BaseTree):
                 data['I'] = data['I'].replace(INT_NAN, welspecs['I'].values[0])
                 data['J'] = data['J'].replace(INT_NAN, welspecs['J'].values[0])
         return self
-
-    def _load_rsm(self, *args, **kwargs):
-        """Load RSM well data from file."""
-        return load_rsm(self, *args, **kwargs)
-
-    def _dump_ascii(self, path, attr, mode='w', **kwargs):
-        """Save data into text file.
-
-        Parameters
-        ----------
-        path : str
-            Path to output file.
-        attr : str
-            Attribute to dump into file.
-        mode : str
-            Mode to open file.
-            'w': write, a new file is created (an existing file with
-            the same name would be deleted).
-            'a': append, an existing file is opened for reading and writing,
-            and if the file does not exist it is created.
-            Default to 'w'.
-
-        Returns
-        -------
-        comp : Wells
-            Wells unchanged.
-        """
-        with open(path, mode) as f:
-            if attr.upper() == 'WELLTRACK':
-                for node in self:
-                    if 'WELLTRACK' in node and 'COMPDAT' not in node and 'COMPDATL' not in node:
-                        f.write('WELLTRACK\t{}\n'.format(node.name))
-                        for line in node.welltrack:
-                            f.write(' '.join(line.astype(str)) + '\n')
-            elif attr.upper() == 'PERF':
-                write_perf(f, self, DEFAULTS)
-            elif attr.upper() == 'GROUP':
-                for node in PreOrderIter(self.root):
-                    if node.is_root:
-                        continue
-                    if node.ntype == 'group' and not node.is_leaf and not node.children[0].ntype == 'group':
-                        f.write(' '.join(['GROUP', node.name] +
-                                         [child.name for child in node.children]) + '\n')
-                f.write('/\n')
-            elif attr.upper() == 'GRUPTREE':
-                f.write('GRUPTREE\n')
-                for node in PreOrderIter(self.root):
-                    if node.is_root:
-                        continue
-                    if node.ntype == 'group' and node.parent.ntype == 'group':
-                        p_name = '1*' if node.parent.is_root else node.parent.name
-                        f.write(' '.join([node.name, p_name, '/\n']))
-                f.write('/\n')
-            elif attr.upper() == 'EVENTS':
-                write_events(f, self, VALUE_CONTROL)
-            elif attr.upper() == 'SCHEDULE':
-                write_schedule(f, self, **kwargs)
-            elif attr.upper() == 'WELSPECS':
-                write_welspecs(f, self)
-            else:
-                raise NotImplementedError("Dump for {} is not implemented.".format(attr.upper()))

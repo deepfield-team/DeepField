@@ -608,7 +608,7 @@ def specify_grid(grid: Grid):
     """
     if not isinstance(grid, (CornerPointGrid, OrthogonalGrid)):
         if (grid.dx_ is not None) and (grid.dy_ is not None) and (grid.dz_ is not None):
-            grid = OrthogonalGrid(dump=grid.dump_dict())
+            grid = OrthogonalGrid(data=grid.data_dict())
         else:
-            grid = CornerPointGrid(dump=grid.dump_dict())
+            grid = CornerPointGrid(data=grid.data_dict())
     return grid

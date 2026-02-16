@@ -28,7 +28,6 @@ class SpatialComponent(BaseComponent):
     """Base component for spatial-type attributes."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.set_state(spatial=None)
 
     def sample_crops(self, attr, shape, size=1):
         """Sample random crops of fixed shape.
@@ -111,14 +110,6 @@ class SpatialComponent(BaseComponent):
         """Spatial transformations."""
         _ = self, attr
         raise NotImplementedError()
-
-    def _make_data_dump(self, attr, fmt=None, **kwargs):
-        _ = fmt, kwargs
-        return self.ravel(attr=attr, order='F')
-
-    # def load(self, path_or_buffer, **kwargs):
-        # super().load(path_or_buffer, **kwargs)
-        # self.to_spatial()
 
     def copy_attribute(self, attr1, attr2, box=None):
         """Copy attribute values to another atribute.

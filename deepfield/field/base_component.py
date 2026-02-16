@@ -4,9 +4,9 @@ from copy import deepcopy
 import warnings
 from weakref import ref
 import numpy as np
-import h5py
 from .decorators import apply_to_each_input
 import logging
+
 import resdp
 import resdp.binary
 
@@ -20,39 +20,19 @@ AttributeLoaderType: TypeAlias = Callable[
     [resdp.DataType, resdp.binary.BinaryData, logging.Logger], resdp.ValueType]
 
 
-MAX_STRLEN = 40
-
-class State:
-    """State holder."""
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-        if 'binary_attributes' not in kwargs:
-            self.binary_attributes = []
-
-    def as_dict(self):
-        """Dict of states."""
-        return self.__dict__
-
-    def __repr__(self):
-        return repr(self.__dict__)
-
-
 class BaseComponent:
-    """Base class for components of geological model."""
-
+    """Base class for reservoir model components."""
     _attributes_to_load: list[Attribute[Self]] = []
-    def __init__(self, dump=None, field=None):
+    def __init__(self, data=None, field=None):
         self._field = None
-        if dump is not None:
-            self._attributes = dump['attributes']
-            self.field = dump['field']
-            self._state = dump['state']
+        if data is not None:
+            self._attributes = data['attributes']
+            self.field = data['field']
             for att in self._attributes:
                 att.component = self
             return None
         self._attributes: list[Attribute] = []
-        self._state = State()
+        self._binary_attributes = []
         self.field = field
 
     @property
@@ -65,7 +45,7 @@ class BaseComponent:
         """Set field to which component belongs."""
         if isinstance(field, ref) or field is None:
             self._field = field
-            return self
+            return
         self._field = ref(field)
         return self
 
@@ -73,6 +53,11 @@ class BaseComponent:
     def attributes(self) -> Sequence[str]:
         """Array of attributes."""
         return tuple((attr.name for attr in self._attributes if attr.value is not None))
+
+    @property
+    def binary_attributes(self) -> Sequence[str]:
+        """Array of attributes."""
+        return self._binary_attributes
 
     @property
     def empty(self):
@@ -91,50 +76,14 @@ class BaseComponent:
         """Returns pairs of attribute's names and data."""
         return ((attr.name, attr.value) for attr in self._attributes)
 
-    @property
-    def state(self):
-        """Get state."""
-        return self._state
-
-    @property
-    def class_name(self):
-        """Name of the component."""
-        return self.__class__.__name__
-
-    def empty_like(self):
-        """Get an empty component with the same state and the structure of embedded BaseComponents (if any)."""
-        empty = BaseComponent(class_name=self.class_name)
-        for comp, value in self.items():
-            if issubclass(value.__class__, BaseComponent):
-                empty[comp] = value.empty_like()
-        empty.set_state(**self.state.as_dict())
-        return empty
-
-    def set_state(self, **kwargs):
-        """State setter."""
-        for k, v in kwargs.items():
-            setattr(self.state, k, v)
-        return self
-
-    def del_state(self, *args):
-        """State remover."""
-        for k in args:
-            if not hasattr(self.state, k):
-                raise AttributeError('{} has no state {}'.format(self.class_name, k))
-            delattr(self.state, k)
-        return self
-
     def __getattr__(self, key):
         for attr in self._attributes:
             if key.upper() == attr.name:
                 return attr.value
-        raise AttributeError("{} has no attribute {}".format(self.class_name, key))
-    def dump_dict(self) -> DumpDict[Self]:
-        return {
-            'attributes': deepcopy(self._attributes),
-            'field': self.field,
-            'state': deepcopy(self.state)
-        }
+        raise AttributeError(f"{self.__class__.__name__} has no attribute {key}")
+    
+    def data_dict(self) -> DataDict[Self]:
+        return {'attributes': deepcopy(self._attributes), 'field': self.field}
 
     def __getitem__(self, key):
         return getattr(self, key)
@@ -146,7 +95,7 @@ class BaseComponent:
             if key.upper() == att.name:
                 att.value = value
                 return None
-        raise AttributeError(f'{self.class_name} has no attribute {key}.')
+        raise AttributeError(f'{self.__class__.__name__} has no attribute {key}.')
 
     def __setitem__(self, key, value):
         return setattr(self, key, value)
@@ -156,26 +105,13 @@ class BaseComponent:
         if key.upper() in self.attributes:
             self._attributes = [att for att in self._attributes if att.name != key.upper()]
         else:
-            raise AttributeError(f"{self.class_name} has no attribute {key}")
+            raise AttributeError(f"{self.__class__.__name__} has no attribute {key}")
 
     def __delitem__(self, key: str):
         return delattr(self, key)
 
     def __contains__(self, x: str):
         return x.upper() in self.attributes
-
-    def copy(self):
-        """Returns a deepcopy of attributes. Cached properties are not copied."""
-        copy = self.__class__(
-           dump=self.dump_dict()
-        )
-        return copy
-
-    def drop(self, attr):
-        """Drop an attribute."""
-        raise NotImplementedError()
-        del self._data[attr.upper()]
-        return self
 
     @apply_to_each_input
     def apply(self, func, attr, *args, inplace=False, **kwargs):
@@ -254,12 +190,6 @@ class BaseComponent:
         """
         return self.reshape(attr=attr, newshape=(-1, ), order=order, inplace=False)
 
-    def _get_fmt_loader(self, fmt):
-        """Get loader for given file format."""
-        if fmt.upper() == 'HDF5':
-            return self._load_hdf5
-        raise NotImplementedError('File format .%s is not supported.' % fmt.upper())
-
     def add_attribute(self, att: Attribute[Self]):
         att.component = self
         self._attributes.append(att)
@@ -271,144 +201,6 @@ class BaseComponent:
             attr.component = self
             attr.load(data, binary_data, logger)
 
-    def _load_hdf5(self, path, attrs=None, raise_errors=False, logger=None, subset=None, **kwargs):
-        """Load data from a HDF5 file.
-
-        Parameters
-        ----------
-        path : str
-            Path to file to load data from.
-        attrs : str or array of str, optional
-            Array of dataset's names to get from file. If not given, loads all.
-        raise_errors : bool
-            Errors behaviour. If True missing attributes in HDF5 file will raise an error.
-            If False, missing attributes in HDF5 file will be ignored.
-        logger : logger
-            Event logger.
-        subset : slice or list of indices
-            Subset of items to load. Be default all items are loaded.
-
-        Returns
-        -------
-        comp : BaseComponent
-            BaseComponent with loaded attributes.
-        """
-        raise NotImplementedError()
-        _ = kwargs
-        if isinstance(attrs, str):
-            attrs = [attrs]
-        if subset is None:
-            subset = ()
-        with h5py.File(path, 'r') as f:
-            self._load_hdf5_group(f, attrs=attrs, raise_errors=raise_errors, logger=logger, subset=subset)
-        return self
-
-    def _load_hdf5_group(self, grp, attrs, raise_errors, logger, subset):
-        """Load data from a group from an hdf5 file. Recursively runs itself when finds a nested group.
-
-        Parameters
-        ----------
-        grp : h5py.Group
-            A group to load self from.
-        attrs : array-like of str
-            Array of dataset's names to get from file. If not given, loads all.
-        raise_errors : bool
-            Errors behaviour. If True missing attributes in HDF5 file will raise an error.
-            If False, missing attributes in HDF5 file will be ignored.
-        logger : logger
-            Event logger.
-        subset : slice or list of indices
-            Subset of items to load. Be default all items are loaded.
-        """
-        raise NotImplementedError()
-        grp = grp[self.class_name]
-        state = {k : v for k, v in grp.attrs.items() if k!='DATES'}
-        for k, v in state.items():
-            try:
-                state[k] = v if not np.isnan(v) else None
-            except TypeError:
-                state[k] = v
-        self.set_state(**state)
-        for att in grp.keys() if attrs is None else attrs:
-            try:
-                val = grp[att.upper()]
-            except KeyError as err:
-                if raise_errors:
-                    raise err
-                if logger is not None:
-                    logger.info('Attribute %s not found in %s.' % (att.upper(), grp.name))
-                continue
-            if isinstance(val, h5py.Group):
-                val = BaseComponent(class_name=att)
-                val._load_hdf5_group(grp, attrs, raise_errors, logger, subset)  # pylint: disable=protected-access
-            else:
-                val = val[subset]
-                if val.size == 1:
-                    val = val[0]
-            setattr(self, att, val)
-
-    def _make_data_dump(self, attr, fmt=None, **kwargs):
-        """Prepare data for dump."""
-        _ = fmt, kwargs
-        return getattr(self, attr)
-
-    def _dump_hdf5(self, path, mode='a', compression=None, state=False, **kwargs):
-        """Save data into HDF5 file.
-
-        Parameters
-        ----------
-        path : str
-            Path to output file.
-        mode : str
-            Mode to open file.
-            'w': write, a new file is created (an existing file with
-            the same name would be deleted).
-            'a': append, an existing file is opened for reading and writing,
-            and if the file does not exist it is created.
-            Default to 'a'.
-        compression : str
-            Compression method. If None, no compression is applied.
-        state : bool
-            Dump compoments's state.
-        kwargs : misc
-            Kwargs for `_make_data_dump`.
-
-        Returns
-        -------
-        comp : BaseComponent
-            BaseComponent unchanged.
-        """
-        with h5py.File(path, mode) as f:
-            self._dump_hdf5_group(f, compression=compression, state=state, **kwargs)
-        return self
-
-    def _dump_hdf5_group(self, grp, compression, state, **kwargs):
-        """Save BaseComponent into a group of HDF5 file. If BaseComponent have nested BaseComponents as attributes,
-        saves them to nested groups recursively.
-
-        Parameters
-        ----------
-        grp : h5py.Group
-            Path to output file.
-        compression : str
-            Compression method. If None, no compression is applied.
-        state : bool
-            Dump compoments's state.
-        kwargs : misc
-            Kwargs for `_make_data_dump`.
-        """
-        grp = grp[self.class_name] if self.class_name in grp else grp.create_group(self.class_name)
-        if state:
-            for k, v in self.state.as_dict().items():
-                grp.attrs[k] = v if v is not None else np.nan
-        for att, value in self.items():
-            if issubclass(value.__class__, BaseComponent):
-                value._dump_hdf5_group(grp, compression=compression, state=state, **kwargs)  # pylint: disable=protected-access
-            else:
-                data = self._make_data_dump(att, fmt='hdf5', **kwargs)
-                if att in grp:
-                    del grp[att]
-                grp.create_dataset(att, data=data, compression=compression)
 
 T = TypeVar('T', bound=BaseComponent)
 
@@ -487,7 +279,7 @@ class Attribute(Generic[T]):
             val = None
         if val is not None:
             self._value = val
-            self.component.state.binary_attributes.append(self.name)
+            self.component.binary_attributes.append(self.name)
             return self
         if self._custom_ascii_loader is not None:
             self._value = self._custom_ascii_loader(data)
@@ -545,12 +337,13 @@ class Attribute(Generic[T]):
     @value.setter
     def value(self, value):
         self._value = value
+
     @property
     def component(self) -> T | None:
         if self._component is None:
             return None
-        else:
-            return self._component()
+        return self._component()
+
     @component.setter
     def component(self, value: T | None):
         if value is None:
@@ -558,8 +351,6 @@ class Attribute(Generic[T]):
             return None
         self._component = ref(value)
 
-class DumpDict(TypedDict, Generic[T]):
+class DataDict(TypedDict, Generic[T]):
     attributes: Sequence[Attribute[T]]
-    state: State
     field: Field | None
-
