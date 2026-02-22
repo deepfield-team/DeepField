@@ -5,7 +5,7 @@ from resdp.binary import BinaryData
 import pandas as pd
 
 
-def load_welltrack(data: DataType, binary_data: BinaryData, logger: logging.Logger) -> pd.DataFrame:
+def load_welltrack(data: DataType, binary_data: BinaryData, logger: logging.Logger) -> pd.DataFrame | None:
     _ = binary_data, logger
     section = 'SCHEDULE'
     res: list[pd.DataFrame] = []
