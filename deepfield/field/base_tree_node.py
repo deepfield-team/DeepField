@@ -1,7 +1,6 @@
 """TreeSegment components."""
 from __future__ import annotations
-from abc import ABC, abstractmethod
-from typing import Generic, TypeVar, override
+from typing import TypeVar
 from anytree import NodeMixin
 import pandas as pd
 
@@ -9,10 +8,11 @@ from .base_component import BaseComponent
 
 T = TypeVar('T', dict[str, pd.DataFrame], pd.DataFrame)
 
-class NodeAttributeViewBase(ABC, Generic[T]):
+class NodeAttributeView():
     def __init__(self, att: str, key: str | None) -> None:
         self._att: str = att
         self._key: str | None = key
+
     def __get__(self, obj: BaseTreeNode, objtype=None) -> pd.DataFrame | None:
         _ = objtype
         name = obj.name
@@ -20,26 +20,15 @@ class NodeAttributeViewBase(ABC, Generic[T]):
         component = obj.root_component
         comp_att = getattr(component, self._att)
         if comp_att is None:
-            return comp_att
+            return None
         return self._get(comp_att, name)
 
-    @abstractmethod
-    def _get(self, att: T, name: str) -> pd.DataFrame:
-        pass
-
-    def __set__(self, obj: BaseTreeNode, value: pd.DataFrame):
-        raise NotImplementedError()
-
-class NodeAttributeViewDataFrame(NodeAttributeViewBase[pd.DataFrame]):
-    @override
     def _get(self, att: pd.DataFrame, name: str):
         assert self._key is not None
         return att[att[self._key] == name]
 
-class NodeAttributeViewDict(NodeAttributeViewBase[dict[str, pd.DataFrame]]):
-    @override
-    def _get(self, att: dict[str, pd.DataFrame], name: str):
-        return att[name]
+    def __set__(self, obj: BaseTreeNode, value: pd.DataFrame) -> None:
+        raise NotImplementedError()
 
 
 class BaseTreeNode(BaseComponent, NodeMixin):
