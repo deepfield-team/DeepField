@@ -1,7 +1,6 @@
-from collections.abc import Sequence
 import logging
-from tkinter import W
-from typing import Iterable, cast
+from collections.abc import Iterable
+from typing import cast
 import warnings
 from numpy.typing import NDArray
 import numpy as np
@@ -11,9 +10,11 @@ import pandas as pd
 
 
 def load_results(_data: resdp.DataType,
-                 binary_data: resdp.binary.BinaryData,
+                 binary_data: resdp.binary.BinaryData | None,
                  logger: logging.Logger) -> pd.DataFrame | None:
     _ = _data, logger
+    if binary_data is None:
+        return None
     if 'SMSPEC' not in binary_data:
         return None
     if 'UNSMRY' not in binary_data:
@@ -43,7 +44,7 @@ def load_results(_data: resdp.DataType,
     wgnames = cast(NDArray[np.str_], smspec_data[i].value)
     wgnames = np.char.strip(wgnames[indices_to_keep])
 
-    data: list[NDArray[float]] = []
+    data: list[NDArray[np.floating]] = []
     while True:
         i = unsmry_data.find('PARAMS')
         if i is None:
@@ -59,7 +60,7 @@ def load_results(_data: resdp.DataType,
     well_names = np.unique(wgnames[wgnames!=name_placeholder])
 
     df = pd.DataFrame()
-    dates = pd.to_datetime(  # pyright: ignore[reportUnknownMemberType]
+    dates = pd.to_datetime(
         {
             'year': np.repeat(data_array[:, keywords[indices_to_keep]=='YEAR'], well_names.size),
             'month': np.repeat(data_array[:, keywords[indices_to_keep]=='MONTH'], well_names.size),
