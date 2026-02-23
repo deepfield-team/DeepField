@@ -5,10 +5,10 @@ from resdp.binary import BinaryData
 import pandas as pd
 
 
-def load_welltrack(data: DataType, binary_data: BinaryData, logger: logging.Logger) -> dict[str, pd.DataFrame] | None:
+def load_welltrack(data: DataType, binary_data: BinaryData, logger: logging.Logger) -> pd.DataFrame | None:
     _ = binary_data, logger
     section = 'SCHEDULE'
-    res: dict[str, pd.DataFrame] = {}
+    res: list[pd.DataFrame] = []
     if not section in data:
         return None
     for key, val in data[section]:
@@ -17,9 +17,7 @@ def load_welltrack(data: DataType, binary_data: BinaryData, logger: logging.Logg
             assert len(val) == 2
             assert isinstance(val[0], str)
             assert isinstance(val[1], pd.DataFrame)
-            res[cast(str, val[0])] = cast(pd.DataFrame, val[1])
-            
+            res.append(cast(pd.DataFrame, val[1]).assign(WELL=cast(str, val[0])))
     if not res:
         return None
-    return res
-
+    return pd.concat(res)

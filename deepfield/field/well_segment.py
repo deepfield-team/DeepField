@@ -5,7 +5,7 @@ from numpy.typing import NDArray
 import numpy as np
 import pandas as pd
 
-from .base_tree_node import BaseTreeNode, NodeAttributeViewDataFrame, NodeAttributeViewDict
+from .base_tree_node import BaseTreeNode, NodeAttributeView
 
 
 class WellSegment(BaseTreeNode):
@@ -30,16 +30,16 @@ class WellSegment(BaseTreeNode):
         Node's full name from root.
     """
 
-    wconprod: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('WCONPROD', 'WELL')
-    wconinj: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('WCONINJ', 'WELL')
-    welspecs: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('WELSPECS', 'WELL')
-    welspecsl: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('WELSPECSL', 'WELL')
-    compdat: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('COMPDAT', 'WELL')
-    compdatl: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('COMPDATL', 'WELL')
-    compdatmd: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('COMPDATMD', 'WELL')
-    wefac: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('WEFAC', 'WELL')
-    results: NodeAttributeViewDataFrame = NodeAttributeViewDataFrame('RESULTS', 'WELL')
-    welltrack: NodeAttributeViewDict = NodeAttributeViewDict('WELLTRACK', None)
+    wconprod: NodeAttributeView = NodeAttributeView('WCONPROD', 'WELL')
+    wconinj: NodeAttributeView = NodeAttributeView('WCONINJ', 'WELL')
+    welspecs: NodeAttributeView = NodeAttributeView('WELSPECS', 'WELL')
+    welspecsl: NodeAttributeView = NodeAttributeView('WELSPECSL', 'WELL')
+    compdat: NodeAttributeView = NodeAttributeView('COMPDAT', 'WELL')
+    compdatl: NodeAttributeView = NodeAttributeView('COMPDATL', 'WELL')
+    compdatmd: NodeAttributeView = NodeAttributeView('COMPDATMD', 'WELL')
+    wefac: NodeAttributeView = NodeAttributeView('WEFAC', 'WELL')
+    results: NodeAttributeView = NodeAttributeView('RESULTS', 'WELL')
+    welltrack: NodeAttributeView = NodeAttributeView('WELLTRACK', 'WELL')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
