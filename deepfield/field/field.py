@@ -6,7 +6,6 @@ import pathlib
 import sys
 
 import numpy as np
-import pandas as pd
 import pyvista as pv
 import vtk
 from vtk.util.numpy_support import numpy_to_vtk # pylint: disable=no-name-in-module, import-error
@@ -14,19 +13,17 @@ from vtk.util.numpy_support import numpy_to_vtk # pylint: disable=no-name-in-mod
 import resdp
 import resdp.binary
 
-from .faults import Faults
-from .aquifer import Aquifers
+# from .faults import Faults
 from .grids import Grid, specify_grid
 from .rock import Rock
 from .states import States
 from .tables import Tables
 from .wells import Wells
-from .parse_utils import preprocess_path
 
 
 ACTOR = None
 
-COMPONENTS = [Grid, Rock, States, Wells, Tables, Aquifers, Faults]
+COMPONENTS = [Grid, Rock, States, Wells, Tables]#, Faults]
 COMPONENT_NAMES = [x.__name__.lower() for x in COMPONENTS]
 
 DEFAULT_HUNITS = {'METRIC': ['sm3/day', 'ksm3/day', 'ksm3', 'Msm3', 'bara'],
@@ -51,33 +48,20 @@ META_KW = ['ARRA', 'ARRAY', 'DATES', 'TITLE', 'START', 'METRIC', 'FIELD',
 class Field:
     """Reservoir model.
 
-    Contains components of the reservoir model and preprocessing tools.
+    Contains reservoir model data and data processing tools.
 
     Parameters
     ----------
     path : str, optional
         Path to source model files.
-    config : dict, optional
-        Components and attributes to load.
     logfile : str, optional
         Path to log file.
-    encoding : str, optional
-        Files encoding. Set 'auto' to infer encoding from initial file block.
-        Sometimes it might help to specify block size, e.g. 'auto:3000' will
-        read first 3000 bytes to infer encoding.
     loglevel : str, optional
         Log level to be printed while loading. Default to 'INFO'.
     """
     def __init__(self, path: pathlib.Path | None=None, logfile=None, loglevel='INFO'):
-        self.path: pathlib.Path | None = preprocess_path(path) if path is not None else None
+        self.path: pathlib.Path | None = pathlib.Path(path) if path is not None else None
         self._components = {}
-        self._meta = {'UNITS': 'METRIC',
-                      'START': pd.to_datetime(''),
-                      'DATES': pd.to_datetime([]),
-                      'FLUIDS': [],
-                      'SUMMARY': [],
-                      'MODEL_TYPE': '',
-                      'HUNITS': DEFAULT_HUNITS['METRIC']}
 
         self._data = resdp.DataType
         self._binary_data = resdp.DataType | None
@@ -98,8 +82,8 @@ class Field:
     def __getattr__(self, attr):
         try:
             return self._components[attr]
-        except:
-            raise AttributeError(attr)
+        except KeyError:
+            raise AttributeError(attr) #pylint: disable=raise-missing-from
 
     def __setattr__(self, attr, value):
         if attr in COMPONENT_NAMES:
@@ -109,17 +93,7 @@ class Field:
         return self
 
     @property
-    def meta(self):
-        """"Model meta data."""
-        return self._meta
-
-    @property
-    def start(self):
-        """Model start time in a datetime format."""
-        return pd.to_datetime(self.meta['START'])
-
-    @property
-    def basename(self):
+    def name(self):
         """Model filename without extention."""
         fname = os.path.basename(self.path)
         return os.path.splitext(fname)[0]
@@ -134,7 +108,7 @@ class Field:
         return self._components.items()
 
     def load(self, include_binary=True):
-        """Load model components.
+        """Load reservoir model data.
 
         Parameters
         ----------
@@ -157,6 +131,13 @@ class Field:
         else:
             raise NotImplementedError('Format {} is not supported.'.format(fmt))
 
+        self.grid = specify_grid(self.grid) #pylint: disable=attribute-defined-outside-init
+        self.grid.create_vtk_grid()
+
+        self.wells.build_tree()
+        self.wells.fill_nan_coordinates()
+        self.wells.add_welltrack(overwrite=False)
+
         self._collect_loaded_attrs()
 
         return self
@@ -169,9 +150,6 @@ class Field:
 
         for _, comp in self.items():
             comp.load(self._data, self._binary_data, self._logger)
-
-        self.grid = specify_grid(self.grid)
-        self.grid.create_vtk_grid()
 
         return self
 
@@ -187,7 +165,6 @@ class Field:
         self._logger.info("=========================")
         return out
 
-    # pylint: disable=protected-access
     def get_vtk_dataset(self):
         """Create vtk dataset with data from `rock` and `states` components.
         Grid is represented in unstructured form.
@@ -233,15 +210,16 @@ class Field:
             if 'WELLTRACK' not in well:
                 continue
 
-            first_point = well.welltrack[0, :3].copy()
+            welltrack = well.welltrack[['X', 'Y', 'Z']].values
+            first_point = welltrack[0, :3].copy()
             first_point[-1] = z_min
 
-            vertices.append(well.welltrack[:, :3])
-            ids = np.arange(size, size+len(well.welltrack))
+            vertices.append(welltrack[:, :3])
+            ids = np.arange(size, size+len(welltrack))
             faces.append(np.stack([0*ids[:-1]+2, ids[:-1], ids[1:]]).T)
-            size += len(well.welltrack)
+            size += len(welltrack)
 
-            vertices_connectors.extend([first_point, well.welltrack[0, :3]])
+            vertices_connectors.extend([first_point, welltrack[0, :3]])
             labeled_points[well.name] = first_point
 
         vertices_connectors = np.array(vertices_connectors)
@@ -491,7 +469,7 @@ class Field:
         name = attribute if timestamp is None else '%s_%d' % (attribute, timestamp)
         if attribute is not None and name not in grid.cell_data:
             actnum = self.grid.actnum.ravel()
-            data = self.rock[attribute] if timestamp is None else self.states[attribute][timestamp]
+            data = getattr(self.rock, attribute) if timestamp is None else getattr(self.states, attribute)[timestamp]
             data = data.ravel()[actnum]
             grid.cell_data[name] = data
         grid.set_active_scalars(name)

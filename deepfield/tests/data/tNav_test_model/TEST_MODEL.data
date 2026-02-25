@@ -30,18 +30,18 @@ LONGNAMES 1 /
 GRID
 
 INCLUDE
-'INCLUDE\zcorn.inc' /
+'INCLUDE/zcorn.inc' /
 /
 
 INCLUDE
-'INCLUDE\coord.inc' /
+'INCLUDE/coord.inc' /
 /
 
 INCLUDE
-'INCLUDE\actnum.inc' /
+'INCLUDE/actnum.inc' /
 
 INCLUDE
-'INCLUDE\poro.inc'
+'INCLUDE/poro.inc'
 
 
 
@@ -56,7 +56,7 @@ PROPS
 SOLUTION
 
 INCLUDE
-'INCLUDE\pressure.inc'
+'INCLUDE/pressure.inc'
 
 
 
@@ -88,15 +88,8 @@ RATE 1 MONTH WELL EXAC END FIEL GROU CRAT LRAT /
 FREQ 0 0 1
 /
 
+SCHEDULE
+
 -------------------------------welltracks------------------------------------
-TFIL
-'INCLUDE\welltrack.inc' /
---------------------------------events---------------------------------------
-INCLUDE
-'INCLUDE\perf.inc' /
 
-INCLUDE
-'INCLUDE\events.inc' /
-
-INCLUDE
-'INCLUDE\group.inc' /
+'INCLUDE/welltrack.inc' /

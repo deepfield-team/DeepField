@@ -7,30 +7,26 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import matplotlib.pyplot as plt
-from anytree import PreOrderIter, PostOrderIter
+from ipywidgets import interact
+import ipywidgets as widgets
+
 import resdp
 import resdp.binary
 
-from ._misc.load_welltrack import load_welltrack
-
-from ._misc.load_results import load_results
-
-from ._misc.update_wells import update_wells
-
-from .base_component import Attribute, T
-
-from .parse_utils.ascii import INT_NAN
-from .well_segment import WellSegment
 from .base_tree import BaseTree
-from .rates import show_rates, show_blocks_dynamics
+from .well_segment import WellSegment
+from .base_component import Attribute, T
 from .grids import Grid, OrthogonalGrid
-from .getting_wellblocks import get_wellblocks_vtk, get_wellblocks_compdat
-from .wells_dump_utils import write_perf, write_events
-from .wells_load_utils import (load_rsm,
-                               DEFAULTS, VALUE_CONTROL)
-from .decorators import apply_to_each_segment
+
+from .utils.load_welltrack import load_welltrack
+from .utils.load_results import load_results
+from .utils.grid_raycasting import get_wellblocks_vtk, get_wellblocks_compdat
+from .utils.decorators import apply_to_each_node
+
+INT_NAN = -99999999
 
 class WellScheduleAttribute(Attribute[T]):
+    """Well schedule attribute."""
     def __init__(self,
                  name: str | None = None,
                  kw: str | None = None,
@@ -83,181 +79,93 @@ class WellScheduleAttribute(Attribute[T]):
             self._value = pd.concat(res)
         return self
 
+SIMPLE_SCHEDULE = ['WELSPECS', 'WELSPECL']
+DATED_SCHEDULE = ['WCONPROD', 'WCONINJE', 'COMPDAT', 'COMPDATL', 'COMPDATMD', 'WEFAC']
+
 class Wells(BaseTree):
-    """Wells component.
+    """Wells component."""
+    _attributes_to_load: list[Attribute[Self]] = (
+        [WellScheduleAttribute(name=attr, kw=attr, dated=False) for attr in SIMPLE_SCHEDULE] +
+        [WellScheduleAttribute(name=attr, kw=attr, dated=True) for attr in DATED_SCHEDULE] +
+        [Attribute(name='WELLTRACK', custom_loader=load_welltrack),
+         Attribute(name='RESULTS', custom_loader=load_results)])
 
-    Contains wells and groups in a single tree structure, wells attributes
-    and preprocessing actions.
+    def __init__(self, **kwargs):
+        root = WellSegment(name='FIELD', is_group=True)
+        super().__init__(root=root, **kwargs)
 
-    Parameters
-    ----------
-    node : WellSegment, optional
-        Root node for well's tree.
-    """
-    _attributes_to_load: list[Attribute[Self]] = [
-        WellScheduleAttribute(
-            name='WELSPECS',
-            kw='WELSPECS',
-            dated=False,
-            postprocess=update_wells
-        ),
-        WellScheduleAttribute(
-            name='WELSPECSL',
-            kw='WELSPECSL',
-            dated=False,
-            postprocess=update_wells
-        ),
-        WellScheduleAttribute(
-            name='WCONPROD',
-            kw='WCONPROD',
-            dated=True
-        ),
-        WellScheduleAttribute(
-            name='WCONINJE',
-            kw='WCONINJE',
-            dated=True
-        ),
-        WellScheduleAttribute(
-            name='COMPDAT',
-            kw='COMPDAT',
-            dated=True
-        ),
-        WellScheduleAttribute(
-            name='COMPDATL',
-            kw='COMPDATL',
-            dated=True
-        ),
-        WellScheduleAttribute(
-            name='COMPDATMD',
-            kw='COMPDATMD',
-            dated=True
-        ),
-        WellScheduleAttribute(
-            name='WEFAC',
-            kw='WEFAC'
-        ),
-        Attribute(
-            name='WELLTRACK',
-            custom_loader=load_welltrack
-        ),
-        Attribute(
-            name='RESULTS',
-            custom_loader=load_results
-        )
-    ]
+    def build_tree(self):
+        """Build tree from component's data."""
+        if 'WELSPECS' in self:
+            welspecs = self.welspecs
+        elif 'WELSPECL' in self:
+            welspecs = self.welspecl
+        else:
+            return self
 
-    def __init__(self, node=None, **kwargs):
-        super().__init__(node=node, nodeclass=WellSegment, **kwargs)
+        groups = {}
+        for name in welspecs.GROUP.unique():
+            groups[name] = WellSegment(parent=self.root, name=name, is_group=True)
 
-    @property
-    def main_branches(self):
-        """List of main branches names."""
-        return [node.name for node in self if node.is_main_branch]
+        for _, row in welspecs.iterrows():
+            WellSegment(parent=groups[row.GROUP], name=row.WELL, key='WELL')
 
-    def update(self, data, mode='w', **kwargs):
-        """Update tree nodes with new wellsdata. If node does not exists,
-        it will be attached to root.
-
-        Parameters
-        ----------
-        data : dict
-            Keys are well names, values are dicts with well attributes.
-        mode : str, optional
-            If 'w', write new data. If 'a', try to append new data. Default to 'w'.
-        kwargs : misc
-            Any additional named arguments to append.
-
-        Returns
-        -------
-        out : Wells
-            Wells with updated attributes.
-        """
-        def _get_parent(name, data):
-            if ':' in name:
-                return self[':'.join(name.split(':')[:-1])]
-            if 'WELSPECS' in data:
-                groupname = data['WELSPECS']['GROUP'][0]
-                try:
-                    return self[groupname]
-                except KeyError:
-                    return WellSegment(parent=self.root, name=groupname, ntype='group', field=self.field)
-            return self.root
-
-        for name in sorted(data):
-            wdata = data[name]
-            name = name.strip(' \t\'"')
-            try:
-                node = self[name]
-            except KeyError:
-                parent = _get_parent(name, wdata)
-                node = self._nodeclass(parent=parent, name=name, ntype='well', field=self.field)
-
-            if 'WELSPECS' in wdata:
-                parent = _get_parent(name, wdata)
-                node.parent = parent
-
-            for k, v in wdata.items():
-                if mode not in ('w', 'a'):
-                    raise ValueError("Unknown mode {}. Expected 'w' (write) or 'a' (append)".format(mode))
-                if k not in node.attributes:
-                    node.add_attribute(
-                        Attribute(k)
-                    )
-                if mode == 'w' or getattr(node, k) is None:
-                    setattr(node, k, v)
-                elif mode == 'a':
-                    if k in node.attributes:
-                        att = getattr(node, k)
-                        setattr(node, k, pd.concat([att, v], **kwargs))
-                    else:
-                        setattr(node, k, v)
-                att = getattr(node, k)
-                if isinstance(att, pd.DataFrame) and 'DATE' in att.columns:
-                    att = att.sort_values(by='DATE').reset_index(drop=True)
-                    setattr(node, k, att)
         return self
 
-    @apply_to_each_segment
-    def add_welltrack(self, segment):
-        """Reconstruct welltrack from COMPDAT table.
+    def add_welltrack(self, overwrite=True):
+        """Cnstruct welltrack from COMPDAT table.
 
         To connect the end point of the current segment with the start point of the next segment
         we find a set of segments with nearest start point and take a segment with the lowest depth.
         Works fine for simple trajectories only.
         """
-        if ('WELLTRACK' in segment) or ('COMPDAT' not in segment and 'COMPDATL' not in segment):
+        if self.welltrack is not None and not overwrite: #pylint: disable=access-member-before-definition
+            return self
+        dfs = []
+        self._get_welltrack(dfs)
+        self.welltrack = pd.concat(dfs) if dfs else pd.DataFrame(columns=['X', 'Y', 'Z', 'MD']) #pylint: disable=attribute-defined-outside-init
+        return self
+
+    @apply_to_each_node
+    def _get_welltrack(self, segment, dfs):
+        """Construct welltrack from COMPDAT table."""
+        if 'COMPDAT' not in segment and 'COMPDATL' not in segment:
             return self
         grid = self.field.grid
         if 'COMPDAT' in segment:
-            df = segment.COMPDAT[['I', 'J', 'K1', 'K2']].drop_duplicates().sort_values(['K1', 'K2'])
+            df = segment.COMPDAT[['IW', 'JW', 'K1', 'K2']].drop_duplicates().sort_values(['K1', 'K2'])
         else:
             if (segment.COMPDATL['LGR']!='GLOBAL').any():
                 raise ValueError('LGRs other than `Global` are not supported.')
-            df = segment.COMPDATL[['I', 'J', 'K1', 'K2']].drop_duplicates().sort_values(['K1', 'K2'])
+            df = segment.COMPDATL[['IW', 'JW', 'K1', 'K2']].drop_duplicates().sort_values(['K1', 'K2'])
 
-        i0, j0 = segment.WELSPECS[['I', 'J']].values[0]
+        i0, j0 = segment.WELSPECS[['IW', 'JW']].values[0]
         i0 = i0 if i0 is not None else 0
         j0 = j0 if j0 is not None else 0
         root = np.array([i0, j0, 0])
         track = []
         for _ in range(len(df)):
-            dist = np.linalg.norm(df[['I', 'J', 'K1']] - root, axis=1)
+            dist = np.linalg.norm(df[['IW', 'JW', 'K1']] - root, axis=1)
             row = df.iloc[[dist.argmin()]]
-            xyz = grid.get_xyz([int(row.iloc[0]['I'])-1,
-                                int(row.iloc[0]['J'])-1,
+            xyz = grid.get_xyz([int(row.iloc[0]['IW'])-1,
+                                int(row.iloc[0]['JW'])-1,
                                 int(row.iloc[0]['K1'])-1])
             track.append(xyz[:, :4].mean(axis=-2).ravel())
-            xyz = grid.get_xyz([int(row.iloc[0]['I'])-1,
-                                int(row.iloc[0]['J'])-1,
+            xyz = grid.get_xyz([int(row.iloc[0]['IW'])-1,
+                                int(row.iloc[0]['JW'])-1,
                                 int(row.iloc[0]['K2'])-1])
             track.append(xyz[:, 4:].mean(axis=-2).ravel())
-            root = row[['I', 'J', 'K2']].values.astype(float).ravel()
+            root = row[['IW', 'JW', 'K2']].values.astype(float).ravel()
             df = df.drop(row.index)
         track = pd.DataFrame(track).drop_duplicates().values
-        segment.WELLTRACK = np.concatenate([track, np.full((len(track), 1), np.nan)], axis=1)
+        welltrack = np.concatenate([track, np.full((len(track), 1), np.nan)], axis=1)
+        df = pd.DataFrame(welltrack, columns=['X', 'Y', 'Z', 'MD'])
+        df['WELL'] = segment.name
+        df = df[['WELL', 'X', 'Y', 'Z', 'MD']]
+        dfs.append(df)
         return self
 
-    @apply_to_each_segment
+    @apply_to_each_node
     def get_blocks(self, segment: WellSegment, logger: logging.Logger | None=None):
         """Calculate grid blocks for the tree of wells.
 
@@ -278,7 +186,7 @@ class Wells(BaseTree):
         if (compdat_attribute is not None) or (compdatl_attribute is not None):
             if compdat_attribute is not None:
                 compdat = compdat_attribute
-            elif (cast(pd.DataFrame, compdatl_attribute)['LGR']=='GLOBAL').all():  # pyright: ignore[reportUnknownMemberType]
+            elif (cast(pd.DataFrame, compdatl_attribute)['LGR']=='GLOBAL').all():
                 assert compdatl_attribute is not None
                 compdat = compdatl_attribute
             else:
@@ -290,8 +198,7 @@ class Wells(BaseTree):
             blocks = cast(npt.NDArray[np.int_], segment.blocks)
             if isinstance(grid, OrthogonalGrid):
                 h_well: npt.NDArray[np.float_] | npt.NDArray[np.int_] = (
-                        np.stack([(0, 0, grid.dz[i[0], i[1], i[2]])  # pyright: ignore[reportCallIssue, reportArgumentType, reportUnknownMemberType, reportOptionalSubscript, reportIndexIssue]
-                                   for i in blocks]))
+                        np.stack([(0, 0, grid.dz[i[0], i[1], i[2]]) for i in blocks]))
             else:
                 h_well = np.full(blocks.shape, np.NaN)
             segment.blocks_info = pd.DataFrame(h_well, columns=['Hx', 'Hy', 'Hz'])
@@ -324,68 +231,62 @@ class Wells(BaseTree):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111, projection='3d')
         for segment in self:
-            arr = segment.welltrack
+            arr = segment.welltrack[['X', 'Y', 'Z']].values
             ax.plot(arr[:, 0], arr[:, 1], arr[:, 2], c=c, **kwargs)
             ax.text(*arr[0, :3], s=segment.name)
 
         ax.invert_zaxis()
         ax.view_init(azim=60, elev=30)
 
-    def show_rates(self, timesteps=None, wellnames=None, wells2=None, labels=None, figsize=(16, 6)):
-        """Plot total or cumulative liquid and gas rates for a chosen node including branches.
+    def show_rates(self, figsize=(16, 6)):
+        """Plot production rates for a single well.
 
         Parameters
         ----------
-        timesteps : list of Timestamps
-            Dates at which rates were calculated.
-        wellnames : array-like
-            List of wells to show.
-        figsize : tuple
-            Figsize for two axes plots.
-        wells2 : Wells
-            Target model to compare with.
-        """
-        timesteps = self.result_dates if timesteps is None else timesteps
-        wellnames = [node.name for node in PreOrderIter(self.root)]
-        return show_rates(self, timesteps=timesteps, wellnames=wellnames, wells2=wells2,
-                          labels=labels, figsize=figsize)
-
-    def show_blocks_dynamics(self, timesteps=None, wellnames=None, figsize=(16, 6)):
-        """Plot liquid or gas rates and pvt props for a chosen block of
-        a chosen well segment on two separate axes.
-
-        Parameters
-        ----------
-        timesteps : list of Timestamps
-            Dates at which rates were calculated.
-        wellnames : array-like
-            List of wells to plot.
         figsize : tuple
             Figsize for two axes plots.
         """
-        timesteps = self.result_dates if timesteps is None else timesteps
-        wellnames = self.names if wellnames is None else wellnames
-        return show_blocks_dynamics(self, timesteps=timesteps, wellnames=wellnames, figsize=figsize)
+        rates = [x for x in self.results.columns if x not in ['DATE', 'WELL']]
+        n = len(self.results['DATE'].unique())
 
-    @apply_to_each_segment
-    def fill_na(self, segment, attr):
-        """
-        Fill nan values in wells segment attribute.
+        def update(wellname, rate, cumulative, start_step, end_step):
+            rates = self[wellname].results.set_index('DATE')
 
-        Parameters
-        ----------
-        attr: str
-            Attribute name.
+            _, ax = plt.subplots(1, 1, figsize=figsize)
+            title = 'Cumulative ' + rate if cumulative else rate
+            ax.set_title('{} - {}'.format(wellname, title))
+            ax.set_ylabel('Cumulative Rate' if cumulative else 'Rate')
+            ax.set_xlabel('Date')
 
-        Returns
-        -------
-        comp : Wells
-            Wells with fixed attribute.
-        """
-        if attr in segment.attributes:
-            data = getattr(segment, attr)
-            welspecs = segment.welspecs
-            if set(('I', 'J')).issubset(set(data.columns)):
-                data['I'] = data['I'].replace(INT_NAN, welspecs['I'].values[0])
-                data['J'] = data['J'].replace(INT_NAN, welspecs['J'].values[0])
+            data = rates[rate].cumsum() if cumulative else rates[rate]
+
+            data.iloc[start_step:end_step].plot(ax=ax, lw=2)
+
+        interact(update,
+                 wellname=widgets.Dropdown(options=self.names),
+                 rate=widgets.Dropdown(options=rates, value=rates[0]),
+                 cumulative=widgets.Checkbox(value=False, description='Cumulative'),
+                 start_step=widgets.IntSlider(min=0, max=n, step=1, value=0),
+                 end_step=widgets.IntSlider(min=0, max=n, step=1, value=n))
+        plt.show()
+
+    def fill_nan_coordinates(self):
+        """Fill nan IW and JW coordinates using WELSPECS/WELSPECL."""
+        if 'WELSPECS' in self:
+            welspecs = self.welspecs
+        elif 'WELSPECL' in self:
+            welspecs = self.welspecl
+        else:
+            return self
+
+        for attr, df in self.items():
+            if attr.upper() in ['WELSPECS', 'WELSPECL']:
+                continue
+            if set(('IW', 'JW')).issubset(set(df.columns)):
+                df.loc[df.IW==INT_NAN, 'IW'] = None
+                df.loc[df.JW==INT_NAN, 'JW'] = None
+                df = df.set_index('WELL')
+                df = df.fillna(welspecs.set_index('WELL')).reset_index()
+                df[['IW', 'JW']] = df[['IW', 'JW']].astype(int)
+                setattr(self, attr, df)
         return self

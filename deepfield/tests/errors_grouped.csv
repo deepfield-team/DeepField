@@ -1,0 +1,55 @@
+Error,Path
+Cannot set parent. <deepfield.field.well_segment.WellSegment object at 0x7fd5ef75a9d0> cannot be parent of itself.,/home/m.petrosyants/tNavigatorTutorials_results/MD3.3_HowToCreateGeothermalModel/GEOTHERM_TNAV/GEOTHERM_TNAV.data
+"Expecting 1 elements at maximum, but found 2. (<deepfield.field.well_segment.WellSegment object at 0x7fd5ee5583d0>, <deepfield.field.well_segment.WellSegment object at 0x7fd5ee81c790>)",/home/m.petrosyants/tNavigatorTutorials_results/SIM7.3_HowToUseDualPoro/Single/SINGLE.DATA
+Got multiple partitions for non-sequentional attribute GRIDHEAD. Try to set sequential=True.,/home/m.petrosyants/tNavigatorTutorials_results/MD6.1_HowToCreateFracsViaLGR/SIM_EXPORT_MODEL/shale_gas_2wells.data
+Keyword RESTART is not supported.,/home/m.petrosyants/tNavigatorTutorials_results/SIM1.5_HowToUseRestart/SingleReservoirWells/M90_RESTART.DATA
+Keyword RESTART is not supported.,/home/m.petrosyants/tNavigatorTutorials_results/AHM1.4_HowToFindTheBestWellTrajectory/Trajectory_2segments/TRAJ_FORECAST_ECL.DATA
+Keyword RESTARTDATE is not supported.,/home/m.petrosyants/tNavigatorTutorials_results/SIM7.2_HowToUseLGR/3_LGR_RESTART/model_LGR_RESTART.data
+LGRs other than `Global` are not supported.,/home/m.petrosyants/tNavigatorTutorials_results/SIM6.6_HowToModelSingleWellChemicalTracerTest/MODEL_SWCTT/MODEL_SWCTT.DATA
+"Unknown datetime string format, unable to parse:  01 'FEV' 2009 , at position 0",/home/m.petrosyants/tNavigatorTutorials_results/SIM4.5_HowToMakeFiltersViaArithmetic/ModelRFTtest/RFTTEST.DATA
+WellSegment has no attribute welspecs,/home/m.petrosyants/tNavigatorTutorials_results/MD6.3_HowToUseFractureSpecsTables/SIM_EXPORT_MODEL/OIL_3WELLS/OIL_3WELLS.data
+"cannot reshape array of size 1000000 into shape (2,100,2,50,2,50)",/home/m.petrosyants/tNavigatorTutorials_results/SIM7.5_HowToUseShaleGas(CBM)/shaleGasLGR/SHALEGASLGR.DATA
+"cannot reshape array of size 225 into shape (15,15,15)",/home/m.petrosyants/tNavigatorTutorials_results/SIM7.2_HowToUseLGR/2_LGRONOFF/LGR_ON&OFF.data
+"cannot reshape array of size 240 into shape (20,12,15)",/home/m.petrosyants/tNavigatorTutorials_results/SIM1.9_HowToUseThermal/Test5_SAGD_e3/TEST5_SAGD.DATA
+"cannot reshape array of size 324 into shape (9,36,40)",/home/m.petrosyants/tNavigatorTutorials_results/SIM5.3_HowToUseVLWFlashCO2/CO2SOL/model_insoluble_CO2.data
+"cannot reshape array of size 324 into shape (9,36,40)",/home/m.petrosyants/tNavigatorTutorials_results/SIM5.3_HowToUseVLWFlashCO2/CO2SOL/model_CO2_vlw_flash.data
+"cannot reshape array of size 4104 into shape (19,18,24)",/home/m.petrosyants/tNavigatorTutorials_results/SIM7.3_HowToUseDualPoro/TaskUncertainty/DP100.DATA
+"cannot reshape array of size 4104 into shape (19,18,24)",/home/m.petrosyants/tNavigatorTutorials_results/SIM7.3_HowToUseDualPoro/TaskUncertainty/DP500.DATA
+"cannot reshape array of size 4104 into shape (19,18,24)",/home/m.petrosyants/tNavigatorTutorials_results/SIM7.3_HowToUseDualPoro/TaskUncertainty/DP5000.DATA
+"cannot reshape array of size 4104 into shape (19,18,24)",/home/m.petrosyants/tNavigatorTutorials_results/SIM7.3_HowToUseDualPoro/TaskUncertainty/DP1000.DATA
+"cannot reshape array of size 4104 into shape (19,18,24)",/home/m.petrosyants/tNavigatorTutorials_results/SIM7.3_HowToUseDualPoro/TaskUncertainty/DP50000.DATA
+"cannot reshape array of size 4104 into shape (19,18,24)",/home/m.petrosyants/tNavigatorTutorials_results/SIM7.3_HowToUseDualPoro/DP/DP.DATA
+"cannot reshape array of size 4104 into shape (19,18,24)",/home/m.petrosyants/tNavigatorTutorials_results/SIM7.3_HowToUseDualPoro/DPDP/DPDP.DATA
+"cannot reshape array of size 500 into shape (25,20,4)",/home/m.petrosyants/tNavigatorTutorials_results/SIM1.9_HowToUseThermal/Test13_simple_e3/TEST13A_SIMPLE.DATA
+"cannot reshape array of size 625 into shape (25,25,3)",/home/m.petrosyants/tNavigatorTutorials_results/SIM2.4_HowToUseSalts/demo_salt/DEMO_SALT.DATA
+"cannot reshape array of size 625 into shape (25,25,3)",/home/m.petrosyants/tNavigatorTutorials_results/SIM1.6_HowToSaveBinariesManageOutput/Demo_simple/DEMO_SIMPLE_TNAVRESULTS_CONN_RES.DATA
+"cannot reshape array of size 625 into shape (25,25,3)",/home/m.petrosyants/tNavigatorTutorials_results/SIM1.6_HowToSaveBinariesManageOutput/Demo_simple/DEMO_SIMPLE_RPTRSTT.DATA
+"cannot reshape array of size 625 into shape (25,25,3)",/home/m.petrosyants/tNavigatorTutorials_results/SIM1.6_HowToSaveBinariesManageOutput/Demo_simple/DEMO_SIMPLE_RPTRSTL.DATA
+"cannot reshape array of size 625 into shape (25,25,3)",/home/m.petrosyants/tNavigatorTutorials_results/SIM1.6_HowToSaveBinariesManageOutput/Demo_simple/DEMO_SIMPLE_RPTGRAPHL_RPTMAPL.DATA
+"cannot reshape array of size 625 into shape (25,25,3)",/home/m.petrosyants/tNavigatorTutorials_results/SIM1.6_HowToSaveBinariesManageOutput/Demo_simple/DEMO_SIMPLE_TNAVRESULTS.DATA
+"cannot reshape array of size 625 into shape (25,25,3)",/home/m.petrosyants/tNavigatorTutorials_results/SIM1.6_HowToSaveBinariesManageOutput/Demo_simple/DEMO_SIMPLE_RPTRST.DATA
+"cannot reshape array of size 625 into shape (25,25,3)",/home/m.petrosyants/tNavigatorTutorials_results/SIM1.6_HowToSaveBinariesManageOutput/Demo_simple/DEMO_SIMPLE_RPTGRAPHT_RPTMAPT.DATA
+"cannot reshape array of size 625 into shape (25,25,3)",/home/m.petrosyants/tNavigatorTutorials_results/SIM1.6_HowToSaveBinariesManageOutput/Demo_simple/DEMO_SIMPLE_RPTGRAPHD_RPTMAPD.DATA
+"cannot reshape array of size 625 into shape (25,25,3)",/home/m.petrosyants/tNavigatorTutorials_results/SIM1.6_HowToSaveBinariesManageOutput/Demo_simple/DEMO_SIMPLE_ALL.DATA
+"cannot reshape array of size 625 into shape (25,25,3)",/home/m.petrosyants/tNavigatorTutorials_results/SIM1.6_HowToSaveBinariesManageOutput/Demo_simple/DEMO_SIMPLE_RPTRSTD.DATA
+could not convert string to float: '',/home/m.petrosyants/tNavigatorTutorials_results/MD3.5_HowToCreateGeomechanicalModel/MODEL_EXPORT/MY_GEOMECH.data
+"setting an array element with a sequence. The requested array has an inhomogeneous shape after 1 dimensions. The detected shape was (2,) + inhomogeneous part.",/home/m.petrosyants/tNavigatorTutorials_results/AHM1.4_HowToFindTheBestWellTrajectory/Trajectory_2segments/TRAJ.DATA
+"setting an array element with a sequence. The requested array has an inhomogeneous shape after 1 dimensions. The detected shape was (2,) + inhomogeneous part.",/home/m.petrosyants/tNavigatorTutorials_results/SIM7.2_HowToUseLGR/3_LGR_RESTART/model_LGR.data
+"setting an array element with a sequence. The requested array has an inhomogeneous shape after 1 dimensions. The detected shape was (3,) + inhomogeneous part.",/home/m.petrosyants/tNavigatorTutorials_results/SIM7.2_HowToUseLGR/1_LGR_model/LGR_MODEL.DATA
+"shape mismatch: value array of shape (1,10470) could not be broadcast to indexing result of shape (1,10964)",/home/m.petrosyants/tNavigatorTutorials_results/SIM6.8_HowToUseUTCHEMPolymers/DATA/MODEL_UTCHEM.DATA
+"shape mismatch: value array of shape (1,10470) could not be broadcast to indexing result of shape (1,10964)",/home/m.petrosyants/tNavigatorTutorials_results/SIM6.8_HowToUseUTCHEMPolymers/DATA/MODEL_NOPOLY.DATA
+"shape mismatch: value array of shape (1,24209) could not be broadcast to indexing result of shape (1,24195)",/home/m.petrosyants/tNavigatorTutorials_results/SIM6.1_HowToUseBrightWaterPolymers/BrightWaterTest/TESTBW_NO.DATA
+"shape mismatch: value array of shape (1,24209) could not be broadcast to indexing result of shape (1,24195)",/home/m.petrosyants/tNavigatorTutorials_results/SIM6.1_HowToUseBrightWaterPolymers/BrightWaterTest/TESTBW.DATA
+"shape mismatch: value array of shape (1,24209) could not be broadcast to indexing result of shape (1,24195)",/home/m.petrosyants/tNavigatorTutorials_results/SIM6.3_HowToUsePolymersAndTemperature/BrightWaterTemperature/temperatureBW_NO.DATA
+"shape mismatch: value array of shape (1,24209) could not be broadcast to indexing result of shape (1,24195)",/home/m.petrosyants/tNavigatorTutorials_results/SIM6.3_HowToUsePolymersAndTemperature/BrightWaterTemperature/temperatureBW.DATA
+"shape mismatch: value array of shape (1,24965) could not be broadcast to indexing result of shape (1,25000)",/home/m.petrosyants/tNavigatorTutorials_results/MDAHM1.3_HowToFindTheBestWellTrajectory/BaseModel/BaseModel.data
+"shape mismatch: value array of shape (1,25167) could not be broadcast to indexing result of shape (1,32130)",/home/m.petrosyants/tNavigatorTutorials_results/SIM6.2_HowToUseTemperature/trening_no_porv_tempr/TEMPR.DATA
+"shape mismatch: value array of shape (1,40530) could not be broadcast to indexing result of shape (1,40909)",/home/m.petrosyants/tNavigatorTutorials_results/SIM1.1_HowToUsetNavigator/CompDEMO/COMP_DEMO.DATA
+"shape mismatch: value array of shape (1,43892) could not be broadcast to indexing result of shape (1,69175)",/home/m.petrosyants/tNavigatorTutorials_results/MD2.3_HowToFindTheBestPerforationInterval/FIND_PERF_TEST/FIND_PERF.data
+"shape mismatch: value array of shape (1,5158) could not be broadcast to indexing result of shape (1,5163)",/home/m.petrosyants/tNavigatorTutorials_results/RP1.1_HowToUseRPDesigner/Data_import/MODEL.DATA
+"shape mismatch: value array of shape (1,5158) could not be broadcast to indexing result of shape (1,5163)",/home/m.petrosyants/tNavigatorTutorials_results/MD2.4_HowToUpdateSchedule/Data_import/MODELUP.DATA
+"shape mismatch: value array of shape (1,81278) could not be broadcast to indexing result of shape (1,389290)",/home/m.petrosyants/tNavigatorTutorials_results/SIM4.2_HowToUseArithmetic/ArithmeticPERMX/ARITHMETIC_PERMX.DATA
+"shape mismatch: value array of shape (1,81278) could not be broadcast to indexing result of shape (1,389290)",/home/m.petrosyants/tNavigatorTutorials_results/SIM4.2_HowToUseArithmetic/ArithmeticModel/ARITHMETIC_MODEL.data
+"shape mismatch: value array of shape (16,12946) could not be broadcast to indexing result of shape (16,32130)",/home/m.petrosyants/tNavigatorTutorials_results/SIM6.2_HowToUseTemperature/trening_no_porv_temp/TEMP.DATA
+"shape mismatch: value array of shape (43,10470) could not be broadcast to indexing result of shape (43,10964)",/home/m.petrosyants/tNavigatorTutorials_results/SIM6.8_HowToUseUTCHEMPolymers/DATA/MODEL_SALT.DATA
+"ufunc 'multiply' did not contain a loop with signature matching types (dtype('float64'), dtype('<U14')) -> None",/home/m.petrosyants/tNavigatorTutorials_results/AHM1.3_HowToUseRFTinHistoryMatching/ModelRFTtest/RFTTEST.DATA

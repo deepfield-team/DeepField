@@ -1,16 +1,17 @@
 """BaseCompoment."""
 from __future__ import annotations
+from typing import TYPE_CHECKING, Callable, Generic, Self, TypeVar, Sequence, TypeAlias, TypedDict, override
 from copy import deepcopy
+import logging
 import warnings
 from weakref import ref
 import numpy as np
-from .decorators import apply_to_each_input
-import logging
 
 import resdp
 import resdp.binary
 
-from typing import TYPE_CHECKING, Callable, Generic, Self, TypeVar, Sequence, TypeAlias, TypedDict, override
+from .utils.decorators import apply_to_each_input
+
 
 if TYPE_CHECKING:
     from .field import Field
@@ -30,10 +31,10 @@ class BaseComponent:
             self.field = data['field']
             for att in self._attributes:
                 att.component = self
-            return None
-        self._attributes: list[Attribute] = []
-        self._binary_attributes = []
-        self.field = field
+        else:
+            self._attributes: list[Attribute] = []
+            self._binary_attributes = []
+            self.field = field
 
     @property
     def field(self) -> Field:
@@ -43,20 +44,17 @@ class BaseComponent:
     @field.setter
     def field(self, field):
         """Set field to which component belongs."""
-        if isinstance(field, ref) or field is None:
-            self._field = field
-            return
-        self._field = ref(field)
+        self._field = field if isinstance(field, ref) or field is None else ref(field)
         return self
 
     @property
     def attributes(self) -> Sequence[str]:
-        """Array of attributes."""
+        """Names of attributes."""
         return tuple((attr.name for attr in self._attributes if attr.value is not None))
 
     @property
     def binary_attributes(self) -> Sequence[str]:
-        """Array of attributes."""
+        """Names of binary attributes."""
         return self._binary_attributes
 
     @property
@@ -64,29 +62,19 @@ class BaseComponent:
         """True if component is empty else False."""
         return not self._attributes
 
-    def keys(self):
-        """Array of attributes."""
-        return (attr.name for attr in self._attributes)
-
-    def values(self):
-        """Returns a generator of attribute's data."""
-        return (attr.value for attr in self._attributes)
-
     def items(self):
         """Returns pairs of attribute's names and data."""
-        return ((attr.name, attr.value) for attr in self._attributes)
+        return ((attr.name, attr.value) for attr in self._attributes if attr.value is not None)
 
     def __getattr__(self, key):
         for attr in self._attributes:
             if key.upper() == attr.name:
                 return attr.value
         raise AttributeError(f"{self.__class__.__name__} has no attribute {key}")
-    
-    def data_dict(self) -> DataDict[Self]:
-        return {'attributes': deepcopy(self._attributes), 'field': self.field}
 
-    def __getitem__(self, key):
-        return getattr(self, key)
+    def data_dict(self) -> DataDict[Self]:
+        """Create dict from attributes."""
+        return {'attributes': deepcopy(self._attributes), 'field': self.field}
 
     def __setattr__(self, key, value):
         if (key[0] == '_') or (key in dir(self)):
@@ -97,18 +85,12 @@ class BaseComponent:
                 return None
         raise AttributeError(f'{self.__class__.__name__} has no attribute {key}.')
 
-    def __setitem__(self, key, value):
-        return setattr(self, key, value)
-
     @override
     def __delattr__(self, key: str):
         if key.upper() in self.attributes:
             self._attributes = [att for att in self._attributes if att.name != key.upper()]
         else:
             raise AttributeError(f"{self.__class__.__name__} has no attribute {key}")
-
-    def __delitem__(self, key: str):
-        return delattr(self, key)
 
     def __contains__(self, x: str):
         return x.upper() in self.attributes
@@ -140,60 +122,6 @@ class BaseComponent:
             return self
         return res
 
-    @apply_to_each_input
-    def reshape(self, attr, newshape, order='C', inplace=True):
-        """Reshape `numpy.ndarray` attributes.
-
-        Parameters
-        ----------
-        attr : str, array of str
-            Attribute to be reshaped.
-        newshape : tuple
-            New shape.
-        order : str
-            Numpy reshape order. Default to 'C'.
-        inplace : bool
-            If `True`, reshape is made inplace, return BaseComponent.
-            Else, return reshaped attribute.
-
-        Returns
-        -------
-        output : BaseComponent if inplace else reshaped attribute itself.
-        """
-        data = getattr(self, attr)
-        if data is None:
-            return None
-        if isinstance(data, np.ndarray) and data.ndim:
-            data = np.reshape(data, newshape, order=order)
-        elif hasattr(data, 'reshape'):
-            data = data.reshape(newshape, order=order)
-        else:
-            raise ValueError('Attribute {} can not be reshaped.'.format(attr))
-        if inplace:
-            setattr(self, attr, data)
-            return self
-        return data
-
-    def ravel(self, attr=None, order='F'):
-        """Ravel attributes where applicable assuming by default Fortran order.
-
-        Parameters
-        ----------
-        attr : str, array of str
-            Attribute to ravel.
-        order : str
-            Numpy reshape order. Default to 'F'.
-
-        Returns
-        -------
-        out : Raveled attribute.
-        """
-        return self.reshape(attr=attr, newshape=(-1, ), order=order, inplace=False)
-
-    def add_attribute(self, att: Attribute[Self]):
-        att.component = self
-        self._attributes.append(att)
-
     def load(self, data, binary_data, logger):
         """Load data."""
         self._attributes = deepcopy(self._attributes_to_load)
@@ -205,6 +133,7 @@ class BaseComponent:
 T = TypeVar('T', bound=BaseComponent)
 
 class Attribute(Generic[T]):
+    """Attribute."""
     def __init__(self,
                  name: str | None=None,
                  section: str | None=None,
@@ -293,6 +222,7 @@ class Attribute(Generic[T]):
         return self
 
     def _load_ecl_binary_value(self, binary_data: resdp.binary.BinaryData | None, logger):
+        _ = logger
         if binary_data is None:
             return None
         if self._binary_file is None:
@@ -324,6 +254,7 @@ class Attribute(Generic[T]):
         return val
 
     def load(self, data, binary_data, logger):
+        """Load data."""
         self._load_value(data, binary_data, logger)
         if self._postprocess is not None:
             assert self._component is not None
@@ -340,6 +271,7 @@ class Attribute(Generic[T]):
 
     @property
     def component(self) -> T | None:
+        """Reference component."""
         if self._component is None:
             return None
         return self._component()
@@ -348,9 +280,10 @@ class Attribute(Generic[T]):
     def component(self, value: T | None):
         if value is None:
             self._component = value
-            return None
-        self._component = ref(value)
+        else:
+            self._component = ref(value)
 
 class DataDict(TypedDict, Generic[T]):
+    """Data dict type."""
     attributes: Sequence[Attribute[T]]
     field: Field | None

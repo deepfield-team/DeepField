@@ -1,28 +1,23 @@
 """BaseTree components."""
-from copy import deepcopy
-from typing import Generic, Self, TypeVar
-import warnings
+from typing import Self
 from weakref import ref
-import numpy as np
-import pandas as pd
-import h5py
-from anytree import RenderTree, AsciiStyle, Resolver, PreOrderIter, PostOrderIter, find_by_attr
+from anytree import RenderTree, AsciiStyle, Resolver, PreOrderIter, find_by_attr
 
 from .base_tree_node import BaseTreeNode
 from .base_component import BaseComponent
 
 
 class IterableTree:
-    """Tree iterator."""
+    """Tree iterator excluding group nodes."""
     def __init__(self, root):
         self.iter = PreOrderIter(root)
 
     def __next__(self):
         x = next(self.iter)
-        if x.ntype == 'group':
+        if x.is_group:
             return next(self)
         return x
-    
+
     def __iter__(self) -> Self:
         return self
 
@@ -37,13 +32,11 @@ class BaseTree(BaseComponent):
         Root node for the tree.
     """
 
-    def __init__(self, node=None, nodeclass=None, **kwargs):
+    def __init__(self, root=None, **kwargs):
         super().__init__(**kwargs)
-        nodeclass = BaseTreeNode if nodeclass is None else nodeclass
-        self._root = nodeclass(name='FIELD', ntype="group",
-                               field=self._field) if node is None else node
+        self._root = root if root is not None else BaseTreeNode(name='root')
+        self._root.component = ref(self)
         self._resolver = Resolver()
-        self._nodeclass = nodeclass
 
     @property
     def root(self):
@@ -57,7 +50,7 @@ class BaseTree(BaseComponent):
 
     @property
     def names(self):
-        """List of well names."""
+        """List of node names excluding group nodes."""
         return [node.name for node in self]
 
     def __getitem__(self, key):
@@ -66,23 +59,18 @@ class BaseTree(BaseComponent):
             raise KeyError(key)
         return node
 
-    def __setitem__(self, key, value):
-        raise NotImplementedError()
-
-    def __delitem__(self, key):
-        self.drop(key)
-
     def __iter__(self):
         return IterableTree(self.root)
-
-    def __contains__(self, key):
-        return find_by_attr(self.root, key) is not None
 
     def glob(self, name):
         """Return instances at ``name`` supporting wildcards."""
         return self.resolver.glob(self.root, name)
 
-    def tree(self):
+    def render_tree(self):
         """Print tree structure."""
         print(RenderTree(self.root, style=AsciiStyle()).by_attr())
         return self
+
+    def build_tree(self):
+        """Build tree from component's data."""
+        raise NotImplementedError()

@@ -6,46 +6,30 @@ import matplotlib.pyplot as plt
 from .base_component import Attribute
 
 from .base_spatial import SpatialComponent
-from .decorators import apply_to_each_input
-from .plot_utils import show_slice_static, show_slice_interactive
-from .utils import get_single_path
-from .parse_utils import read_ecl_bin
+from .utils.decorators import apply_to_each_input
+from .utils.plot_utils import show_slice_static, show_slice_interactive
 
 
 _ROCK_ATTRIBUTES = ['PORO', 'PERMX', 'PERMY', 'PERMZ', 'KRW']
 
 
 class Rock(SpatialComponent):
-    """Rock component of geological model."""
+    """Rock component."""
     _attributes_to_load: list[Attribute] = [
-        Attribute(
-            att,
-            'GRID',
-            att,
-            binary_file='INIT',
-            binary_section=att
-        ) for att in _ROCK_ATTRIBUTES
-    ]
+        Attribute(attr, 'GRID', attr, binary_file='INIT', binary_section=attr) for attr in _ROCK_ATTRIBUTES]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.to_spatial()
+
     @override
     @apply_to_each_input
-    def _to_spatial(self, attr: str):
+    def to_spatial(self, attr, **kwargs):
         """Spatial order 'F' transformations."""
-        if getattr(self, attr) is None:
-            return None
-        dimens = self.field.grid.dimens.values.reshape(-1)
+        _ = kwargs
+        dimens = self.field.grid.dimens.values.ravel()
         self.pad_na(attr=attr)
         return self.reshape(attr=attr, newshape=dimens, order='F', inplace=True)
-
-    def _make_data_dump(self, attr, fmt=None, float_dtype=None, **kwargs):
-        """Prepare data for dump."""
-        if fmt.upper() != 'HDF5':
-            return super()._make_data_dump(attr, fmt=fmt, **kwargs)
-        data = self.ravel(attr=attr)
-        return data if float_dtype is None else data.astype(float_dtype)
 
     @apply_to_each_input
     def pad_na(self, attr, fill_na=0., inplace=True):
@@ -55,8 +39,6 @@ class Rock(SpatialComponent):
         ----------
         attr: str, array-like
             Attributes to be padded with non-active cells.
-        actnum: array-like of type bool
-            Vector representing a mask of active and non-active cells.
         fill_na: float
             Value to be used as filler.
         inplace: bool
@@ -69,9 +51,11 @@ class Rock(SpatialComponent):
         data = getattr(self, attr)
         if np.prod(data.shape) == np.prod(self.field.grid.dimens.values):
             return self if inplace else data
+
         actnum = self.field.grid.actnum
         if data.ndim > 1:
             raise ValueError('Data should be ravel for padding.')
+
         padded_data = np.full(shape=(actnum.size,), fill_value=fill_na, dtype=float)
         padded_data[actnum.ravel(order='F')] = data
         if inplace:
@@ -80,7 +64,7 @@ class Rock(SpatialComponent):
         return padded_data
 
     @apply_to_each_input
-    def strip_na(self, attr):
+    def strip_na(self, attr, **kwargs):
         """Remove non-active cells from the rock vector.
 
         Parameters
@@ -92,6 +76,7 @@ class Rock(SpatialComponent):
         -------
         output : stripped attribute.
         """
+        _ = kwargs
         data = self.ravel(attr)
         actnum = self.field.grid.actnum
         if data.size == np.sum(actnum):
@@ -99,8 +84,8 @@ class Rock(SpatialComponent):
         stripped_data = data[actnum.ravel(order='F')]
         return stripped_data
 
-    def show_histogram(self, attr, **kwargs):
-        """Show properties distribution.
+    def histogram(self, attr, **kwargs):
+        """Show distribution over active cells.
 
         Parameters
         ----------
@@ -116,9 +101,10 @@ class Rock(SpatialComponent):
         data = getattr(self, attr)
         try:
             actnum = self.field.grid.actnum
-            data = data * actnum
+            data = data[actnum]
         except AttributeError:
             pass
+
         plt.hist(data.ravel(), **kwargs)
         plt.show()
         return self
@@ -142,12 +128,6 @@ class Rock(SpatialComponent):
         kwargs : dict, optional
             Additional keyword arguments for plot.
         """
-        data = getattr(self, attr)
-        try:
-            actnum = self.field.grid.actnum
-            data = data * actnum
-        except AttributeError:
-            pass
         if np.all([i is None, j is None, k is None]):
             show_slice_interactive(self, attr, figsize=figsize, **kwargs)
         else:

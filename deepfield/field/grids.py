@@ -1,29 +1,29 @@
 """Classes and routines for handling model grids."""
+from typing import override
 import numpy as np
 import pandas as pd
 import vtk
 from vtkmodules.util.numpy_support import vtk_to_numpy
 
-from .base_component import Attribute
-from .decorators import cached_property, apply_to_each_input
 from .base_spatial import SpatialComponent
-from .grid_utils import (get_xyz, get_xyz_ijk, get_xyz_ijk_orth,
-                         process_grid, process_grid_orthogonal)
-from .utils import rolling_window, get_single_path
-from .parse_utils import read_ecl_bin
-from ._load_utils import binary_utils
+from .base_component import Attribute
+from .utils.decorators import cached_property, apply_to_each_input
+from .utils.grid_utils import (get_xyz, get_xyz_ijk, get_xyz_ijk_orth,
+                               process_grid, process_grid_orthogonal)
+from .utils.binary_utils import gridhead_to_dimens
 
+SIMPLE_ATTRIBUTES = ['DX', 'DY', 'DZ', 'DXV', 'DYV', 'DZV', 'TOPS', 'MAPAXES']
 
 class Grid(SpatialComponent):
     """Basic grid class."""
 
-    _attributes_to_load: list[Attribute] = [
+    _attributes_to_load: list[Attribute] = ([
         Attribute(
             kw='DIMENS',
             section='RUNSPEC',
             binary_file='EGRID',
             binary_section='GRIDHEAD',
-            binary_process=binary_utils.gridhead_to_dimens
+            binary_process=gridhead_to_dimens
         ),
         Attribute(
             kw='ACTNUM',
@@ -43,40 +43,9 @@ class Grid(SpatialComponent):
             section='GRID',
             binary_file='EGRID',
             binary_section='COORD'
-        ),
-        Attribute(
-            kw='DX',
-            section='GRID',
-        ),
-        Attribute(
-            kw='DY',
-            section='GRID',
-        ),
-        Attribute(
-            kw='DZ',
-            section='GRID',
-        ),
-        Attribute(
-            kw='DXV',
-            section='GRID',
-        ),
-        Attribute(
-            kw='DYV',
-            section='GRID',
-        ),
-        Attribute(
-            kw='DZV',
-            section='GRID',
-        ),
-        Attribute(
-            kw='TOPS',
-            section='GRID',
-        ),
-        Attribute(
-            kw='MAPAXES',
-            section='GRID'
-        )
-    ]
+        )] +
+       [Attribute(kw=attr, section='GRID') for attr in SIMPLE_ATTRIBUTES])
+
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -87,6 +56,7 @@ class Grid(SpatialComponent):
 
     @property
     def dx_(self):
+        """DX attribute."""
         if 'DX' in self.attributes:
             if self.dx is not None:
                 return self.dx
@@ -102,6 +72,7 @@ class Grid(SpatialComponent):
 
     @property
     def dy_(self):
+        """DY attribute."""
         if 'DY' in self.attributes:
             if self.dy is not None:
                 return self.dy
@@ -114,9 +85,10 @@ class Grid(SpatialComponent):
                 dy = np.tile(dy, (dimens[0], 1, dimens[2]))
                 return dy
         return None
-        
+
     @property
     def dz_(self):
+        """DZ attribute."""
         if 'DZ' in self.attributes:
             if self.dz is not None:
                 return self.dz
@@ -200,7 +172,6 @@ class Grid(SpatialComponent):
         """Raveled indices of active cells."""
         return self._actnum_ids
 
-
     def get_xyz(self, ijk=None):
         """Get x, y, z coordinates of cell vertices."""
         raise NotImplementedError()
@@ -210,8 +181,7 @@ class Grid(SpatialComponent):
         """Grid axes origin relative to the map coordinates."""
         if self.mapaxes is not None:
             return np.array([self.mapaxes['X0'].values[0], self.mapaxes['Y0'].values, self.tops.ravel()[0]])
-        else:
-            return np.array([0, 0, 0])
+        return np.array([0, 0, 0])
 
     @property
     def cell_centroids(self):
@@ -259,27 +229,8 @@ class Grid(SpatialComponent):
                        self.mapaxes[1] - self.mapaxes[3]])
         return ey / np.linalg.norm(ey)
 
-    def apply_minpv(self):
-        """Apply MINPV threshold to ACTNUM."""
-        if 'MINPV' in self.attributes:
-            minpv_value = self.minpv[0]
-        else:
-            return None
-        volumes = self.cell_volumes
-        poro = self.field.rock.poro.ravel()[self.actnum_ids]
-        if 'NTG' in self.field.rock:
-            ntg = self.field.rock.ntg.ravel()[self.actnum_ids]
-        else:
-            ntg = 1
-        mask = poro*volumes*ntg >= minpv_value
-        if not mask.all():
-            new_actnum = np.full(self.actnum.size, False)
-            new_actnum[self.actnum_ids[mask]] = True
-            self.actnum = new_actnum.reshape(self.dimens)
-            self.create_vtk_grid()
-
     @apply_to_each_input
-    def _to_spatial(self, attr, **kwargs):
+    def to_spatial(self, attr, **kwargs):
         """Spatial order 'F' transformations."""
         _ = kwargs
         data = getattr(self, attr)
@@ -306,8 +257,9 @@ class Grid(SpatialComponent):
             setattr(self, attr, data)
         return self
 
+    @override
     @apply_to_each_input
-    def _ravel(self, attr, **kwargs):
+    def ravel(self, attr, **kwargs):
         """Ravel order 'F' transformations."""
         _ = kwargs
         data = getattr(self, attr)
@@ -321,19 +273,6 @@ class Grid(SpatialComponent):
             data = np.moveaxis(data, (3, 0, 4, 1, 5, 2), range(6)).ravel(order='F')
         else:
             data = super()._ravel(attr=attr, order='F')
-        return data
-
-    def _make_data_dump(self, attr, fmt=None, float_dtype=None, **kwargs):
-        """Prepare data for dump."""
-        if fmt.upper() != 'HDF5':
-            return super()._make_data_dump(attr, fmt=fmt, **kwargs)
-        data = self.ravel(attr=attr)
-        if attr == 'ACTNUM':
-            return data.astype(bool)
-        if attr in ['ZCORN', 'COORD', 'DX', 'DY', 'DZ', 'TOPS', 'MAPAXES']:
-            return data if float_dtype is None else data.astype(float_dtype)
-        if attr == 'DIMENS':
-            return data.astype(int)
         return data
 
 
@@ -378,78 +317,6 @@ class OrthogonalGrid(Grid):
             grid = self.to_corner_point()
             return grid.get_points_and_coonectivity()
 
-    def upscale(self, factors=(2, 2, 2), actnum_upscale='vote'):
-        """Merge grid cells according to factors given.
-
-        Parameters
-        ----------
-        factors : tuple, int
-            Scale factors along each axis. If int, factors are the same for each axis.
-        actnum_upscale : str
-            Method to actnum upscaling. If 'vote', upscaled cell is active if majority
-            of finer cells are active. If 'any', upscaled cell is active if any
-            of finer cells is active. Default to 'vote'.
-
-        Returns
-        -------
-        grid : OrthogonalGrid
-            Merged grid.
-        """
-        factors = np.atleast_1d(factors)
-        if factors.size == 1:
-            factors = np.repeat(factors, 3)
-
-        dx = np.sum(rolling_window(self.dx, factors), axis=(-3, -2, -1)) / (factors[1] + factors[2])
-        dy = np.sum(rolling_window(self.dy, factors), axis=(-3, -2, -1)) / (factors[0] + factors[2])
-        dz = np.sum(rolling_window(self.dz, factors), axis=(-3, -2, -1)) / (factors[0] + factors[1])
-        tops = rolling_window(self.tops, factors)[..., 0].mean(axis=(-2, -1))
-
-        out = rolling_window(self.actnum, factors)
-        if actnum_upscale == 'vote':
-            actnum = np.mean(out, axis=(-3, -2, -1)) > 0.5
-        elif actnum_upscale == 'any':
-            actnum = np.sum(out, axis=(-3, -2, -1)) > 0
-        else:
-            raise ValueError('Unknown mode of actnum upscaling: {}.'
-                             .format(actnum_upscale))
-
-        grid = self.__class__(dimens=actnum.shape, dx=dx, dy=dy, dz=dz,
-                              actnum=actnum, tops=tops, mapaxes=self.mapaxes)
-
-        return grid
-
-    def downscale(self, factors=(2, 2, 2)):
-        """Split grid cells according to factors given.
-
-        Parameters
-        ----------
-        factors : tuple, int
-            Scale factors along each axis. If int, factors are the same for each axis.
-
-        Returns
-        -------
-        grid : OrthogonalGrid
-            Refined grid.
-        """
-        factors = np.atleast_1d(factors)
-        if factors.size == 1:
-            factors = np.repeat(factors, 3)
-        dimens = self.dimens * factors
-
-        dx = np.kron(self.dx/factors[0], np.ones(factors))
-        dy = np.kron(self.dy/factors[1], np.ones(factors))
-        dz = np.kron(self.dz/factors[2], np.ones(factors))
-        tops = np.kron(self.tops, np.ones(factors))
-        for i in range(1,factors[2]):
-            tops[:, :, i::factors[2]] += i*dz[:, :, :-i:factors[2]]
-
-        actnum = np.kron(self.actnum, np.ones(factors)).astype(bool)
-
-        grid = self.__class__(dimens=dimens, dx=dx, dy=dy, dz=dz,
-                              actnum=actnum, tops=tops, mapaxes=self.mapaxes)
-
-        return grid
-
     def to_corner_point(self):
         """Create corner point representation of the current grid.
 
@@ -485,9 +352,9 @@ class OrthogonalGrid(Grid):
         zcorn = zcorn.ravel()
 
         grid = CornerPointGrid(dump=self.dump_dict())
-        grid.zcorn = zcorn
-        grid.coord = coord
-        
+        grid.zcorn = zcorn #pylint: disable=attribute-defined-outside-init
+        grid.coord = coord #pylint: disable=attribute-defined-outside-init
+
         grid.create_vtk_grid()
         return grid
 
@@ -519,52 +386,6 @@ class CornerPointGrid(Grid):
     def get_points_and_coonectivity(self):
         """Get points and connectivity arrays."""
         return process_grid(self.zcorn, self.coord, self.actnum)
-
-    def upscale(self, factors=(2, 2, 2), actnum_upscale='vote'):
-        """Upscale grid according to factors given.
-
-        Parameters
-        ----------
-        factors : tuple, int
-            Scale factors along each axis. If int, factors are the same for each axis.
-        actnum_upscale : str
-            Method to actnum upscaling. If 'vote', upscaled cell is active if majority
-            of finer cells are active. If 'any', upscaled cell is active if any
-            of finer cells is active. Default to 'vote'.
-
-        Returns
-        -------
-        grid : CornerPointGrid
-            Upscaled grid.
-        """
-        factors = np.atleast_1d(factors)
-        if factors.size == 1:
-            factors = np.repeat(factors, 3)
-        coord = self.coord[::factors[0], ::factors[1]]
-        dimens = self.dimens // factors
-        d0, d1, d2 = dimens * factors
-        s0, s1, s2 = factors
-        zcorn = np.zeros(tuple(dimens) + (8,), dtype=self.zcorn.dtype)
-        zcorn[:, :, :, 0] = self.zcorn[:d0:s0, :d1:s1, :d2:s2, 0]
-        zcorn[:, :, :, 1] = self.zcorn[s0 - 1:d0:s0, :d1:s1, :d2:s2, 1]
-        zcorn[:, :, :, 2] = self.zcorn[:d0:s0, s1 - 1:d1:s1, :d2:s2, 2]
-        zcorn[:, :, :, 3] = self.zcorn[s0 - 1:d0:s0, s1 - 1:d1:s1, :d2:s2, 3]
-        zcorn[:, :, :, 4] = self.zcorn[:d0:s0, :d1:s1, s2 - 1:d2:s2, 4]
-        zcorn[:, :, :, 5] = self.zcorn[s0 - 1:d0:s0, :d1:s1, s2 - 1:d2:s2, 5]
-        zcorn[:, :, :, 6] = self.zcorn[:d0:s0, s1 - 1:d1:s1, s2 - 1:d2:s2, 6]
-        zcorn[:, :, :, 7] = self.zcorn[s0 - 1:d0:s0, s1 - 1:d1:s1, s2 - 1:d2:s2, 7]
-
-        out = rolling_window(self.actnum, factors)
-        if actnum_upscale == 'vote':
-            actnum = np.mean(out, axis=(-3, -2, -1)) > 0.5
-        elif actnum_upscale == 'any':
-            actnum = np.sum(out, axis=(-3, -2, -1)) > 0
-        else:
-            raise ValueError('Unknown mode of actnum upscaling: {}.'.format(actnum_upscale))
-
-        grid = self.__class__(coord=coord, dimens=dimens, zcorn=zcorn,
-                              mapaxes=self.mapaxes, actnum=actnum)
-        return grid
 
     def to_corner_point(self):
         """Returns itself."""
