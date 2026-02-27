@@ -233,6 +233,8 @@ class Attribute(Generic[T]):
         file_data = binary_data[self._binary_file]
         if self._binary_section is None:
             raise ValueError('`binary_file is specified but not `binary_section`.')
+        pos = file_data.tell()
+        file_data.seek(0)
         if self._sequential:
             val = []
             while True:
@@ -249,6 +251,7 @@ class Attribute(Generic[T]):
             if i is None:
                 return None
             val = file_data[i].value
+        file_data.seek(pos)
         if self._binary_process is not None:
             return self._binary_process(val)
         return val
