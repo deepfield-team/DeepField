@@ -8,8 +8,6 @@ from numba import njit
 import vtk
 from vtkmodules.util.numpy_support import vtk_to_numpy
 
-from ..well_segment import WellSegment
-
 @njit
 def point_in_box(point, bounding_box):
     """Check if point is inside the bounding box."""

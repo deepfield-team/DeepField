@@ -13,17 +13,17 @@ from vtk.util.numpy_support import numpy_to_vtk # pylint: disable=no-name-in-mod
 import resdp
 import resdp.binary
 
-# from .faults import Faults
 from .grids import Grid, specify_grid
 from .rock import Rock
 from .states import States
 from .tables import Tables
 from .wells import Wells
+from .faults import Faults
 
 
 ACTOR = None
 
-COMPONENTS = [Grid, Rock, States, Wells, Tables]#, Faults]
+COMPONENTS = [Grid, Rock, States, Wells, Tables, Faults]
 COMPONENT_NAMES = [x.__name__.lower() for x in COMPONENTS]
 
 DEFAULT_HUNITS = {'METRIC': ['sm3/day', 'ksm3/day', 'ksm3', 'Msm3', 'bara'],
@@ -142,6 +142,8 @@ class Field:
         self.wells.build_tree()
         self.wells.fill_nan_coordinates()
         self.wells.add_welltrack(overwrite=False)
+
+        self.faults.build_tree()
 
         self._collect_loaded_attrs()
 

@@ -14,9 +14,9 @@ import resdp
 import resdp.binary
 
 from .base_tree import BaseTree
-from .well_segment import WellSegment
+from .base_tree_node import BaseTreeNode
 from .base_component import Attribute, T
-from .grids import Grid, OrthogonalGrid
+from .grids import OrthogonalGrid
 
 from .utils.load_welltrack import load_welltrack
 from .utils.load_results import load_results
@@ -79,6 +79,11 @@ class WellScheduleAttribute(Attribute[T]):
             self._value = pd.concat(res)
         return self
 
+
+class WellsNode(BaseTreeNode):
+    """Well's node."""
+
+
 SIMPLE_SCHEDULE = ['WELSPECS', 'WELSPECL']
 DATED_SCHEDULE = ['WCONPROD', 'WCONINJE', 'COMPDAT', 'COMPDATL', 'COMPDATMD', 'WEFAC']
 
@@ -91,7 +96,7 @@ class Wells(BaseTree):
          Attribute(name='RESULTS', custom_loader=load_results)])
 
     def __init__(self, **kwargs):
-        root = WellSegment(name='FIELD', is_group=True)
+        root = WellsNode(name='FIELD', is_group=True)
         super().__init__(root=root, **kwargs)
 
     def build_tree(self):
@@ -107,11 +112,11 @@ class Wells(BaseTree):
         for name in welspecs.GROUP.unique():
             if name in [None, 'FIELD']:
                 continue
-            groups[name] = WellSegment(parent=self.root, name=name, is_group=True)
+            groups[name] = WellsNode(parent=self.root, name=name, is_group=True)
 
         for _, row in welspecs.iterrows():
             group = 'FIELD' if row.GROUP is None else row.GROUP
-            WellSegment(parent=groups[group], name=row.WELL, key='WELL')
+            WellsNode(parent=groups[group], name=row.WELL, key='WELL')
 
         return self
 
@@ -169,22 +174,12 @@ class Wells(BaseTree):
         return self
 
     @apply_to_each_node
-    def get_blocks(self, segment: WellSegment, logger: logging.Logger | None=None):
-        """Calculate grid blocks for the tree of wells.
-
-        Parameters
-        ----------
-        kwargs : misc
-            Any additional named arguments to append.
-
-        Returns
-        -------
-        comp : Wells
-            Wells component with calculated grid blocks and well in block projections.
-        """
-        grid = cast(Grid, self.field.grid)
+    def get_blocks(self, segment: WellsNode, logger: logging.Logger | None=None):
+        """Calculate grid blocks for the tree of wells."""
         compdatl_attribute = segment.compdatl
         compdat_attribute = segment.compdat
+
+        grid = self.field.grid
 
         if (compdat_attribute is not None) or (compdatl_attribute is not None):
             if compdat_attribute is not None:

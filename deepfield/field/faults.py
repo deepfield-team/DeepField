@@ -1,100 +1,52 @@
-"""faults components."""
+"""Faults components."""
 from itertools import product
 import numpy as np
-import pandas as pd
 
+from .base_component import Attribute
+from .base_tree_node import BaseTreeNode
 from .base_tree import BaseTree
-from .faults_load_utils import load_faults, load_multflt
-from .decorators import apply_to_each_node
+
+from .utils.decorators import apply_to_each_node
 
 FACES = {'X': [1, 3, 5, 7], 'Y': [2, 3, 6, 7], 'Z': [4, 5, 6, 7]}
 
+class FaultsNode(BaseTreeNode):
+    """Faults node."""
+
+FAULTS_ATTRIBUTES = ['FAULTS']
 
 class Faults(BaseTree):
-    """Faults component.
+    """Faults component."""
+    _attributes_to_load: list[Attribute] = [
+        Attribute(attr, 'GRID', attr) for attr in FAULTS_ATTRIBUTES]
 
-    Contains faults in a single tree structure, faults attributes
-    and preprocessing actions.
+    def __init__(self, **kwargs):
+        root = FaultsNode(name='FIELD', is_group=True)
+        super().__init__(root=root, **kwargs)
 
-    Parameters
-    ----------
-    node : FaultSegment, optional
-        Root node for fault's tree.
-    """
+    def build_tree(self):
+        """Build tree from component's data."""
+        if 'FAULTS' in self:
+            faults = self.faults
+        else:
+            return self
 
-    def __init__(self, node=None, **kwargs):
-        super().__init__(node=node, **kwargs)
+        for name in faults.NAME.unique():
+            FaultsNode(parent=self.root, name=name, key='NAME')
 
-    def update(self, data, mode='w', **kwargs):
-        """Update tree nodes with new faultsdata. If fault does not exists,
-        it will be attached to root.
-
-        Parameters
-        ----------
-        data : dict
-            Keys are fault names, values are dicts with fault attributes.
-        mode : str, optional
-            If 'w', write new data. If 'a', try to append new data. Default to 'w'.
-        kwargs : misc
-            Any additional named arguments to append.
-
-        Returns
-        -------
-        out : Faults
-            Faults with updated attributes.
-        """
-        def _get_parent(name):
-            if ':' in name:
-                return self[':'.join(name.split(':')[:-1])]
-            return self.root
-
-        for name in sorted(data):
-            fdata = data[name]
-            name = name.strip(' \t\'"')
-            try:
-                segment = self[name]
-            except KeyError:
-                parent = _get_parent(name)
-                segment = self._nodeclass(parent=parent, name=name, ntype='fault')
-
-            for k, v in fdata.items():
-                if mode == 'w':
-                    setattr(segment, k, v)
-                elif mode == 'a':
-                    if k in segment.attributes:
-                        att = getattr(segment, k)
-                        setattr(segment, k, pd.concat([att, v], **kwargs))
-                    else:
-                        setattr(segment, k, v)
-                else:
-                    raise ValueError("Unknown mode {}. Expected 'w' (write) or 'a' (append)".format(mode))
         return self
 
     @apply_to_each_node
     def get_blocks(self, segment, **kwargs):
-        """Calculate grid blocks for the tree of faults.
-
-        Parameters
-        ----------
-        segment : class instance
-            FaultSegment class.
-        kwargs : misc
-            Any additional named arguments to append.
-
-        Returns
-        -------
-        comp : faults
-            faults component with calculated grid blocks and fault in block projections.
-        """
+        """Calculate grid blocks for the tree of faults."""
         _ = kwargs
         blocks_fault = []
         xyz_fault = []
         grid = self.field.grid
-        for idx in segment.faults.index:
-            cells = segment.faults.loc[idx, ['IX1', 'IX2', 'IY1', 'IY2', 'IZ1', 'IZ2', 'FACE']]
-            x_range = range(cells['IX1']-1, cells['IX2'])
-            y_range = range(cells['IY1']-1, cells['IY2'])
-            z_range = range(cells['IZ1']-1, cells['IZ2'])
+        for _, cells in segment.faults.iterrows():
+            x_range = range(cells['I1']-1, cells['I2'])
+            y_range = range(cells['J1']-1, cells['J2'])
+            z_range = range(cells['K1']-1, cells['K2'])
             blocks_segment = np.array(list(product(x_range, y_range, z_range)))
             xyz_segment = grid.get_xyz(blocks_segment)[:, FACES[cells['FACE']]]
             blocks_fault.extend(blocks_segment)
