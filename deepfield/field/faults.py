@@ -3,8 +3,7 @@ from itertools import product
 import numpy as np
 
 from .base_component import Attribute
-from .base_tree_node import BaseTreeNode
-from .base_tree import BaseTree
+from .base_tree import BaseTree, BaseTreeNode
 
 from .utils.decorators import apply_to_each_node
 
@@ -13,7 +12,7 @@ FACES = {'X': [1, 3, 5, 7], 'Y': [2, 3, 6, 7], 'Z': [4, 5, 6, 7]}
 class FaultsNode(BaseTreeNode):
     """Faults node."""
 
-FAULTS_ATTRIBUTES = ['FAULTS']
+FAULTS_ATTRIBUTES = ['FAULTS', 'MULTFLT']
 
 class Faults(BaseTree):
     """Faults component."""

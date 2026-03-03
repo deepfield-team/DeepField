@@ -1,11 +1,7 @@
 """Miscellaneous utils."""
-import glob
-import os
 from pathlib import Path
-import re
 import subprocess
 import signal
-import fnmatch
 from contextlib import contextmanager
 import numpy as np
 import psutil

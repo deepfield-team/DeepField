@@ -9,8 +9,7 @@ from .base_spatial import SpatialComponent
 from .base_component import Attribute
 from .utils.decorators import cached_property, apply_to_each_input
 from .utils.grid_utils import (fill_missing_actnum, get_xyz, get_xyz_ijk, get_xyz_ijk_orth,
-                               process_grid, process_grid_orthogonal)
-from .utils.binary_utils import gridhead_to_dimens
+                               process_grid, process_grid_orthogonal, gridhead_to_dimens)
 
 GRID_ATTRIBUTES = ['DX', 'DY', 'DZ', 'DXV', 'DYV', 'DZV', 'TOPS', 'MAPAXES']
 

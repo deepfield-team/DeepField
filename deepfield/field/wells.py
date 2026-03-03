@@ -13,8 +13,7 @@ import ipywidgets as widgets
 import resdp
 import resdp.binary
 
-from .base_tree import BaseTree
-from .base_tree_node import BaseTreeNode
+from .base_tree import BaseTree, BaseTreeNode
 from .base_component import Attribute, T
 from .grids import OrthogonalGrid
 
@@ -23,6 +22,10 @@ from .utils.grid_raycasting import get_wellblocks_vtk, get_wellblocks_compdat
 from .utils.decorators import apply_to_each_node
 
 INT_NAN = -99999999
+
+class WellsNode(BaseTreeNode):
+    """Well's node."""
+
 
 class WellScheduleAttribute(Attribute[T]):
     """Well schedule attribute."""
@@ -77,10 +80,6 @@ class WellScheduleAttribute(Attribute[T]):
         else:
             self._value = pd.concat(res)
         return self
-
-
-class WellsNode(BaseTreeNode):
-    """Well's node."""
 
 
 SIMPLE_SCHEDULE = ['WELSPECS', 'WELSPECL']
