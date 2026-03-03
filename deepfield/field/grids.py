@@ -12,7 +12,7 @@ from .utils.grid_utils import (fill_missing_actnum, get_xyz, get_xyz_ijk, get_xy
                                process_grid, process_grid_orthogonal)
 from .utils.binary_utils import gridhead_to_dimens
 
-SIMPLE_ATTRIBUTES = ['DX', 'DY', 'DZ', 'DXV', 'DYV', 'DZV', 'TOPS', 'MAPAXES']
+GRID_ATTRIBUTES = ['DX', 'DY', 'DZ', 'DXV', 'DYV', 'DZV', 'TOPS', 'MAPAXES']
 
 class Grid(SpatialComponent):
     """Basic grid class."""
@@ -45,7 +45,7 @@ class Grid(SpatialComponent):
             binary_file='EGRID',
             binary_section='COORD'
         )] +
-       [Attribute(kw=attr, section='GRID') for attr in SIMPLE_ATTRIBUTES])
+       [Attribute(kw=attr, section='GRID') for attr in GRID_ATTRIBUTES])
 
 
     def __init__(self, *args, **kwargs):

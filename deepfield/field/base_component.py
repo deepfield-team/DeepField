@@ -217,6 +217,9 @@ class Attribute(Generic[T]):
             for entry in data[self._section]:
                 if entry[0] == self._kw:
                     self._value = entry[1]
+                    if self._sequential:
+                        print(self.name, self._value)
+                        self._value = np.array(self._value)[np.newaxis, :]
                     return self
         self._value = self._not_present
         return self

@@ -10,13 +10,13 @@ from .utils.decorators import apply_to_each_input
 from .utils.plot_utils import show_slice_static, show_slice_interactive
 
 
-_ROCK_ATTRIBUTES = ['PORO', 'PERMX', 'PERMY', 'PERMZ', 'KRW']
+ROCK_ATTRIBUTES = ['PORO', 'PERMX', 'PERMY', 'PERMZ', 'KRW']
 
 
 class Rock(SpatialComponent):
     """Rock component."""
     _attributes_to_load: list[Attribute] = [
-        Attribute(attr, 'GRID', attr, binary_file='INIT', binary_section=attr) for attr in _ROCK_ATTRIBUTES]
+        Attribute(attr, 'GRID', attr, binary_file='INIT', binary_section=attr) for attr in ROCK_ATTRIBUTES]
 
     @override
     @apply_to_each_input

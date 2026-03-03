@@ -30,7 +30,7 @@ class TestModelLoad:
         assert set(model.components).issubset({'grid', 'rock', 'states', 'tables', 'wells', 'faults'})
         assert set(model.grid.attributes) == {'DIMENS', 'ZCORN', 'COORD', 'ACTNUM'}
         assert set(model.rock.attributes) == {'PORO', }
-        # assert set(model.states.attributes) == {'PRESSURE', }
+        assert set(model.states.attributes) == {'PRESSURE', }
         assert set(model.wells.attributes) == {'WELLTRACK', 'WELSPECS'}
         assert len(model.wells.names) == len(TEST_WELLS)
 
@@ -43,7 +43,7 @@ class TestModelLoad:
         assert model.grid.zcorn.shape == dimens + (8, )
         assert np.all(model.grid.coord.shape == np.array([dimens[0] + 1, dimens[1] + 1, 6]))
         assert model.rock.poro.shape == dimens
-        # assert model.states.pressure.shape[1:] == dimens
+        assert model.states.pressure.shape[1:] == dimens
 
     def test_blocks(self, model):
         """Testing wellblocks."""

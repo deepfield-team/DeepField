@@ -7,13 +7,14 @@ from .base_component import Attribute
 from .utils.decorators import apply_to_each_input
 from .utils.plot_utils import show_slice_static, show_slice_interactive
 
-FULL_STATE_KEYS = ['PRESSURE', 'RS', 'SGAS', 'SOIL', 'SWAT']
+STATE_ATTRIBUTES = ['PRESSURE', 'RS', 'SGAS', 'SOIL', 'SWAT']
 
 
 class States(SpatialComponent):
     """States component."""
     _attributes_to_load: list[Attribute] = [
-        Attribute(attr, binary_file='UNRST', binary_section=attr, sequential=True) for attr in FULL_STATE_KEYS]
+        Attribute(attr, 'SOLUTION', attr, binary_file='UNRST', binary_section=attr, sequential=True) for attr
+            in STATE_ATTRIBUTES]
 
     @property
     def n_timesteps(self):
