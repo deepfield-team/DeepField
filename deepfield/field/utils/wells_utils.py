@@ -1,17 +1,39 @@
+"""Wells utils."""
 import logging
 from collections.abc import Iterable
 from typing import cast
 import warnings
 from numpy.typing import NDArray
 import numpy as np
-import resdp
-import resdp.binary
 import pandas as pd
 
+import resdp
+import resdp.binary
+from resdp import DataType
+
+
+def load_welltrack(data: DataType, binary_data: resdp.binary.BinaryData, logger: logging.Logger) -> pd.DataFrame | None:
+    """Load welltrack."""
+    _ = binary_data, logger
+    section = 'SCHEDULE'
+    res: list[pd.DataFrame] = []
+    if not section in data:
+        return None
+    for key, val in data[section]:
+        if key == 'WELLTRACK':
+            assert isinstance(val, tuple)
+            assert len(val) == 2
+            assert isinstance(val[0], str)
+            assert isinstance(val[1], pd.DataFrame)
+            res.append(cast(pd.DataFrame, val[1]).assign(WELL=cast(str, val[0])))
+    if not res:
+        return None
+    return pd.concat(res)
 
 def load_results(_data: resdp.DataType,
                  binary_data: resdp.binary.BinaryData | None,
                  logger: logging.Logger) -> pd.DataFrame | None:
+    """Load results."""
     _ = _data, logger
     if binary_data is None:
         return None

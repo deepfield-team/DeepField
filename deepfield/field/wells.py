@@ -18,8 +18,7 @@ from .base_tree_node import BaseTreeNode
 from .base_component import Attribute, T
 from .grids import OrthogonalGrid
 
-from .utils.load_welltrack import load_welltrack
-from .utils.load_results import load_results
+from .utils.wells_utils import load_results, load_welltrack
 from .utils.grid_raycasting import get_wellblocks_vtk, get_wellblocks_compdat
 from .utils.decorators import apply_to_each_node
 

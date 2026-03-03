@@ -316,7 +316,7 @@ def make_patch_spines_invisible(ax):
     for spine in ax.spines.values():
         spine.set_visible(False)
 
-    
+
 def plot_table_1d(table, figsize=None):
     """
     Plot table with 1-dimensional domain.
