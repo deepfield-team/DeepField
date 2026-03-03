@@ -103,12 +103,15 @@ class Wells(BaseTree):
         else:
             return self
 
-        groups = {}
+        groups = {'FIELD': self.root}
         for name in welspecs.GROUP.unique():
+            if name in [None, 'FIELD']:
+                continue
             groups[name] = WellSegment(parent=self.root, name=name, is_group=True)
 
         for _, row in welspecs.iterrows():
-            WellSegment(parent=groups[row.GROUP], name=row.WELL, key='WELL')
+            group = 'FIELD' if row.GROUP is None else row.GROUP
+            WellSegment(parent=groups[group], name=row.WELL, key='WELL')
 
         return self
 
@@ -204,7 +207,7 @@ class Wells(BaseTree):
             segment.blocks_info = pd.DataFrame(h_well, columns=['Hx', 'Hy', 'Hz'])
 
         else:
-            blocks, points, mds = get_wellblocks_vtk(segment.welltrack, grid)
+            blocks, points, mds = get_wellblocks_vtk(segment.welltrack[['X', 'Y', 'Z', 'MD']].values, grid)
 
             segment.blocks = blocks
             h_well = abs(points[:, 1] - points[:, 0])

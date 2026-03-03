@@ -153,13 +153,13 @@ class Grid(SpatialComponent):
     def id_to_ijk(self, idx):
         """Convert raveled positional index of active cell to ijk."""
         idx = self.actnum_ids[np.asarray(idx)]
-        return np.stack(np.unravel_index(idx, self.dimens), axis=-1)
+        return np.stack(np.unravel_index(idx, self.dimens.values.ravel()), axis=-1)
 
     def ijk_to_id(self, ijk):
         """Convert ijk index of active cell to raveled positional index."""
         ids = []
         ijk = np.asarray(ijk).reshape(-1, 3)
-        raveled = np.ravel_multi_index(ijk.T, self.dimens)
+        raveled = np.ravel_multi_index(ijk.T, self.dimens.values.ravel())
         for i, n in enumerate(raveled):
             try:
                 ids.append(np.where(self.actnum_ids == n)[0][0])
@@ -234,7 +234,7 @@ class Grid(SpatialComponent):
         """Spatial order 'F' transformations."""
         _ = kwargs
         data = getattr(self, attr)
-        dimens_vals = self.dimens.values.reshape(-1)
+        dimens_vals = self.dimens.values.ravel()
         if isinstance(data, np.ndarray) and data.ndim == 1:
             if attr in ['ACTNUM', 'DX', 'DY', 'DZ']:
                 data = data.reshape(dimens_vals, order='F')
@@ -268,7 +268,7 @@ class Grid(SpatialComponent):
         elif attr == 'COORD':
             data = data.reshape((-1, 6), order='F').ravel()
         elif attr == 'ZCORN':
-            nx, ny, nz = self.dimens
+            nx, ny, nz = self.dimens.values.ravel()
             data = data.reshape((nx, ny, nz, 2, 2, 2), order='F')
             data = np.moveaxis(data, (3, 0, 4, 1, 5, 2), range(6)).ravel(order='F')
         else:
@@ -383,7 +383,7 @@ class CornerPointGrid(Grid):
     def get_xyz(self, ijk=None):
         "Get x, y, z coordinates of cell vertices."
         if ijk is None:
-            return get_xyz(self.dimens, self.zcorn, self.coord)
+            return get_xyz(self.dimens.values.ravel(), self.zcorn, self.coord)
         return get_xyz_ijk(self.zcorn, self.coord, ijk)
 
     def get_points_and_coonectivity(self):
