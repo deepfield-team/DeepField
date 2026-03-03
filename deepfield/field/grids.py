@@ -1,4 +1,4 @@
-"""Classes and routines for handling model grids."""
+"""Grid component."""
 from typing import override
 import numpy as np
 import pandas as pd

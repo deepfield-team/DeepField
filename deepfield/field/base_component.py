@@ -1,4 +1,4 @@
-"""BaseCompoment."""
+"""Base compoment."""
 from __future__ import annotations
 from typing import TYPE_CHECKING, Callable, Generic, Self, TypeVar, Sequence, TypeAlias, override
 from copy import deepcopy

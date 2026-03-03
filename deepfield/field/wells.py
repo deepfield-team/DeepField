@@ -1,4 +1,4 @@
-"""Wells components."""
+"""Wells component."""
 from __future__ import annotations
 import logging
 from typing import Self, cast, override

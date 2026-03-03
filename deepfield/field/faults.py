@@ -1,4 +1,4 @@
-"""Faults components."""
+"""Faults component."""
 from itertools import product
 import numpy as np
 

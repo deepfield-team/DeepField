@@ -1,4 +1,4 @@
-"""SpatialComponent class."""
+"""Base spatial component."""
 from typing import override
 import numpy as np
 

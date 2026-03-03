@@ -102,4 +102,3 @@ def load_results(_data: resdp.DataType,
                     raise ValueError(f'Several values for keyword `{kw}` and well `{wn}`.')
                 df.loc[df['WELL']==wn, kw] = data_array[:, ind]
     return df
-

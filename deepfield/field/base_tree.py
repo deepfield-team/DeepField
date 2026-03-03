@@ -1,4 +1,4 @@
-"""BaseTree components."""
+"""Base tree component."""
 from typing import Self
 from weakref import ref
 import pandas as pd
