@@ -1,30 +1,41 @@
 """Load faults."""
-from .parse_utils.ascii import parse_eclipse_keyword
+import logging
+from typing import cast
+from resdp import DataType
+from resdp.binary import BinaryData
+import pandas as pd
 
-def _load_table(faults, attribute, columns, column_types, buffer, **kwargs):
-    _ = kwargs
-    df = parse_eclipse_keyword(buffer, columns, column_types)
-    if not df.empty:
-        faultsdata = {k: {attribute : v.reset_index(drop=True)} for k, v in df.groupby('NAME')}
-        faults.update(faultsdata, mode='a', ignore_index=True)
-    return faults
+def load_faults(data: DataType, binary_data: BinaryData, logger: logging.Logger) -> pd.DataFrame | None:
+    _ = binary_data, logger
+    section = 'GRID'
+    res: list[pd.DataFrame] = []
+    if not section in data:
+        return None
+    for key, val in data[section]:
+        if key == 'FAULTS':
+            assert isinstance(val, tuple)
+            assert len(val) == 2
+            assert isinstance(val[0], str)
+            assert isinstance(val[1], pd.DataFrame)
+            res.append(cast(pd.DataFrame, val[1]).assign(WELL=cast(str, val[0])))
+    if not res:
+        return None
+    return pd.concat(res)
 
-def load_faults(faults, buffer, **kwargs):
-    """Partial load FAULTS table."""
-    columns = ['NAME', 'IX1', 'IX2', 'IY1', 'IY2', 'IZ1', 'IZ2', 'FACE']
-    column_types = {
-        'text': [columns[0], columns[-1]],
-        'int': columns[1:-1]
-    }
-    attribute = 'FAULTS'
-    return _load_table(faults, attribute, columns, column_types, buffer, **kwargs)
+def load_multflt(data: DataType, binary_data: BinaryData, logger: logging.Logger) -> pd.DataFrame | None:
+    _ = binary_data, logger
+    section = 'GRID'
+    res: list[pd.DataFrame] = []
+    if not section in data:
+        return None
+    for key, val in data[section]:
+        if key == 'MULTFLT':
+            assert isinstance(val, tuple)
+            assert len(val) == 2
+            assert isinstance(val[0], str)
+            assert isinstance(val[1], pd.DataFrame)
+            res.append(cast(pd.DataFrame, val[1]).assign(WELL=cast(str, val[0])))
+    if not res:
+        return None
+    return pd.concat(res)
 
-def load_multflt(faults, buffer, **kwargs):
-    """Partial load MULTFLT table."""
-    columns = ['NAME', 'MULT']
-    column_types = {
-        'text': [columns[0], columns[-1]],
-        'int': columns[1:-1]
-    }
-    attribute = 'MULTFLT'
-    return _load_table(faults, attribute, columns, column_types, buffer, **kwargs)

@@ -3,7 +3,14 @@ from itertools import product
 import numpy as np
 import pandas as pd
 
+import resdp
+import resdp.binary
+
+from typing import Self
+
+
 from .base_tree import BaseTree
+from .base_component import Attribute
 from .faults_load_utils import load_faults, load_multflt
 from .decorators import apply_to_each_node
 
@@ -21,6 +28,9 @@ class Faults(BaseTree):
     node : FaultSegment, optional
         Root node for fault's tree.
     """
+
+    _attributes_to_load: list[Attribute[Self]] = [Attribute(name='FAULTS', custom_loader=load_faults), 
+                                                  Attribute(name='MULTFLT', custom_loader=load_multflt)]
 
     def __init__(self, node=None, **kwargs):
         super().__init__(node=node, **kwargs)
