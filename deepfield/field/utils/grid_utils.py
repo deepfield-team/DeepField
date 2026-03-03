@@ -180,14 +180,14 @@ def process_grid_orthogonal(tops, dx, dy, dz, actnum):
         raise ValueError('All `dx` values should be the same.')
     if not (dy == dy[0, 0, 0]).all():
         raise ValueError('All `dy` values should be the same.')
-    if not (dz == dz[0, 0, 0]).all():
-        raise ValueError('All `dz` values should be the same.')
-    if not (tops[:, :, 1:] == tops[:, :, 0:1] + np.cumsum(dz, axis=2)[:, :, :-1]).all():
+    if not (dz == dz[0, 0, :]).all():
+        raise ValueError('All `dz` values within each layer should be the same.')
+    if not (tops[:, :, 1:] == tops[:, :, :1] + np.cumsum(dz, axis=2)[:, :, :-1]).all():
         raise ValueError('`tops` should be consistent with dz.')
     points = np.zeros((nx+1, ny+1, nz+1, 3), dtype=float)
     points[:, :, :, 0] = np.linspace(0, dx[0, 0, 0]*nx, (nx+1))[:, np.newaxis, np.newaxis]
     points[:, :, :, 1] = np.linspace(0, dy[0, 0, 0]*ny, (ny+1))[np.newaxis, :, np.newaxis]
-    points[:, :, :, 2] = tops[0, 0, 0] + np.linspace(0, dz[0, 0, 0]*nz, (nz+1))[np.newaxis, np.newaxis, :]
+    points[:, :, :, 2] = np.hstack([tops[0, 0, :1], tops[0, 0, 0] + np.cumsum(dz[0, 0, :])])[np.newaxis, np.newaxis, :]
     points = points.reshape((-1, 3), order='F')
     connectivity[:, :, :, [2, 3]] = connectivity[:, :, :, [3, 2]]
     connectivity[:, :, :, [6, 7]] = connectivity[:, :, :, [7, 6]]
@@ -414,3 +414,9 @@ def get_xyz_ijk_orth(dx, dy, dz, tops, origin, ijk):
         xyz[p, :4, 2] = tops[i, j, k]
         xyz[p, 4:, 2] = tops[i, j, k] + dz[i, j, k]
     return xyz
+
+def fill_missing_actnum(attr):
+    """Create actnum attribute if it is missing."""
+    if attr.component.actnum is not None:
+        return
+    attr.value = np.full(attr.component.dimens.values.ravel(), True)

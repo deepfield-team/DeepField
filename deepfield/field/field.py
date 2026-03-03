@@ -103,6 +103,11 @@ class Field:
         """Model components."""
         return tuple(self._components.keys())
 
+    @property
+    def logger(self):
+        "Logger."
+        return self._logger
+
     def items(self):
         """Returns pairs of components's names and instance."""
         return self._components.items()
@@ -121,7 +126,7 @@ class Field:
             Field with loaded components.
         """
         if self.path is None:
-            raise ValueError('Path to the model is not defined.')
+            raise ValueError('Path to the reservoir model is not specified.')
 
         name = os.path.basename(self.path)
         fmt = os.path.splitext(name)[1].strip('.')

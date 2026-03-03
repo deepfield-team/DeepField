@@ -1,6 +1,6 @@
 """BaseCompoment."""
 from __future__ import annotations
-from typing import TYPE_CHECKING, Callable, Generic, Self, TypeVar, Sequence, TypeAlias, TypedDict, override
+from typing import TYPE_CHECKING, Callable, Generic, Self, TypeVar, Sequence, TypeAlias, override
 from copy import deepcopy
 import logging
 import warnings
@@ -26,14 +26,14 @@ class BaseComponent:
     _attributes_to_load: list[Attribute[Self]] = []
     def __init__(self, data=None, field=None):
         self._field = None
+        self._attributes: list[Attribute] = []
+        self._binary_attributes = []
         if data is not None:
             self._attributes = data['attributes']
-            self.field = data['field']
             for att in self._attributes:
                 att.component = self
-        else:
-            self._attributes: list[Attribute] = []
-            self._binary_attributes = []
+            self._binary_attributes = data['binary_attributes']
+        if field is not None:
             self.field = field
 
     @property
@@ -72,9 +72,9 @@ class BaseComponent:
                 return attr.value
         raise AttributeError(f"{self.__class__.__name__} has no attribute {key}")
 
-    def data_dict(self) -> DataDict[Self]:
+    def data_dict(self):
         """Create dict from attributes."""
-        return {'attributes': deepcopy(self._attributes), 'field': self.field}
+        return {'attributes': deepcopy(self._attributes), 'binary_attributes': self.binary_attributes.copy()}
 
     def __setattr__(self, key, value):
         if (key[0] == '_') or (key in dir(self)):
@@ -233,8 +233,6 @@ class Attribute(Generic[T]):
         file_data = binary_data[self._binary_file]
         if self._binary_section is None:
             raise ValueError('`binary_file is specified but not `binary_section`.')
-        pos = file_data.tell()
-        file_data.seek(0)
         if self._sequential:
             val = []
             while True:
@@ -251,7 +249,6 @@ class Attribute(Generic[T]):
             if i is None:
                 return None
             val = file_data[i].value
-        file_data.seek(pos)
         if self._binary_process is not None:
             return self._binary_process(val)
         return val
@@ -285,8 +282,3 @@ class Attribute(Generic[T]):
             self._component = value
         else:
             self._component = ref(value)
-
-class DataDict(TypedDict, Generic[T]):
-    """Data dict type."""
-    attributes: Sequence[Attribute[T]]
-    field: Field | None

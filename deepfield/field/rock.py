@@ -18,10 +18,6 @@ class Rock(SpatialComponent):
     _attributes_to_load: list[Attribute] = [
         Attribute(attr, 'GRID', attr, binary_file='INIT', binary_section=attr) for attr in _ROCK_ATTRIBUTES]
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.to_spatial()
-
     @override
     @apply_to_each_input
     def to_spatial(self, attr, **kwargs):
@@ -49,7 +45,8 @@ class Rock(SpatialComponent):
         output : component if inplace else padded attribute.
         """
         data = getattr(self, attr)
-        if np.prod(data.shape) == np.prod(self.field.grid.dimens.values):
+        dimens = self.field.grid.dimens.values.ravel()
+        if np.prod(data.shape) == np.prod(dimens):
             return self if inplace else data
 
         actnum = self.field.grid.actnum

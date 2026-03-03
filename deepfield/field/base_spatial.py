@@ -7,8 +7,6 @@ from .utils.decorators import apply_to_each_input
 
 class SpatialComponent(BaseComponent):
     """Base component for spatial-type attributes."""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
     @apply_to_each_input
     def reshape(self, attr, newshape, order='C', inplace=True):

@@ -8,7 +8,7 @@ from vtkmodules.util.numpy_support import vtk_to_numpy
 from .base_spatial import SpatialComponent
 from .base_component import Attribute
 from .utils.decorators import cached_property, apply_to_each_input
-from .utils.grid_utils import (get_xyz, get_xyz_ijk, get_xyz_ijk_orth,
+from .utils.grid_utils import (fill_missing_actnum, get_xyz, get_xyz_ijk, get_xyz_ijk_orth,
                                process_grid, process_grid_orthogonal)
 from .utils.binary_utils import gridhead_to_dimens
 
@@ -30,7 +30,8 @@ class Grid(SpatialComponent):
             section='GRID',
             binary_file='EGRID',
             binary_section='ACTNUM',
-            binary_process=lambda val: val.astype(bool)
+            binary_process=lambda val: val.astype(bool),
+            postprocess=fill_missing_actnum
         ),
         Attribute(
             kw='ZCORN',
@@ -52,7 +53,6 @@ class Grid(SpatialComponent):
         self._vtk_grid = vtk.vtkUnstructuredGrid()
         self._vtk_locator = None
         self._actnum_ids = None
-        self.to_spatial()
 
     @property
     def dx_(self):
@@ -272,7 +272,7 @@ class Grid(SpatialComponent):
             data = data.reshape((nx, ny, nz, 2, 2, 2), order='F')
             data = np.moveaxis(data, (3, 0, 4, 1, 5, 2), range(6)).ravel(order='F')
         else:
-            data = super()._ravel(attr=attr, order='F')
+            data = super().ravel(attr=attr, order='F')
         return data
 
 
@@ -284,12 +284,12 @@ class OrthogonalGrid(Grid):
         if 'TOPS' not in self and 'DZ' in self:
             tops = np.zeros(self.dimens.values.rave())
             tops[..., 1:] = np.cumsum(self.dz_, axis=-1)[..., :-1]
-            setattr(self, 'TOPS', tops)
+            self.tops = tops
         elif self.tops.ndim == 2 and 'DZ' in self:
             tops = np.zeros(self.dimens.values.ravel())
             tops[..., 1:] = np.cumsum(self.dz_, axis=-1)[..., :-1]
             tops += self.tops[:, :, None]
-            setattr(self, 'TOPS', tops)
+            self.tops = tops
 
     def get_xyz(self, ijk=None):
         """Get x, y, z coordinates of cell vertices."""
@@ -313,7 +313,9 @@ class OrthogonalGrid(Grid):
         """Get points and connectivity arrays."""
         try:
             return process_grid_orthogonal(self.tops, self.dx_, self.dy_, self.dz_, self.actnum)
-        except ValueError:
+        except Exception as err: #pylint: disable=broad-exception-caught
+            msg = "Failed to process grid as orthogonal: " + str(err) + " Trying to use corner-point representation."
+            self.field.logger.warn(msg)
             grid = self.to_corner_point()
             return grid.get_points_and_coonectivity()
 
@@ -351,9 +353,10 @@ class OrthogonalGrid(Grid):
                                      self.dz_.ravel(order='F'), 4).reshape(nz, -1)]).reshape(2*nz, -1)
         zcorn = zcorn.ravel()
 
-        grid = CornerPointGrid(dump=self.dump_dict())
+        grid = CornerPointGrid(data=self.data_dict(), field=self.field)
         grid.zcorn = zcorn #pylint: disable=attribute-defined-outside-init
         grid.coord = coord #pylint: disable=attribute-defined-outside-init
+        grid.to_spatial(attr=['ZCORN', 'COORD'], inplace=True)
 
         grid.create_vtk_grid()
         return grid
@@ -411,7 +414,7 @@ class CornerPointGrid(Grid):
         new_basis = np.vstack((self.ex, self.ey)).T
         self.coord[:, :, :2] = self.coord[:, :, :2].dot(new_basis) + self.origin[:2]
         self.coord[:, :, 3:5] = self.coord[:, :, 3:5].dot(new_basis) + self.origin[:2]
-        setattr(self, 'MAPAXES', np.array([0, 1, 0, 0, 1, 0]))
+        self.mapaxes = np.array([0, 1, 0, 0, 1, 0]) #pylint: disable=attribute-defined-outside-init
         return self
 
 def specify_grid(grid: Grid):
@@ -429,7 +432,7 @@ def specify_grid(grid: Grid):
     """
     if not isinstance(grid, (CornerPointGrid, OrthogonalGrid)):
         if (grid.dx_ is not None) and (grid.dy_ is not None) and (grid.dz_ is not None):
-            grid = OrthogonalGrid(data=grid.data_dict())
+            grid = OrthogonalGrid(data=grid.data_dict(), field=grid.field)
         else:
-            grid = CornerPointGrid(data=grid.data_dict())
+            grid = CornerPointGrid(data=grid.data_dict(), field=grid.field)
     return grid
